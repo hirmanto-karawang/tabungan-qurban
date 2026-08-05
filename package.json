@@ -1,0 +1,50 @@
+{
+  "name": "tabungan-qurban",
+  "version": "1.0.0",
+  "description": "Aplikasi manajemen tabungan qurban dengan offline support",
+  "main": "index.js",
+  "type": "module",
+  
+  "scripts": {
+    "dev": "python3 -m http.server 3000",
+    "build": "echo 'No build step required'",
+    "start": "python3 -m http.server 3000",
+    "preview": "python3 -m http.server 3000 --directory public",
+    "test": "echo 'Run tests here'",
+    "deploy": "vercel",
+    "deploy:prod": "vercel --prod"
+  },
+  
+  "keywords": [
+    "qurban",
+    "tabungan",
+    "pwa",
+    "offline-first",
+    "google-sheets",
+    "indonesia"
+  ],
+  
+  "author": "Your Name",
+  "license": "MIT",
+  
+  "devDependencies": {
+    "vercel": "^latest"
+  },
+  
+  "dependencies": {},
+  
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/tabungan-qurban.git"
+  },
+  
+  "bugs": {
+    "url": "https://github.com/yourusername/tabungan-qurban/issues"
+  },
+  
+  "homepage": "https://tabungan-qurban.vercel.app"
+}
