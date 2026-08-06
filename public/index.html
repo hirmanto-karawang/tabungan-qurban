@@ -2268,7 +2268,7 @@
 <script>
 // ===== CONFIG =====
 const SHEETDB_CONFIG = {
-    ENDPOINT: 'https://script.google.com/macros/s/AKfycbxUNyWQhrY-Vk63YljHghntQpBCZEY11lZV-T8eJhrGJY1AIPoqMkTGGkbSQiblKnue/exec'
+    ENDPOINT: 'https://sheetdb.io/api/v1/6ipqgxsr2smql'
 };
 
 const FONNTE_CONFIG = {
@@ -2598,7 +2598,32 @@ Admin Masjid Dhafinul Jariyah`;
 }
 
 // ===== LOGIN =====
-async function handleLogin() {
+function handleLogin() {
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value.trim();
+
+    // HARDCODED DEMO LOGIN
+    const testUsers = [
+        { id: 1, name: "Admin Masjid", username: "DQH-001", password: "6789", role: "admin" },
+        { id: 2, name: "Hirmanto", username: "Hirmanto", password: "0557", role: "member" },
+        { id: 3, name: "Rinawati", username: "Rinawati", password: "6523", role: "member" }
+    ];
+
+    if (!username || !password) {
+        showAlert("Username dan password harus diisi", "error");
+        return;
+    }
+
+    const user = testUsers.find(u => (u.username === username || u.name === username) async function handleLogin() {async function handleLogin() { u.password === password);
+
+    if (user) {
+        currentUser = { id: user.id, name: user.name, role: user.role };
+        showApp();
+        showAlert(`Selamat datang, ${user.name}!`, "success");
+    } else {
+        showAlert("Test Users: DQH-001/6789, Hirmanto/0557, Rinawati/6523", "error");
+    }
+
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value.trim();
 
