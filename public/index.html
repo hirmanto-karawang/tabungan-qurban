@@ -2444,7 +2444,11 @@ async function loadDataFromSheets() {
         bankSource: row.bankSource || '',
         accountName: row.accountName || '',
         fileUrl: row.fileUrl || '',
-        fileData: row.fileData || '',  // Base64 data URL
+        // fileData (base64 foto) SENGAJA tidak dikirim di load biasa - terlalu berat
+        // kalau dikirim tiap kali refresh. Server balikin flag hasFile saja; isi foto
+        // baru diambil on-demand via fetchSavingFileData() saat admin klik "Lihat Bukti".
+        fileData: row.fileData || '',
+        hasFile: !!row.hasFile,
         status: row.status || 'PENDING',
         uploadedAt: row.uploadedAt || '',
         approvedAt: row.approvedAt || '',
@@ -3126,7 +3130,7 @@ function loadVerifyData() {
     pending.forEach(saving => {
         const d = new Date(saving.transferDate);
         const row = pendingBody.insertRow();
-        const buktiBtn = saving.fileData
+        const buktiBtn = saving.hasFile
             ? `<button class="file-thumb-btn" onclick="showPreview(${saving.id})">📋 Lihat Bukti</button>`
             : '<small style="color:var(--brick);">Tidak ada file</small>';
         
@@ -3970,7 +3974,23 @@ Admin Masjid Dhafinul Jariyah`;
 }
 
 // ===== PREVIEW BUKTI TRANSFER =====
-function showPreview(savingsId) {
+// Ambil isi foto/file (base64) satu transaksi saja dari server, on-demand.
+// Ini sengaja TIDAK ikut di load data biasa (bootstrap) karena base64 foto
+// bisa besar dan bikin loading lambat kalau dikirim tiap kali untuk semua baris.
+async function fetchSavingFileData(savingsId) {
+    try {
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=Savings&getFile=${savingsId}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return data.fileData || '';
+    } catch (error) {
+        console.error('Error fetching file data:', error);
+        return '';
+    }
+}
+
+async function showPreview(savingsId) {
     const saving = appData.savings.find(s => s.id === savingsId);
     if (!saving) return;
 
@@ -3980,17 +4000,27 @@ function showPreview(savingsId) {
 
     title.textContent = `Bukti Transfer - ${saving.accountName} (Rp ${saving.amount.toLocaleString('id-ID')})`;
 
-    if (!saving.fileData) {
+    if (!saving.hasFile) {
         body.innerHTML = '<div class="preview-pdf"><p>📄 Tidak ada bukti file tersimpan</p></div>';
         modal.classList.add('show');
         return;
     }
 
-    const isPdf = saving.fileData.includes('application/pdf');
-    const isImage = saving.fileData.includes('image/');
+    body.innerHTML = '<div class="preview-pdf"><p>⏳ Memuat bukti...</p></div>';
+    modal.classList.add('show');
+
+    const fileData = await fetchSavingFileData(savingsId);
+
+    if (!fileData) {
+        body.innerHTML = '<div class="preview-pdf"><p>📄 Gagal memuat bukti file</p></div>';
+        return;
+    }
+
+    const isPdf = fileData.includes('application/pdf');
+    const isImage = fileData.includes('image/');
 
     if (isImage) {
-        body.innerHTML = `<img src="${saving.fileData}" class="preview-full-image" alt="Bukti transfer">`;
+        body.innerHTML = `<img src="${fileData}" class="preview-full-image" alt="Bukti transfer">`;
     } else if (isPdf) {
         body.innerHTML = `
             <div class="preview-pdf">
@@ -4001,8 +4031,6 @@ function showPreview(savingsId) {
     } else {
         body.innerHTML = `<div class="preview-pdf"><p>❓ Tipe file tidak dikenali</p></div>`;
     }
-
-    modal.classList.add('show');
 }
 
 function closePreviewModal() {
