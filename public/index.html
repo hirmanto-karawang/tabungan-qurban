@@ -2778,12 +2778,12 @@ const TAB_META = {
     laporan: { title: 'Laporan', crumb: 'Ringkasan' }
 };
 
-function switchTab(tabName) {
+async function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.sidebar-nav .tab-btn').forEach(btn => btn.classList.remove('active'));
 
     document.getElementById(tabName).classList.add('active');
-    
+
     // Highlight tombol yang aktif
     const activeBtn = document.querySelector(`.sidebar-nav .tab-btn[onclick*="'${tabName}'"]`);
     if (activeBtn) activeBtn.classList.add('active');
@@ -2796,6 +2796,14 @@ function switchTab(tabName) {
 
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('show');
+
+    // Tab-tab ini menampilkan data yang bisa berubah dari sisi lain (anggota lain
+    // upload tabungan, daftar baru, dsb). Refresh dulu dari Sheets supaya tidak
+    // menampilkan data appData yang sudah basi/stale sejak login.
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'history', 'laporan'];
+    if (needsFreshData.includes(tabName)) {
+        await loadDataFromSheets();
+    }
 
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'profile') loadProfileData();
