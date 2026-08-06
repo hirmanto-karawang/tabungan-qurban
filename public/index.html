@@ -2301,13 +2301,15 @@ async function fetchSheetDBTable(tableName) {
 
 async function appendSheetDB(tableName, record) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=append`;
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(record)
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json().catch(() => null);
+        if (result && result.error) throw new Error(result.error);
         return true;
     } catch (error) {
         console.error(`Error appending to ${tableName}:`, error);
@@ -2318,11 +2320,11 @@ async function appendSheetDB(tableName, record) {
 
 async function updateSheetDB(tableName, keyColumn, keyValue, updates) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}/${keyColumn}/${encodeURIComponent(keyValue)}?sheet=${tableName}`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=update`;
         const response = await fetch(url, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: updates })
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ keyColumn, keyValue, updates })
         });
         if (!response.ok) {
             console.error(`Update ${tableName} gagal: HTTP ${response.status}`);
