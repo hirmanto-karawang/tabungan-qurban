@@ -2598,7 +2598,7 @@ Admin Masjid Dhafinul Jariyah`;
 }
 
 // ===== LOGIN =====
-function handleLogin() {
+async function handleLogin() {
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value.trim();
 
@@ -2607,24 +2607,46 @@ function handleLogin() {
         return;
     }
 
-    // HARDCODED DEMO LOGIN (sementara, sebelum API diperbaiki)
-    const testUsers = [
-        { id: 1, name: 'Admin Masjid', username: 'DQH-001', password: '6789', phone: '089604697415', role: 'admin' },
-        { id: 11, name: 'Hirmanto', username: 'Hirmanto', password: '0557', phone: '088296750557', role: 'member' },
-        { id: 12, name: 'Rinawati', username: 'Rinawati', password: '6523', phone: '089625736523', role: 'member' }
-    ];
+    showAlert('Memuat data...', 'info');
 
-    const user = testUsers.find(u =>
-        (u.username === username || u.name === username) && u.password === password
+    // Load data asli dari Google Sheets (via Apps Script)
+    if (appData.members.length === 0) {
+        await loadDataFromSheets();
+    }
+
+    // Cocokkan dengan ID (angka) atau nama, password harus sama persis (termasuk angka 0 di depan)
+    const member = appData.members.find(m =>
+        (String(m.id) === username || String(m.name) === username) &&
+        String(m.password) === password
     );
 
-    if (user) {
-        currentUser = { id: user.id, name: user.name, phone: user.phone, role: user.role };
+    if (member) {
+        currentUser = {
+            id: member.id,
+            name: member.name,
+            phone: member.phone,
+            role: (Number(member.id) === 1) ? 'admin' : 'member'
+        };
         showApp();
-        showAlert(`Selamat datang, ${user.name}!`, 'success');
-    } else {
-        showAlert('Username atau password salah', 'error');
+        showAlert(`Selamat datang, ${member.name}!`, 'success');
+        return;
     }
+
+    // Fallback demo login, jaga-jaga kalau Google Sheets API sedang bermasalah
+    const testUsers = [
+        { id: 1, name: 'Admin Masjid', username: 'DQH-001', password: '6789', phone: '089604697415', role: 'admin' }
+    ];
+    const demoUser = testUsers.find(u =>
+        (u.username === username || u.name === username) && u.password === password
+    );
+    if (demoUser) {
+        currentUser = { id: demoUser.id, name: demoUser.name, phone: demoUser.phone, role: demoUser.role };
+        showApp();
+        showAlert(`Selamat datang, ${demoUser.name}! (mode demo)`, 'success');
+        return;
+    }
+
+    showAlert('Username/ID atau password salah', 'error');
 }
 
 function logout() {
