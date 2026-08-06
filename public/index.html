@@ -4301,7 +4301,7 @@ async function approveCandidate(pendaftaranId) {
 
     // ✅ PENTING: REFRESH DATA DARI SHEETS AGAR NOMOR URUTAN AKURAT
     // Ini memastikan appData.members sudah ter-update dengan data terbaru
-    await loadData();
+    await loadDataFromSheets();
 
     // 2. Generate auto ID (per sapi logic)
     const idInfo = generateAutoID();
