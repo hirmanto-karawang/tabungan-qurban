@@ -2293,13 +2293,32 @@ let appData = {
 let currentUser = null;
 
 // ===== SHEETDB API =====
+// Google Sheets kadang menyimpan kolom nomor HP sebagai angka (bukan teks),
+// sehingga angka 0 di depan (misal 089...) hilang jadi 89.... Fungsi ini
+// mengembalikan nomor sebagai string dan mengembalikan 0 di depan kalau hilang,
+// supaya .slice()/.startsWith() dan pengiriman WA tidak error/salah kirim.
+function normalizePhone(phone) {
+    let s = String(phone === undefined || phone === null ? '' : phone).trim();
+    if (s && !s.startsWith('0') && !s.startsWith('+') && s.startsWith('8')) {
+        s = '0' + s;
+    }
+    return s;
+}
+
 async function fetchSheetDBTable(tableName) {
     try {
         const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        return data || [];
+        const rows = data || [];
+        // Normalisasi kolom phone di semua baris (kalau ada)
+        rows.forEach(row => {
+            if (row && Object.prototype.hasOwnProperty.call(row, 'phone')) {
+                row.phone = normalizePhone(row.phone);
+            }
+        });
+        return rows;
     } catch (error) {
         console.error(`Error fetching ${tableName}:`, error);
         return [];
