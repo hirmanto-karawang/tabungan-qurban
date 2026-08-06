@@ -2292,6 +2292,20 @@ let appData = {
 
 let currentUser = null;
 let lastDataLoadTime = 0; // timestamp load terakhir, buat throttle refresh saat pindah tab
+let dataLoadPromise = null; // supaya tidak ada 2 fetch bootstrap jalan bersamaan
+
+// Pastikan data ter-load, tapi hindari fetch dobel kalau sudah ada yang jalan
+// atau data masih segar (<5 detik). Dipakai baik oleh prefetch saat halaman
+// dibuka maupun oleh handleLogin/switchTab, supaya keduanya berbagi 1 request
+// yang sama alih-alih masing-masing fetch sendiri-sendiri.
+function ensureDataLoaded() {
+    const isFresh = appData.members.length > 0 && (Date.now() - lastDataLoadTime) < 5000;
+    if (isFresh) return Promise.resolve();
+    if (!dataLoadPromise) {
+        dataLoadPromise = loadDataFromSheets().finally(() => { dataLoadPromise = null; });
+    }
+    return dataLoadPromise;
+}
 
 // ===== SHEETDB API =====
 // Google Sheets kadang menyimpan kolom nomor HP sebagai angka (bukan teks),
@@ -2669,12 +2683,12 @@ async function handleLogin() {
         return;
     }
 
-    showAlert('Memuat data...', 'info');
-
-    // Load data asli dari Google Sheets (via Apps Script)
+    // Data biasanya sudah di-prefetch di background sejak halaman dibuka,
+    // jadi ini seringnya langsung selesai instan (tinggal pakai hasil prefetch).
     if (appData.members.length === 0) {
-        await loadDataFromSheets();
+        showAlert('Memuat data...', 'info');
     }
+    await ensureDataLoaded();
 
     // Cocokkan dengan ID (angka) atau nama, password harus sama persis (termasuk angka 0 di depan)
     const member = appData.members.find(m =>
@@ -2830,14 +2844,12 @@ async function switchTab(tabName) {
     document.getElementById('sidebarOverlay').classList.remove('show');
 
     // Tab-tab ini menampilkan data yang bisa berubah dari sisi lain (anggota lain
-    // upload tabungan, daftar baru, dsb). Refresh dari Sheets supaya tidak
-    // menampilkan data appData yang basi/stale. TAPI: kalau baru saja di-refresh
-    // (<5 detik lalu, misal user pindah2 tab dengan cepat), skip supaya terasa
-    // instan - server juga sudah punya cache 12 detik jadi tetap aman/cepat.
+    // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
+    // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
+    // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
     const needsFreshData = ['dashboard', 'verify', 'approval', 'history', 'laporan'];
-    const dataIsFreshEnough = (Date.now() - lastDataLoadTime) < 5000;
-    if (needsFreshData.includes(tabName) && !dataIsFreshEnough) {
-        await loadDataFromSheets();
+    if (needsFreshData.includes(tabName)) {
+        await ensureDataLoaded();
     }
 
     if (tabName === 'dashboard') updateDashboard();
@@ -4686,6 +4698,11 @@ function resetProfileForm() {
 // ===== INIT =====
 document.getElementById('uploadDate').valueAsDate = new Date();
 initFileDropzone();
+
+// Prefetch data di background begitu halaman dibuka (sebelum user login),
+// supaya saat user selesai isi form & klik "Masuk", data kemungkinan besar
+// sudah siap/sedang siap - tidak perlu nunggu round-trip dari nol.
+ensureDataLoaded();
 </script>
 </body>
 </html>
