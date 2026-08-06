@@ -2527,9 +2527,15 @@ async function handleRegistration() {
     // Generate password dari 4 digit terakhir no hape
     const password = phone.slice(-4);
 
-    // Create registration record
-    const regId = appData.pendaftaran ? 
-        Math.max(...appData.pendaftaran.map(p => parseInt(p.id) || 0)) + 1 
+    // Ambil data pendaftaran & member TERBARU langsung dari sheet.
+    // Jangan andalkan appData.pendaftaran/appData.members: kalau form ini
+    // dibuka tanpa login (guest), array itu masih kosong/belum ke-load,
+    // sehingga id selalu jadi 1 (bug lama) dan notif admin gagal terkirim.
+    const existingPendaftaran = await fetchSheetDBTable('Pendaftaran');
+    const existingMembers = await fetchSheetDBTable('Members');
+
+    const regId = existingPendaftaran.length > 0
+        ? Math.max(...existingPendaftaran.map(p => parseInt(p.id) || 0)) + 1
         : 1;
 
     const registration = {
@@ -2554,11 +2560,11 @@ async function handleRegistration() {
         return;
     }
 
-    if (!appData.pendaftaran) appData.pendaftaran = [];
+    appData.pendaftaran = existingPendaftaran;
     appData.pendaftaran.push(registration);
 
     // Kirim notif ke admin
-    const adminPhone = appData.members.find(m => m.id === 1)?.phone;
+    const adminPhone = existingMembers.find(m => parseInt(m.id) === 1)?.phone;
     if (adminPhone) {
         const adminMsg = `Admin, ada calon anggota baru! 👤
 
