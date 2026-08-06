@@ -2291,6 +2291,7 @@ let appData = {
 };
 
 let currentUser = null;
+let lastDataLoadTime = 0; // timestamp load terakhir, buat throttle refresh saat pindah tab
 
 // ===== SHEETDB API =====
 // Google Sheets kadang menyimpan kolom nomor HP sebagai angka (bukan teks),
@@ -2476,6 +2477,8 @@ async function loadDataFromSheets() {
         approved_at: row.approved_at || '',
         approved_by: row.approved_by || ''
     })).filter(p => p.id);
+
+    lastDataLoadTime = Date.now();
 
     console.log('Members loaded:', appData.members);
     console.log('Savings loaded:', appData.savings);
@@ -2827,10 +2830,13 @@ async function switchTab(tabName) {
     document.getElementById('sidebarOverlay').classList.remove('show');
 
     // Tab-tab ini menampilkan data yang bisa berubah dari sisi lain (anggota lain
-    // upload tabungan, daftar baru, dsb). Refresh dulu dari Sheets supaya tidak
-    // menampilkan data appData yang sudah basi/stale sejak login.
+    // upload tabungan, daftar baru, dsb). Refresh dari Sheets supaya tidak
+    // menampilkan data appData yang basi/stale. TAPI: kalau baru saja di-refresh
+    // (<5 detik lalu, misal user pindah2 tab dengan cepat), skip supaya terasa
+    // instan - server juga sudah punya cache 12 detik jadi tetap aman/cepat.
     const needsFreshData = ['dashboard', 'verify', 'approval', 'history', 'laporan'];
-    if (needsFreshData.includes(tabName)) {
+    const dataIsFreshEnough = (Date.now() - lastDataLoadTime) < 5000;
+    if (needsFreshData.includes(tabName) && !dataIsFreshEnough) {
         await loadDataFromSheets();
     }
 
