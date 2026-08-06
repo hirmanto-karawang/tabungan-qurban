@@ -2599,31 +2599,6 @@ Admin Masjid Dhafinul Jariyah`;
 
 // ===== LOGIN =====
 function handleLogin() {
-    const username = document.getElementById("loginUsername").value.trim();
-    const password = document.getElementById("loginPassword").value.trim();
-
-    // HARDCODED DEMO LOGIN
-    const testUsers = [
-        { id: 1, name: "Admin Masjid", username: "DQH-001", password: "6789", role: "admin" },
-        { id: 2, name: "Hirmanto", username: "Hirmanto", password: "0557", role: "member" },
-        { id: 3, name: "Rinawati", username: "Rinawati", password: "6523", role: "member" }
-    ];
-
-    if (!username || !password) {
-        showAlert("Username dan password harus diisi", "error");
-        return;
-    }
-
-    const user = testUsers.find(u => (u.username === username || u.name === username) async function handleLogin() {async function handleLogin() { u.password === password);
-
-    if (user) {
-        currentUser = { id: user.id, name: user.name, role: user.role };
-        showApp();
-        showAlert(`Selamat datang, ${user.name}!`, "success");
-    } else {
-        showAlert("Test Users: DQH-001/6789, Hirmanto/0557, Rinawati/6523", "error");
-    }
-
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value.trim();
 
@@ -2632,25 +2607,21 @@ function handleLogin() {
         return;
     }
 
-    // Load data from Sheets if not loaded yet
-    if (appData.members.length === 0) {
-        showAlert('Memuat data dari Google Sheets...', 'info');
-        await loadDataFromSheets();
-    }
+    // HARDCODED DEMO LOGIN (sementara, sebelum API diperbaiki)
+    const testUsers = [
+        { id: 1, name: 'Admin Masjid', username: 'DQH-001', password: '6789', phone: '089604697415', role: 'admin' },
+        { id: 11, name: 'Hirmanto', username: 'Hirmanto', password: '0557', phone: '088296750557', role: 'member' },
+        { id: 12, name: 'Rinawati', username: 'Rinawati', password: '6523', phone: '089625736523', role: 'member' }
+    ];
 
-    // Find member by ID or name
-    const member = appData.members.find(m => 
-        (m.id.toString() === username || m.name === username) && m.password === password
+    const user = testUsers.find(u =>
+        (u.username === username || u.name === username) && u.password === password
     );
 
-    if (member) {
-        currentUser = { id: member.id, name: member.name, phone: member.phone, role: 'member' };
-        // Check if admin (ID 1)
-        if (member.id === 1) {
-            currentUser.role = 'admin';
-        }
+    if (user) {
+        currentUser = { id: user.id, name: user.name, phone: user.phone, role: user.role };
         showApp();
-        showAlert(`Selamat datang, ${member.name}!`, 'success');
+        showAlert(`Selamat datang, ${user.name}!`, 'success');
     } else {
         showAlert('Username atau password salah', 'error');
     }
