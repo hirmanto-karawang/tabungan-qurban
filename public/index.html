@@ -1539,6 +1539,13 @@
 
         <button class="btn btn-success btn-block" onclick="handleRegistration()">Kirim Pendaftaran</button>
 
+        <div id="regSuccessBox" style="display:none;margin-top:20px;padding:16px;border-radius:10px;background:#eaf6ee;border:1px solid #bfe3c9;color:#1f6f3d;">
+          <strong>✅ Terima kasih, data sudah terkirim.</strong>
+          <div style="font-size:13px;margin-top:6px;">
+            Admin akan segera memproses pendaftaran Anda. ID &amp; password akan dikirim via WhatsApp setelah disetujui.
+          </div>
+        </div>
+
         <div class="info-box" style="margin-top:20px;">
           <strong>Apa yang terjadi setelah kirim?</strong>
           <div style="font-size:12px;margin-top:8px;color:var(--ink-soft);">
@@ -2589,7 +2596,7 @@ Barakallahu fiik! 🤲
 Admin Masjid Dhafinul Jariyah`;
     await sendFontneMessage(phone, candidateMsg);
 
-    // Bersihkan form & tampilkan sukses
+    // Bersihkan form & tampilkan notifikasi sukses di menu daftar (tidak pindah tab)
     document.getElementById('regName').value = '';
     document.getElementById('regRT').value = '';
     document.getElementById('regBlok').value = '';
@@ -2597,12 +2604,8 @@ Admin Masjid Dhafinul Jariyah`;
     document.getElementById('regPhone').value = '';
     document.getElementById('regReason').value = '';
 
+    document.getElementById('regSuccessBox').style.display = 'block';
     showAlert(`Pendaftaran berhasil! Terima kasih ${name}. Tunggu approval admin.`, 'success');
-
-    // Auto-switch ke login tab setelah 2 detik
-    setTimeout(() => {
-        switchLoginTab('login', document.querySelector('.login-tab'));
-    }, 2000);
 }
 
 // ===== LOGIN =====
