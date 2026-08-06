@@ -6,6 +6,10 @@
 <title>Tabungan Qurban — Masjid Dhafinul Jariyah</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Preconnect ke server Apps Script (backend data), supaya koneksi (DNS+TLS)
+     sudah siap dari awal sebelum request pertama benar-benar dikirim -->
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -3172,31 +3176,39 @@ async function rejectSavings(savingsId) {
 }
 
 async function processVerification(saving, action, reason) {
-    const buttons = document.querySelectorAll('#pendingTableBody button');
-    buttons.forEach(b => b.disabled = true);
-
     const now = new Date().toISOString();
+    const newNotes = action === 'REJECTED'
+        ? (saving.notes ? saving.notes + ' | Ditolak: ' + reason : 'Ditolak: ' + reason)
+        : saving.notes;
+
+    // Simpan state lama buat rollback kalau gagal
+    const prev = { status: saving.status, approvedAt: saving.approvedAt, approvedBy: saving.approvedBy, notes: saving.notes };
+
+    // ✨ Optimistic update: ubah tampilan LANGSUNG (item hilang dari daftar
+    // menunggu, badge ke-update) sebelum nunggu server - terasa instan.
+    // Kalau ternyata gagal simpan, di-rollback otomatis di bawah.
+    saving.status = action;
+    saving.approvedAt = now;
+    saving.approvedBy = currentUser.name;
+    saving.notes = newNotes;
+    loadVerifyData();
+    updateDashboard();
 
     const written = await updateSheetDB('Savings', 'id', saving.id, {
         status: action,
         approvedAt: now,
         approvedBy: currentUser.name,
-        notes: action === 'REJECTED'
-            ? (saving.notes ? saving.notes + ' | Ditolak: ' + reason : 'Ditolak: ' + reason)
-            : saving.notes
+        notes: newNotes
     });
 
-    buttons.forEach(b => b.disabled = false);
-
     if (!written) {
-        showAlert('Gagal menyimpan ke Google Sheets. Status belum berubah — silakan coba lagi.', 'error');
+        // Rollback tampilan karena gagal tersimpan di server
+        Object.assign(saving, prev);
+        loadVerifyData();
+        updateDashboard();
+        showAlert('Gagal menyimpan ke Google Sheets. Status dikembalikan — silakan coba lagi.', 'error');
         return;
     }
-
-    // Baru ubah data lokal setelah Sheets benar-benar tersimpan
-    saving.status = action;
-    saving.approvedAt = now;
-    saving.approvedBy = currentUser.name;
 
     // Catat jejak audit ke tab Verifications
     const verification = {
