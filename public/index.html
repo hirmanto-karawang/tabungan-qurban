@@ -2368,13 +2368,42 @@ async function updateSheetDB(tableName, keyColumn, keyValue, updates) {
     }
 }
 
+// Ambil SEMUA sheet (Members, Savings, Verifications, Pesan, Pendaftaran)
+// dalam SATU kali request ke Apps Script (mode bootstrap), jauh lebih cepat
+// daripada 5 request terpisah karena Spreadsheet cuma dibuka sekali di server.
+async function fetchAllSheetsBootstrap() {
+    try {
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?bootstrap=1`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        // Normalisasi kolom phone di semua sheet yang punya kolom itu
+        ['Members', 'Pendaftaran'].forEach(key => {
+            (data[key] || []).forEach(row => {
+                if (row && Object.prototype.hasOwnProperty.call(row, 'phone')) {
+                    row.phone = normalizePhone(row.phone);
+                }
+            });
+        });
+
+        return data;
+    } catch (error) {
+        console.error('Error fetching bootstrap data:', error);
+        return null;
+    }
+}
+
 // ===== LOAD DATA FROM SHEETDB =====
 async function loadDataFromSheets() {
-    const memberRows = await fetchSheetDBTable('Members');
-    const savingsRows = await fetchSheetDBTable('Savings');
-    const verificationsRows = await fetchSheetDBTable('Verifications');
-    const messagesRows = await fetchSheetDBTable('Pesan');
-    const pendaftaranRows = await fetchSheetDBTable('Pendaftaran');
+    // Coba mode cepat (1 request) dulu; kalau gagal, fallback ke cara lama (5 request)
+    const bootstrap = await fetchAllSheetsBootstrap();
+
+    const memberRows = bootstrap ? (bootstrap.Members || []) : await fetchSheetDBTable('Members');
+    const savingsRows = bootstrap ? (bootstrap.Savings || []) : await fetchSheetDBTable('Savings');
+    const verificationsRows = bootstrap ? (bootstrap.Verifications || []) : await fetchSheetDBTable('Verifications');
+    const messagesRows = bootstrap ? (bootstrap.Pesan || []) : await fetchSheetDBTable('Pesan');
+    const pendaftaranRows = bootstrap ? (bootstrap.Pendaftaran || []) : await fetchSheetDBTable('Pendaftaran');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
