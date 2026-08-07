@@ -651,12 +651,30 @@
 
   /* ===== LAPORAN - REPORT HERO CARD ===== */
   .report-hero{
-    background: linear-gradient(135deg, var(--emerald-2) 0%, var(--emerald) 100%);
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--emerald-2) 0%, var(--emerald) 65%, #0A2C27 100%);
     color: #fff;
     border-radius: var(--radius-lg);
     padding: 26px 24px;
     margin-bottom: 20px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 12px 32px -12px rgba(14,59,52,.45);
+  }
+  .report-hero::before{
+    content:'';
+    position:absolute;
+    top:-60px; right:-60px;
+    width:220px; height:220px;
+    border-radius:50%;
+    background: radial-gradient(circle, rgba(231,200,120,.16) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .report-hero::after{
+    content:'';
+    position:absolute;
+    left:0; right:0; top:0;
+    height:3px;
+    background: linear-gradient(90deg, var(--gold-soft), var(--gold), var(--gold-soft));
   }
   .report-hero-label{
     font-size:12px;
@@ -770,21 +788,36 @@
   .report-sapi-detail{
     background: var(--sand);
     border-radius: var(--radius-md);
-    padding: 18px;
+    padding: 16px;
     margin-bottom: 20px;
     display:grid;
     grid-template-columns: repeat(3, 1fr);
-    gap:16px;
+    gap:12px;
+  }
+  .report-sapi-stat{
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    border: 1px solid var(--border-soft);
+    box-shadow: 0 2px 8px -4px rgba(24,36,32,.12);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .report-sapi-stat:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px -6px rgba(24,36,32,.18);
   }
   .report-sapi-stat-label{
-    font-size:12px;
+    font-size:11.5px;
     color: var(--ink-faint);
     margin-bottom:6px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:.04em;
   }
   .report-sapi-stat-value{
     font-family: var(--font-mono);
     font-size: clamp(16px, 4vw, 22px);
-    font-weight:600;
+    font-weight:700;
     word-break:break-word;
   }
 
@@ -827,6 +860,32 @@
   .sub-tab-content canvas{
     width:100% !important;
     max-height:280px;
+  }
+  .report-chart-box{
+    background: linear-gradient(180deg, var(--surface) 0%, var(--paper) 100%);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding: 20px 16px 12px;
+    margin-bottom: 28px;
+    box-shadow: 0 4px 14px -8px rgba(24,36,32,.14);
+  }
+  .sub-tab-content h3{
+    font-family: var(--font-display);
+    font-size: 16.5px;
+    font-weight: 600;
+    color: var(--emerald);
+    margin-bottom: 12px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .sub-tab-content h3::before{
+    content:'';
+    width:4px;
+    height:16px;
+    border-radius:2px;
+    background: linear-gradient(180deg, var(--gold-soft), var(--gold));
+    display:inline-block;
   }
 
   /* ===== PROFILE - HEADER CARD ===== */
@@ -2137,7 +2196,9 @@
           <!-- TAB 1: OVERVIEW -->
           <div id="overviewTab" class="sub-tab-content">
             <h3>Progress Tabungan per Sapi</h3>
-            <canvas id="sapiChart" style="margin-bottom:30px;"></canvas>
+            <div class="report-chart-box">
+              <canvas id="sapiChart"></canvas>
+            </div>
 
             <h3>Top 5 Sapi Terkumpul</h3>
             <div class="table-container">
@@ -2218,10 +2279,14 @@
           <!-- TAB 4: ANALISIS -->
           <div id="analisisTab" class="sub-tab-content" style="display:none;">
             <h3>Distribusi per Sapi</h3>
-            <canvas id="distributionChart" style="margin-bottom:30px;"></canvas>
+            <div class="report-chart-box">
+              <canvas id="distributionChart"></canvas>
+            </div>
 
             <h3>Transaksi per Bulan</h3>
-            <canvas id="monthlyChart" style="margin-bottom:30px;"></canvas>
+            <div class="report-chart-box">
+              <canvas id="monthlyChart"></canvas>
+            </div>
 
             <h3>Statistik Anggota</h3>
             <div class="table-container">
@@ -3314,6 +3379,86 @@ function loadHistory() {
 // ===== LAPORAN PROFESIONAL =====
 let laporanCharts = {};
 
+// Chart.js (canvas) TIDAK BISA membaca CSS variable seperti 'var(--emerald)' -
+// fillStyle canvas butuh warna asli (hex/rgb), makanya sebelumnya semua chart
+// tampil hitam solid. Palet ini adalah nilai hex asli dari CSS custom
+// properties di :root, dipakai khusus untuk konfigurasi Chart.js.
+const REPORT_COLORS = {
+    emerald: '#0E3B34',
+    emerald2: '#175C50',
+    emeraldTint: '#E6EEEA',
+    gold: '#B6893A',
+    goldSoft: '#E7C878',
+    goldTint: '#F7EFDA',
+    sage: '#6F9089',
+    sageTint: '#E9F1EE',
+    brick: '#9B4632',
+    ink: '#182420',
+    inkSoft: '#4C5851',
+    inkFaint: '#869089',
+    paper: '#FAF7F0',
+    border: '#E4DBC5'
+};
+
+const REPORT_PALETTE = [
+    REPORT_COLORS.emerald,
+    REPORT_COLORS.gold,
+    REPORT_COLORS.sage,
+    REPORT_COLORS.emerald2,
+    REPORT_COLORS.goldSoft,
+    REPORT_COLORS.brick,
+    REPORT_COLORS.inkSoft
+];
+
+// Styling global Chart.js sekali di awal - font & tooltip premium, dipakai semua chart
+if (typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+    Chart.defaults.color = REPORT_COLORS.inkSoft;
+    Chart.defaults.plugins.tooltip.backgroundColor = REPORT_COLORS.ink;
+    Chart.defaults.plugins.tooltip.titleColor = REPORT_COLORS.goldSoft;
+    Chart.defaults.plugins.tooltip.bodyColor = '#fff';
+    Chart.defaults.plugins.tooltip.borderColor = REPORT_COLORS.gold;
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.padding = 12;
+    Chart.defaults.plugins.tooltip.cornerRadius = 10;
+    Chart.defaults.plugins.tooltip.titleFont = { family: "'IBM Plex Mono', monospace", size: 12, weight: '600' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: "'IBM Plex Mono', monospace", size: 13, weight: '600' };
+    Chart.defaults.plugins.tooltip.displayColors = false;
+    Chart.defaults.animation.duration = 900;
+    Chart.defaults.animation.easing = 'easeOutQuart';
+}
+
+// Plugin custom: tampilkan total di tengah doughnut chart, biar terasa "dashboard premium"
+const centerTotalPlugin = {
+    id: 'centerTotal',
+    afterDraw(chart) {
+        if (chart.config.type !== 'doughnut' || !chart._centerTotalText) return;
+        const { ctx, chartArea } = chart;
+        const cx = (chartArea.left + chartArea.right) / 2;
+        const cy = (chartArea.top + chartArea.bottom) / 2;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = REPORT_COLORS.inkFaint;
+        ctx.font = "600 11px 'Inter', sans-serif";
+        ctx.fillText('TOTAL', cx, cy - 14);
+        ctx.fillStyle = REPORT_COLORS.emerald;
+        ctx.font = "700 20px 'IBM Plex Mono', monospace";
+        ctx.fillText(chart._centerTotalText, cx, cy + 10);
+        ctx.restore();
+    }
+};
+if (typeof Chart !== 'undefined') Chart.register(centerTotalPlugin);
+
+// Bikin gradient vertikal buat canvas (dipakai bar & line chart)
+function makeVerticalGradient(ctx, chartArea, colorTop, colorBottom) {
+    if (!chartArea) return colorTop; // belum ke-render, fallback warna solid
+    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    gradient.addColorStop(0, colorTop);
+    gradient.addColorStop(1, colorBottom);
+    return gradient;
+}
+
 function switchLaporanTab(tabName, btn) {
     document.querySelectorAll('#laporan .sub-tab-content').forEach(tab => tab.style.display = 'none');
     document.getElementById(tabName + 'Tab').style.display = 'block';
@@ -3330,6 +3475,21 @@ function switchLaporanTab(tabName, btn) {
     }, 100);
 }
 
+// Animasi "count-up" buat angka di hero card - sentuhan dashboard premium.
+// Format via callback supaya bisa pakai format Rupiah maupun angka polos.
+function animateCountUp(el, from, to, formatFn, duration = 900) {
+    if (!el) return;
+    const start = performance.now();
+    const step = (now) => {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+        const current = Math.round(from + (to - from) * eased);
+        el.textContent = formatFn(current);
+        if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
 function loadLaporan() {
     // Load summary cards
     const approved = appData.savings.filter(s => s.status === 'APPROVED');
@@ -3338,10 +3498,11 @@ function loadLaporan() {
     const totalMembers = appData.members.filter(m => m.id !== 1 && m.id > 0).length; // exclude admin
     const average = totalMembers > 0 ? Math.round(totalApproved / totalMembers) : 0;
 
-    document.getElementById('reportGrandTotal').textContent = `Rp ${totalApproved.toLocaleString('id-ID')}`;
-    document.getElementById('reportTotalMembers').textContent = totalMembers;
-    document.getElementById('reportTotalTransactions').textContent = totalTransactions;
-    document.getElementById('reportAverage').textContent = `Rp ${average.toLocaleString('id-ID')}`;
+    const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
+    animateCountUp(document.getElementById('reportGrandTotal'), 0, totalApproved, rupiah);
+    animateCountUp(document.getElementById('reportTotalMembers'), 0, totalMembers, v => `${v}`);
+    animateCountUp(document.getElementById('reportTotalTransactions'), 0, totalTransactions, v => `${v}`);
+    animateCountUp(document.getElementById('reportAverage'), 0, average, rupiah);
 
     // Load overview tab by default
     loadOverviewTab();
@@ -3365,16 +3526,21 @@ function loadTopSapi() {
         const row = tbody.insertRow();
         const percentage = (stats.total / (appData.savings.filter(s => s.status === 'APPROVED').reduce((sum, s) => sum + s.amount, 0) || 1) * 100).toFixed(1);
         row.innerHTML = `
-            <td style="font-weight:600;">Sapi #${sapiNum}</td>
+            <td style="font-weight:600;">
+                <span style="display:inline-flex;align-items:center;gap:6px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg, var(--gold-soft), var(--gold));display:inline-block;"></span>
+                    Sapi #${sapiNum}
+                </span>
+            </td>
             <td>${stats.members.length}</td>
-            <td style="color:var(--emerald);font-weight:600;">Rp ${stats.total.toLocaleString('id-ID')}</td>
-            <td>Rp ${stats.average.toLocaleString('id-ID')}</td>
+            <td style="color:var(--emerald);font-weight:700;font-family:var(--font-mono);">Rp ${stats.total.toLocaleString('id-ID')}</td>
+            <td style="font-family:var(--font-mono);">Rp ${stats.average.toLocaleString('id-ID')}</td>
             <td>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
-                        <div style="height:100%;width:${percentage}%;background:var(--emerald);"></div>
+                    <div style="flex:1;height:9px;background:var(--sand);border-radius:5px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.06);">
+                        <div style="height:100%;width:${percentage}%;background:linear-gradient(90deg, var(--emerald-2), var(--emerald));border-radius:5px;box-shadow:0 0 8px rgba(14,59,52,.4);"></div>
                     </div>
-                    <span style="font-size:12px;color:var(--ink-faint);">${percentage}%</span>
+                    <span style="font-size:12px;color:var(--ink-faint);font-weight:600;min-width:36px;text-align:right;">${percentage}%</span>
                 </div>
             </td>
         `;
@@ -3561,10 +3727,12 @@ function getSapiStatistics() {
 
 function drawSapiChart() {
     const sapiStats = getSapiStatistics();
-    const labels = Object.keys(sapiStats).sort((a, b) => a - b).map(s => `Sapi #${s}`);
-    const data = labels.map((_, i) => sapiStats[Object.keys(sapiStats).sort((a, b) => a - b)[i]].total);
+    const sortedKeys = Object.keys(sapiStats).sort((a, b) => a - b);
+    const labels = sortedKeys.map(s => `Sapi #${s}`);
+    const data = sortedKeys.map(s => sapiStats[s].total);
 
-    const ctx = document.getElementById('sapiChart')?.getContext('2d');
+    const canvas = document.getElementById('sapiChart');
+    const ctx = canvas?.getContext('2d');
     if (!ctx) return;
 
     if (laporanCharts.sapi) laporanCharts.sapi.destroy();
@@ -3576,20 +3744,34 @@ function drawSapiChart() {
             datasets: [{
                 label: 'Total Terkumpul',
                 data: data,
-                backgroundColor: 'var(--emerald)',
-                borderColor: 'var(--emerald-2)',
-                borderWidth: 2,
-                borderRadius: 6
+                backgroundColor: (context) => {
+                    const { ctx, chartArea } = context.chart;
+                    return makeVerticalGradient(ctx, chartArea, REPORT_COLORS.emerald2, REPORT_COLORS.emerald);
+                },
+                hoverBackgroundColor: REPORT_COLORS.gold,
+                borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
+                borderSkipped: false,
+                maxBarThickness: 56
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: true,
-            plugins: { legend: { display: false } },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: items => items[0].label,
+                        label: ctx => `Rp ${ctx.parsed.y.toLocaleString('id-ID')}`
+                    }
+                }
+            },
             scales: {
+                x: { grid: { display: false }, ticks: { font: { weight: '600' } } },
                 y: {
                     beginAtZero: true,
-                    ticks: { callback: v => `Rp ${(v/1000000).toFixed(1)}M` }
+                    grid: { color: REPORT_COLORS.border, drawBorder: false },
+                    ticks: { callback: v => `${(v/1000000).toFixed(1)}M` }
                 }
             }
         }
@@ -3598,8 +3780,10 @@ function drawSapiChart() {
 
 function drawDistributionChart() {
     const sapiStats = getSapiStatistics();
-    const labels = Object.keys(sapiStats).sort((a, b) => a - b).map(s => `Sapi #${s}`);
-    const data = labels.map((_, i) => sapiStats[Object.keys(sapiStats).sort((a, b) => a - b)[i]].total);
+    const sortedKeys = Object.keys(sapiStats).sort((a, b) => a - b);
+    const labels = sortedKeys.map(s => `Sapi #${s}`);
+    const data = sortedKeys.map(s => sapiStats[s].total);
+    const grandTotal = data.reduce((sum, v) => sum + v, 0);
 
     const ctx = document.getElementById('distributionChart')?.getContext('2d');
     if (!ctx) return;
@@ -3612,27 +3796,38 @@ function drawDistributionChart() {
             labels: labels,
             datasets: [{
                 data: data,
-                backgroundColor: [
-                    'var(--emerald)',
-                    'var(--emerald-2)',
-                    'var(--sage)',
-                    'var(--gold)',
-                    'var(--gold-soft)',
-                    '#5D8078',
-                    '#2A5A4F'
-                ],
-                borderColor: 'white',
+                backgroundColor: REPORT_PALETTE,
+                hoverOffset: 14,
+                borderColor: '#fff',
                 borderWidth: 3
             }]
         },
         options: {
             responsive: true,
+            cutout: '68%',
             plugins: {
-                legend: { position: 'bottom' },
-                tooltip: { callbacks: { label: ctx => `Rp ${(ctx.parsed/1000000).toFixed(1)}M` } }
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 16,
+                        font: { weight: '600', size: 12.5 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const pct = grandTotal > 0 ? ((ctx.parsed / grandTotal) * 100).toFixed(1) : 0;
+                            return `Rp ${ctx.parsed.toLocaleString('id-ID')} (${pct}%)`;
+                        }
+                    }
+                }
             }
         }
     });
+    laporanCharts.distribution._centerTotalText = `Rp ${(grandTotal/1000000).toFixed(1)}M`;
+    laporanCharts.distribution.update();
 }
 
 function drawMonthlyChart() {
@@ -3663,26 +3858,37 @@ function drawMonthlyChart() {
             datasets: [{
                 label: 'Tabungan per Bulan',
                 data: data,
-                borderColor: 'var(--emerald)',
-                backgroundColor: 'var(--emerald-tint)',
+                borderColor: REPORT_COLORS.gold,
+                backgroundColor: (context) => {
+                    const { ctx, chartArea } = context.chart;
+                    if (!chartArea) return REPORT_COLORS.emeraldTint;
+                    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                    gradient.addColorStop(0, 'rgba(182, 137, 58, 0.32)');
+                    gradient.addColorStop(1, 'rgba(182, 137, 58, 0.02)');
+                    return gradient;
+                },
                 borderWidth: 3,
                 fill: true,
                 tension: 0.4,
                 pointRadius: 5,
-                pointBackgroundColor: 'var(--emerald)',
-                pointBorderColor: 'white',
+                pointHoverRadius: 7,
+                pointBackgroundColor: REPORT_COLORS.emerald,
+                pointBorderColor: '#fff',
                 pointBorderWidth: 2
             }]
         },
         options: {
             responsive: true,
             plugins: {
-                legend: { display: false }
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => `Rp ${ctx.parsed.y.toLocaleString('id-ID')}` } }
             },
             scales: {
+                x: { grid: { display: false }, ticks: { font: { weight: '600' } } },
                 y: {
                     beginAtZero: true,
-                    ticks: { callback: v => `Rp ${(v/1000000).toFixed(1)}M` }
+                    grid: { color: REPORT_COLORS.border, drawBorder: false },
+                    ticks: { callback: v => `${(v/1000000).toFixed(1)}M` }
                 }
             }
         }
