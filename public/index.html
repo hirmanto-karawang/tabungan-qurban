@@ -4126,7 +4126,8 @@ function printLaporan() {
 // (jalur yang SAMA dengan tombol Print, yang sudah terbukti bekerja bagus) -
 // user tinggal pilih tujuan "Save as PDF" alih-alih mencetak ke kertas.
 function exportLaporanPDF(evt) {
-    alert('Jendela cetak akan terbuka.\n\nPilih tujuan/printer "Save as PDF" (atau "Microsoft Print to PDF") lalu klik Save untuk menyimpan laporan ini sebagai file PDF.');
+    // Langsung buka dialog print tanpa alert konfirmasi - di HP, alert()
+    // sebelum window.print() sering bikin dialog print gagal terbuka / kelihatan error.
     preparePrintView();
     window.print();
 }
