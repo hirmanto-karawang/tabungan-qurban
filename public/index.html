@@ -1426,31 +1426,65 @@
 
   /* ===== TOP SAVERS (Dashboard) ===== */
   .top-savers-list{ display:flex; flex-direction:column; gap:10px; }
+  @keyframes topSaverIn{
+    from{ opacity:0; transform: translateY(8px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
   .top-saver-item{
     display:flex; align-items:center; gap:12px;
     background: var(--surface);
     border:1px solid var(--border-soft);
     border-radius: var(--radius-md);
     padding:12px 14px;
-    transition: transform .15s ease, box-shadow .15s ease;
+    position:relative;
+    overflow:hidden;
+    transition: transform .18s ease, box-shadow .18s ease;
+    animation: topSaverIn .45s ease both;
   }
-  .top-saver-item:hover{ transform: translateY(-1px); box-shadow: 0 6px 16px -8px rgba(14,59,52,.25); }
+  .top-saver-item:hover{ transform: translateY(-2px); box-shadow: 0 8px 20px -8px rgba(14,59,52,.28); }
+
+  /* Tingkatan medali - kasih nuansa warna beda tiap posisi biar lebih hidup */
+  .top-saver-item.rank-gold{
+    background: linear-gradient(120deg, rgba(231,200,120,.16), var(--surface) 55%);
+    border-color: var(--gold-soft);
+    box-shadow: 0 8px 22px -12px rgba(182,137,58,.4);
+  }
+  .top-saver-item.rank-gold:hover{ box-shadow: 0 10px 26px -10px rgba(182,137,58,.5); }
+  .top-saver-item.rank-silver{
+    background: linear-gradient(120deg, rgba(148,163,184,.14), var(--surface) 55%);
+    border-color: #C4CCD6;
+  }
+  .top-saver-item.rank-bronze{
+    background: linear-gradient(120deg, rgba(184,115,51,.13), var(--surface) 55%);
+    border-color: #D9A876;
+  }
+
   .top-saver-rank{
     flex-shrink:0; width:30px; text-align:center;
-    font-size:18px;
+    font-size:19px;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.12));
   }
   .top-saver-rank.rank-num{
     font-family: var(--font-mono); font-size:13px; font-weight:700;
     color: var(--ink-faint);
   }
   .top-saver-avatar{
-    flex-shrink:0; width:38px; height:38px; border-radius:50%;
+    flex-shrink:0; width:40px; height:40px; border-radius:50%;
     background: var(--emerald-tint);
     border:1.5px solid var(--gold-soft);
     display:flex; align-items:center; justify-content:center;
-    font-family: var(--font-display); font-weight:700; font-size:15px;
+    font-family: var(--font-display); font-weight:700; font-size:16px;
     color: var(--emerald);
   }
+  .rank-gold .top-saver-avatar{
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold));
+    border-color: var(--gold);
+    color: var(--emerald);
+    box-shadow: 0 3px 10px -3px rgba(182,137,58,.6);
+  }
+  .rank-silver .top-saver-avatar{ border-color:#AEB8C4; }
+  .rank-bronze .top-saver-avatar{ border-color:#C9915A; }
+
   .top-saver-info{ flex:1; min-width:0; }
   .top-saver-name{
     font-size:13.5px; font-weight:600; color: var(--ink);
@@ -1468,9 +1502,11 @@
     overflow:hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.06);
   }
   .top-saver-bar-fill{
-    height:100%; border-radius:4px;
+    height:100%; width:0; border-radius:4px;
     background: linear-gradient(90deg, var(--emerald-2), var(--emerald));
+    transition: width 1s cubic-bezier(.22,.9,.3,1);
   }
+  .rank-gold .top-saver-bar-fill{ background: linear-gradient(90deg, var(--gold), var(--gold-soft)); }
   .top-saver-pct{
     font-size:10px; color: var(--ink-faint); margin-top:4px;
   }
@@ -4861,6 +4897,7 @@ function updateDashboard() {
     // sama dengan patokan {PROGRESS} di template WA - BUKAN relatif ke sesama
     // top 5 (supaya angkanya konsisten di seluruh aplikasi).
     const medals = ['🥇', '🥈', '🥉'];
+    const tierClass = ['rank-gold', 'rank-silver', 'rank-bronze'];
     list.innerHTML = top5.map((member, i) => {
         const pctRaw = QURBAN_TARGET_PER_ORANG > 0 ? (member.total / QURBAN_TARGET_PER_ORANG) * 100 : 0;
         const pct = Math.max(4, Math.min(100, Math.round(pctRaw)));
@@ -4869,12 +4906,12 @@ function updateDashboard() {
             ? `<div class="top-saver-rank">${medals[i]}</div>`
             : `<div class="top-saver-rank rank-num">#${i + 1}</div>`;
         return `
-            <div class="top-saver-item">
+            <div class="top-saver-item ${tierClass[i] || ''}" style="animation-delay:${i * 70}ms;">
                 ${rankHtml}
                 <div class="top-saver-avatar">${initial}</div>
                 <div class="top-saver-info">
                     <div class="top-saver-name">${member.name}</div>
-                    <div class="top-saver-bar-track"><div class="top-saver-bar-fill" style="width:${pct}%;"></div></div>
+                    <div class="top-saver-bar-track"><div class="top-saver-bar-fill" data-target-width="${pct}"></div></div>
                     <div class="top-saver-pct">${pct}% dari target</div>
                 </div>
                 <div class="top-saver-amount">
@@ -4884,6 +4921,16 @@ function updateDashboard() {
             </div>
         `;
     }).join('');
+
+    // Animasikan progress bar dari 0 ke lebar aslinya (efek "mengisi"),
+    // bukan langsung muncul penuh - kesan lebih hidup/premium.
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            list.querySelectorAll('.top-saver-bar-fill').forEach(bar => {
+                bar.style.width = bar.dataset.targetWidth + '%';
+            });
+        });
+    });
 }
 
 // Salin nomor rekening ke clipboard, dengan fallback kalau Clipboard API
