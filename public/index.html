@@ -4143,7 +4143,14 @@ function exportLaporanPDF(evt) {
         }).join('');
 
         const element = document.createElement('div');
-        element.style.cssText = `width:760px;margin:0 auto;background:${c.paper};font-family:Arial,sans-serif;`;
+        // position:absolute + offset POSITIF (bukan negatif!) supaya tetap
+        // terhitung dalam scrollHeight dokumen (versi sebelumnya pakai
+        // left:-9999px dan gagal karena koordinat negatif tidak ikut
+        // terhitung browser). Offset 3000px taruh elemen jauh di bawah area
+        // viewport normal, jadi tidak akan tumpang-tindih dengan overlay
+        // loading yang posisinya "fixed" (terikat ke viewport, bukan ke
+        // posisi scroll dokumen).
+        element.style.cssText = `position:absolute;top:3000px;left:0;width:760px;background:${c.paper};font-family:Arial,sans-serif;`;
         element.innerHTML = `
             <div style="padding:28px;">
                 <div style="text-align:center;margin-bottom:18px;">
@@ -4193,12 +4200,12 @@ function exportLaporanPDF(evt) {
                 </div>
             </div>
         `;
-        // PENTING: elemen ditaruh dalam alur normal dokumen (posisi statis),
-        // BUKAN "position:fixed;left:-9999px" seperti percobaan sebelumnya.
-        // html2canvas versi yang dipakai html2pdf.js ternyata gagal merender
-        // elemen di koordinat negatif/luar area dokumen (scrollWidth/Height
-        // browser tidak menghitung area negatif itu) -> hasilnya PDF kosong.
-        // Supaya tidak kelihatan "kedip" di layar user, ditutup overlay loading.
+        // Overlay loading full-layar. Karena overlay ini "position:fixed"
+        // (nempel ke jendela browser, BUKAN ke posisi scroll dokumen), dan
+        // elemen laporan sengaja ditaruh 3000px ke bawah (jauh di luar area
+        // viewport manapun), keduanya tidak akan saling menutupi saat
+        // di-screenshot html2canvas — percobaan sebelumnya gagal karena
+        // overlay ini tanpa sengaja ikut ter-render MENUTUPI elemen laporan.
         const overlay = document.createElement('div');
         overlay.style.cssText = `position:fixed;inset:0;z-index:99999;background:${c.paper};display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-family:Arial,sans-serif;color:${c.emerald};`;
         overlay.innerHTML = `
