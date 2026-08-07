@@ -4121,6 +4121,38 @@ function printLaporan() {
     window.print();
 }
 
+// Trigger download dokumen jsPDF. Di banyak browser HP, atribut
+// <a download> "diam" (file masuk folder Downloads tanpa notifikasi apapun
+// yang terlihat, jadi kelihatan seperti tidak terjadi apa-apa) atau malah
+// diblokir sama sekali di beberapa WebView/PWA. Jadi khusus di HP, PDF
+// dibuka di tab baru dulu (browser HP otomatis punya PDF viewer bawaan) -
+// dari situ user bisa lihat hasilnya langsung dan simpan/share sendiri.
+function downloadPdfDoc(doc, filename) {
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    if (!isMobile) {
+        doc.save(filename);
+        return;
+    }
+    try {
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, '_blank');
+        if (!win) {
+            // Popup diblokir browser -> fallback ke link download biasa
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+        console.error('Buka PDF di tab baru gagal, coba cara biasa:', err);
+        doc.save(filename);
+    }
+}
+
 // PDF Laporan digambar manual pakai jsPDF (vector/teks langsung ke PDF, TIDAK
 // screenshot DOM sama sekali). Ini dipilih setelah html2canvas/html2pdt.js
 // terbukti tidak reliable (hasil kosong di desktop), dan window.print() juga
@@ -4355,7 +4387,7 @@ function exportLaporanPDF(evt) {
             by += 6;
         });
 
-        doc.save(`Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`);
+        downloadPdfDoc(doc, `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`);
     } catch (err) {
         console.error('Export PDF gagal:', err);
         alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
