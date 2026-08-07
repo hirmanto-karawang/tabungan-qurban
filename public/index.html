@@ -2278,8 +2278,11 @@
 
 <script>
 // ===== CONFIG =====
+// Endpoint sekarang mengarah ke Vercel Serverless Function (/api/sheets),
+// bukan Apps Script lagi - jauh lebih cepat, dan same-origin (tidak perlu
+// trik text/plain buat hindari CORS preflight, tapi tetap dibiarkan aman).
 const SHEETDB_CONFIG = {
-    ENDPOINT: 'https://script.google.com/macros/s/AKfycbxUNyWQhrY-Vk63YljHghntQpBCZEY11lZV-T8eJhrGJY1AIPoqMkTGGkbSQiblKnue/exec'
+    ENDPOINT: '/api/sheets'
 };
 
 const FONNTE_CONFIG = {
