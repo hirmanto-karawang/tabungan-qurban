@@ -1491,8 +1491,10 @@
 <!-- Chart Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
-<!-- PDF Export Library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<!-- PDF Export Library - jsPDF murni (tanpa html2canvas), digambar manual
+     supaya reliable di semua perangkat termasuk HP (tidak bergantung pada
+     screenshot DOM/dialog print yang ternyata tidak konsisten di mobile) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
 
 <!-- Excel Export Library (dipakai untuk export CSV/Excel sederhana) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4119,17 +4121,247 @@ function printLaporan() {
     window.print();
 }
 
-// Setelah dicoba berkali-kali dengan library html2canvas/html2pdf (screenshot
-// elemen), hasilnya tetap tidak reliable di browser/environment ini - PDF
-// yang dihasilkan selalu kosong walau sudah dicoba beberapa pendekatan.
-// Solusi paling stabil: pakai mesin PDF bawaan browser lewat dialog print
-// (jalur yang SAMA dengan tombol Print, yang sudah terbukti bekerja bagus) -
-// user tinggal pilih tujuan "Save as PDF" alih-alih mencetak ke kertas.
+// PDF Laporan digambar manual pakai jsPDF (vector/teks langsung ke PDF, TIDAK
+// screenshot DOM sama sekali). Ini dipilih setelah html2canvas/html2pdt.js
+// terbukti tidak reliable (hasil kosong di desktop), dan window.print() juga
+// tidak bisa diandalkan di HP (banyak browser mobile tidak mendukung dialog
+// print / "Save as PDF"). jsPDF murni bekerja identik di semua perangkat
+// karena tidak butuh screenshot ataupun dialog print sama sekali.
 function exportLaporanPDF(evt) {
-    // Langsung buka dialog print tanpa alert konfirmasi - di HP, alert()
-    // sebelum window.print() sering bikin dialog print gagal terbuka / kelihatan error.
-    preparePrintView();
-    window.print();
+    const btn = evt?.currentTarget || evt?.target;
+    const originalHTML = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
+
+    try {
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            throw new Error('Library PDF belum termuat. Coba refresh halaman lalu ulangi.');
+        }
+        const { jsPDF } = window.jspdf;
+        const c = REPORT_COLORS;
+        const rgb = hex => {
+            const h = hex.replace('#', '');
+            return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)];
+        };
+        const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
+
+        const approved = appData.savings.filter(s => s.status === 'APPROVED');
+        const totalApproved = approved.reduce((sum, s) => sum + s.amount, 0);
+        const totalTransactions = appData.savings.length;
+        const totalMembers = appData.members.filter(m => m.id !== 1 && m.id > 0).length;
+        const average = totalMembers > 0 ? Math.round(totalApproved / totalMembers) : 0;
+
+        const sapiStats = getSapiStatistics();
+        const sortedSapi = Object.entries(sapiStats).sort((a, b) => b[1].total - a[1].total).slice(0, 10);
+
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const marginX = 15;
+        const usableW = pageW - marginX * 2;
+        let y = 18;
+
+        const checkPageBreak = (needed) => {
+            if (y + needed > pageH - 15) {
+                doc.addPage();
+                y = 18;
+            }
+        };
+
+        // Header
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...rgb(c.gold));
+        doc.text('MASJID DHAFINUL JARIYAH', pageW / 2, y, { align: 'center' });
+        y += 7;
+        doc.setFontSize(17);
+        doc.setTextColor(...rgb(c.emerald));
+        doc.text('Laporan Tabungan Qurban', pageW / 2, y, { align: 'center' });
+        y += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...rgb(c.inkFaint));
+        doc.text(`Dicetak ${new Date().toLocaleString('id-ID')}`, pageW / 2, y, { align: 'center' });
+        y += 10;
+
+        // Hero card (total + 3 statistik)
+        const heroH = 38;
+        checkPageBreak(heroH + 5);
+        doc.setFillColor(...rgb(c.emerald));
+        doc.roundedRect(marginX, y, usableW, heroH, 3, 3, 'F');
+        doc.setFillColor(...rgb(c.gold));
+        doc.rect(marginX, y, usableW, 1.2, 'F');
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...rgb(c.goldSoft));
+        doc.text('TOTAL TABUNGAN QURBAN', marginX + 8, y + 10);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(255, 255, 255);
+        doc.text(rupiah(totalApproved), marginX + 8, y + 20);
+
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.15);
+        doc.line(marginX + 8, y + 25, marginX + usableW - 8, y + 25);
+
+        const statColW = (usableW - 16) / 3;
+        [['Total Anggota', String(totalMembers)], ['Total Transaksi', String(totalTransactions)], ['Rata-rata/Anggota', rupiah(average)]]
+            .forEach((s, i) => {
+                const sx = marginX + 8 + i * statColW;
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7);
+                doc.setTextColor(225, 225, 225);
+                doc.text(s[0], sx, y + 31);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(255, 255, 255);
+                doc.text(s[1], sx, y + 36);
+            });
+        y += heroH + 10;
+
+        // Chart: Progress Tabungan per Sapi (gambar asli dari Chart.js, bukan gambar ulang)
+        const sapiChart = laporanCharts.sapi;
+        if (sapiChart && sapiChart.canvas && typeof sapiChart.toBase64Image === 'function') {
+            const imgData = sapiChart.toBase64Image();
+            const ratio = sapiChart.canvas.height / sapiChart.canvas.width;
+            const imgW = usableW - 8;
+            const imgH = imgW * ratio;
+            checkPageBreak(imgH + 20);
+
+            doc.setFillColor(...rgb(c.gold));
+            doc.rect(marginX, y, 1.2, 5, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11.5);
+            doc.setTextColor(...rgb(c.emerald));
+            doc.text('Progress Tabungan per Sapi', marginX + 4, y + 4);
+            y += 8;
+
+            doc.setDrawColor(...rgb(c.border));
+            doc.setLineWidth(0.2);
+            doc.roundedRect(marginX, y, usableW, imgH + 8, 2, 2, 'S');
+            doc.addImage(imgData, 'PNG', marginX + 4, y + 4, imgW, imgH);
+            y += imgH + 8 + 10;
+        }
+
+        // Tabel: Top Sapi Terkumpul
+        checkPageBreak(18);
+        doc.setFillColor(...rgb(c.gold));
+        doc.rect(marginX, y, 1.2, 5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11.5);
+        doc.setTextColor(...rgb(c.emerald));
+        doc.text('Top Sapi Terkumpul', marginX + 4, y + 4);
+        y += 9;
+
+        const colX = {
+            sapi: marginX + 3,
+            anggota: marginX + usableW * 0.24,
+            total: marginX + usableW * 0.38,
+            rata: marginX + usableW * 0.63,
+            progress: marginX + usableW * 0.83
+        };
+        const rowH = 8;
+
+        const drawTableHeader = () => {
+            doc.setFillColor(...rgb(c.emeraldTint));
+            doc.rect(marginX, y, usableW, rowH, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(...rgb(c.inkSoft));
+            doc.text('SAPI', colX.sapi, y + 5.3);
+            doc.text('ANGGOTA', colX.anggota, y + 5.3);
+            doc.text('TOTAL', colX.total, y + 5.3);
+            doc.text('RATA-RATA', colX.rata, y + 5.3);
+            doc.text('PROGRESS', colX.progress, y + 5.3);
+            y += rowH;
+        };
+        drawTableHeader();
+
+        if (sortedSapi.length === 0) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(...rgb(c.inkFaint));
+            doc.text('Belum ada data', colX.sapi, y + 5.5);
+            y += rowH;
+        } else {
+            sortedSapi.forEach(([num, stats]) => {
+                checkPageBreak(rowH + 2);
+                const pct = totalApproved > 0 ? (stats.total / totalApproved * 100) : 0;
+
+                doc.setDrawColor(...rgb(c.border));
+                doc.setLineWidth(0.1);
+                doc.line(marginX, y + rowH, marginX + usableW, y + rowH);
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8.5);
+                doc.setTextColor(...rgb(c.ink));
+                doc.text(`Sapi #${num}`, colX.sapi, y + 5.3);
+
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...rgb(c.inkSoft));
+                doc.text(String(stats.members.length), colX.anggota, y + 5.3);
+
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...rgb(c.emerald));
+                doc.text(rupiah(stats.total), colX.total, y + 5.3);
+
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...rgb(c.inkSoft));
+                doc.text(rupiah(stats.average), colX.rata, y + 5.3);
+
+                const barW = 20, barH = 2.2;
+                doc.setFillColor(...rgb(c.emeraldTint));
+                doc.roundedRect(colX.progress, y + 3, barW, barH, 1, 1, 'F');
+                doc.setFillColor(...rgb(c.emerald));
+                doc.roundedRect(colX.progress, y + 3, Math.max(barW * pct / 100, 1), barH, 1, 1, 'F');
+                doc.setFontSize(6.5);
+                doc.setTextColor(...rgb(c.inkFaint));
+                doc.text(`${pct.toFixed(1)}%`, colX.progress + barW + 2, y + 4.8);
+
+                y += rowH;
+            });
+        }
+        y += 8;
+
+        // Info rekening tujuan transfer
+        const bankRows = [
+            ['Bank', 'Bank Muamalat'],
+            ['Kode Bank', '147'],
+            ['No. Rekening', '341 002 0637'],
+            ['Atas Nama', 'Masjid Dhafinul Jariyah']
+        ];
+        const bankBoxH = 10 + bankRows.length * 6;
+        checkPageBreak(bankBoxH + 5);
+
+        doc.setDrawColor(...rgb(c.gold));
+        doc.setLineWidth(0.4);
+        doc.setFillColor(...rgb(c.goldTint));
+        doc.roundedRect(marginX, y, usableW, bankBoxH, 2, 2, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...rgb(c.gold));
+        doc.text('REKENING TUJUAN TRANSFER TABUNGAN QURBAN', marginX + 6, y + 7);
+
+        let by = y + 14;
+        bankRows.forEach(([label, val]) => {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(...rgb(c.inkSoft));
+            doc.text(label, marginX + 6, by);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...rgb(c.ink));
+            doc.text(val, marginX + usableW - 6, by, { align: 'right' });
+            by += 6;
+        });
+
+        doc.save(`Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch (err) {
+        console.error('Export PDF gagal:', err);
+        alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }
 }
 
 // ===== DASHBOARD =====
