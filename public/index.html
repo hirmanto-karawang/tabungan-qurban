@@ -1399,10 +1399,68 @@
     background: var(--surface);
     border:1px solid var(--gold-soft);
     padding:6px 12px; border-radius:6px;
-    color: var(--gold); 
+    color: var(--gold);
     font-size:14px;
     font-weight: 600;
   }
+  .rek-copy-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    background:none; border:1px solid var(--gold-soft);
+    color: var(--gold); font-size:11.5px; font-weight:600;
+    padding:5px 10px; border-radius:20px; cursor:pointer;
+    margin-left:8px; transition: background .15s ease;
+  }
+  .rek-copy-btn:hover{ background: rgba(182,137,58,.1); }
+  .rek-copy-btn svg{ width:12px; height:12px; }
+
+  /* ===== TOP SAVERS (Dashboard) ===== */
+  .top-savers-list{ display:flex; flex-direction:column; gap:10px; }
+  .top-saver-item{
+    display:flex; align-items:center; gap:12px;
+    background: var(--surface);
+    border:1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding:12px 14px;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .top-saver-item:hover{ transform: translateY(-1px); box-shadow: 0 6px 16px -8px rgba(14,59,52,.25); }
+  .top-saver-rank{
+    flex-shrink:0; width:30px; text-align:center;
+    font-size:18px;
+  }
+  .top-saver-rank.rank-num{
+    font-family: var(--font-mono); font-size:13px; font-weight:700;
+    color: var(--ink-faint);
+  }
+  .top-saver-avatar{
+    flex-shrink:0; width:38px; height:38px; border-radius:50%;
+    background: var(--emerald-tint);
+    border:1.5px solid var(--gold-soft);
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--font-display); font-weight:700; font-size:15px;
+    color: var(--emerald);
+  }
+  .top-saver-info{ flex:1; min-width:0; }
+  .top-saver-name{
+    font-size:13.5px; font-weight:600; color: var(--ink);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    margin-bottom:6px;
+  }
+  .top-saver-bar-track{
+    height:6px; border-radius:4px; background: var(--sand);
+    overflow:hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.06);
+  }
+  .top-saver-bar-fill{
+    height:100%; border-radius:4px;
+    background: linear-gradient(90deg, var(--emerald-2), var(--emerald));
+  }
+  .top-saver-amount{ flex-shrink:0; text-align:right; }
+  .top-saver-total{
+    font-family: var(--font-mono); font-size:13.5px; font-weight:700;
+    color: var(--emerald);
+  }
+  .top-saver-count{ font-size:10.5px; color: var(--ink-faint); margin-top:2px; }
+  .top-savers-empty{ text-align:center; padding:24px 0; color: var(--ink-faint); font-size:13px; }
 
   /* MODAL PREVIEW FILE */
   .modal-overlay{
@@ -1865,41 +1923,43 @@
           </div>
         </div>
 
-        <div class="card">
-          <h2>Ringkasan Tabungan</h2>
-          <div class="stats-grid">
-            <div class="stat-box">
-              <label>Total Tabungan (Disetujui)</label>
-              <div class="value" id="totalSavings">Rp 0</div>
+        <!-- Ringkasan Tabungan - kartu hero, senada dengan Laporan -->
+        <div class="report-hero">
+          <div class="report-hero-label">💰 Total Tabungan Terkumpul</div>
+          <div class="report-hero-total" id="totalSavings">Rp 0</div>
+          <div class="report-hero-stats" style="grid-template-columns:repeat(2,1fr);">
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">⏳ Menunggu Verifikasi</div>
+              <div class="report-hero-stat-value" id="pendingCount">0</div>
             </div>
-            <div class="stat-box success">
-              <label>Menunggu Verifikasi</label>
-              <div class="value" id="pendingCount">0</div>
-            </div>
-            <div class="stat-box warning">
-              <label>Total Transaksi</label>
-              <div class="value" id="totalTransactions">0</div>
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">📊 Total Transaksi</div>
+              <div class="report-hero-stat-value" id="totalTransactions">0</div>
             </div>
           </div>
+        </div>
 
-          <div class="rek-box" style="margin-top:24px;">
+        <div class="card">
+          <div class="rek-box">
             <div class="rek-label">📌 Rekening Tujuan Transfer Tabungan Qurban</div>
             <div class="rek-row"><span>Bank</span><code style="font-size:16px;font-weight:600;">Bank Muamalat</code></div>
             <div class="rek-row"><span>Kode Bank</span><code>147</code></div>
-            <div class="rek-row"><span>No. Rekening</span><code style="font-size:18px;font-weight:700;letter-spacing:2px;">341 002 0637</code></div>
+            <div class="rek-row">
+              <span>No. Rekening</span>
+              <span>
+                <code style="font-size:18px;font-weight:700;letter-spacing:2px;">341 002 0637</code>
+                <button class="rek-copy-btn" onclick="copyRekening(this)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  Salin
+                </button>
+              </span>
+            </div>
             <div class="rek-row"><span>Atas nama</span><span style="color:var(--emerald);font-weight:600;">Masjid Dhafinul Jariyah</span></div>
           </div>
 
-          <h3>Lima Tabungan Tertinggi</h3>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr><th>Nama Anggota</th><th>Total Tabungan</th><th>Transaksi</th></tr>
-              </thead>
-              <tbody id="topSavingsTable">
-                <tr><td colspan="3" class="loading">Memuat data…</td></tr>
-              </tbody>
-            </table>
+          <h3>🏆 Lima Tabungan Tertinggi</h3>
+          <div class="top-savers-list" id="topSavingsList">
+            <div class="top-savers-empty">Memuat data…</div>
           </div>
         </div>
       </div>
@@ -4752,9 +4812,10 @@ function updateDashboard() {
     const pending = appData.savings.filter(s => s.status === 'PENDING');
     const totalSavings = approved.reduce((sum, s) => sum + s.amount, 0);
 
-    document.getElementById('totalSavings').textContent = `Rp ${totalSavings.toLocaleString('id-ID')}`;
-    document.getElementById('pendingCount').textContent = pending.length;
-    document.getElementById('totalTransactions').textContent = approved.length;
+    const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
+    animateCountUp(document.getElementById('totalSavings'), 0, totalSavings, rupiah);
+    animateCountUp(document.getElementById('pendingCount'), 0, pending.length, v => `${v}`);
+    animateCountUp(document.getElementById('totalTransactions'), 0, approved.length, v => `${v}`);
 
     const top5 = Object.values(
         approved.reduce((acc, s) => {
@@ -4768,19 +4829,54 @@ function updateDashboard() {
         }, {})
     ).sort((a, b) => b.total - a.total).slice(0, 5);
 
-    const tbody = document.getElementById('topSavingsTable');
-    tbody.innerHTML = '';
+    const list = document.getElementById('topSavingsList');
+    if (!list) return;
+
     if (top5.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="loading">Belum ada transaksi</td></tr>';
-    } else {
-        top5.forEach(member => {
-            const row = tbody.insertRow();
-            row.innerHTML = `
-                <td>${member.name}</td>
-                <td style="color:var(--sage);font-weight:600;">Rp ${member.total.toLocaleString('id-ID')}</td>
-                <td>${member.count}</td>
-            `;
+        list.innerHTML = '<div class="top-savers-empty">Belum ada transaksi</div>';
+        return;
+    }
+
+    const maxTotal = top5[0].total || 1;
+    const medals = ['🥇', '🥈', '🥉'];
+    list.innerHTML = top5.map((member, i) => {
+        const pct = Math.max(6, Math.round((member.total / maxTotal) * 100));
+        const initial = (member.name || '?').charAt(0).toUpperCase();
+        const rankHtml = i < 3
+            ? `<div class="top-saver-rank">${medals[i]}</div>`
+            : `<div class="top-saver-rank rank-num">#${i + 1}</div>`;
+        return `
+            <div class="top-saver-item">
+                ${rankHtml}
+                <div class="top-saver-avatar">${initial}</div>
+                <div class="top-saver-info">
+                    <div class="top-saver-name">${member.name}</div>
+                    <div class="top-saver-bar-track"><div class="top-saver-bar-fill" style="width:${pct}%;"></div></div>
+                </div>
+                <div class="top-saver-amount">
+                    <div class="top-saver-total">${rupiah(member.total)}</div>
+                    <div class="top-saver-count">${member.count} transaksi</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Salin nomor rekening ke clipboard, dengan fallback kalau Clipboard API
+// diblokir (mis. koneksi non-HTTPS lama atau browser lawas).
+function copyRekening(btn) {
+    const nomor = '3410020637';
+    const originalHTML = btn.innerHTML;
+    const showCopied = () => {
+        btn.innerHTML = '✓ Tersalin';
+        setTimeout(() => { btn.innerHTML = originalHTML; }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(nomor).then(showCopied).catch(() => {
+            showAlert('Gagal menyalin. Nomor: ' + nomor, 'warning');
         });
+    } else {
+        showAlert('Nomor rekening: ' + nomor, 'info');
     }
 }
 
