@@ -1494,8 +1494,11 @@
 <!-- PDF Export Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-<!-- Excel Export Library -->
+<!-- Excel Export Library (dipakai untuk export CSV/Excel sederhana) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Excel Export Library dengan styling (warna, font, gambar chart) untuk Laporan -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 
 </head>
 <body>
@@ -3946,105 +3949,147 @@ function exportTransactionCSV() {
     downloadExcel([headers, ...rows], 'Laporan_Transaksi_Qurban');
 }
 
-function exportLaporanExcel(evt) {
+// Helper export Excel sederhana (1 sheet, tanpa styling) - dipakai tombol
+// "Export Excel" di tab Detail Transaksi.
+function downloadExcel(data, filenameBase) {
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const colCount = data.reduce((max, row) => Math.max(max, row.length), 0);
+    ws['!cols'] = Array.from({ length: colCount }, (_, c) => {
+        let maxLen = 8;
+        data.forEach(row => {
+            const val = row[c];
+            const len = val === undefined || val === null ? 0 : String(val).length;
+            if (len > maxLen) maxLen = len;
+        });
+        return { wch: Math.min(maxLen + 2, 40) };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Data');
+    XLSX.writeFile(wb, `${filenameBase}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// Export Excel "premium" untuk Laporan - pakai ExcelJS supaya bisa kasih
+// warna, font tebal, dan gambar chart asli (mirip tampilan web), karena
+// library XLSX biasa tidak bisa menulis styling ke file .xlsx.
+async function exportLaporanExcel(evt) {
     const btn = evt?.currentTarget || evt?.target;
     const originalHTML = btn ? btn.innerHTML : null;
-    try {
     if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
-    const sapiStats = getSapiStatistics();
-    const approved = appData.savings.filter(s => s.status === 'APPROVED');
-    const totalApproved = approved.reduce((sum, s) => sum + s.amount, 0);
+    try {
+        const c = REPORT_COLORS;
+        const argb = hex => 'FF' + hex.replace('#', '').toUpperCase();
+        const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(c.emerald) } };
+        const headerFont = { bold: true, color: { argb: 'FFFFFFFF' } };
 
-    const sheets = {};
+        const sapiStats = getSapiStatistics();
+        const approved = appData.savings.filter(s => s.status === 'APPROVED');
+        const totalApproved = approved.reduce((sum, s) => sum + s.amount, 0);
+        const totalMembers = appData.members.filter(m => m.id !== 1 && m.id > 0).length;
+        const totalTransactions = appData.savings.length;
+        const average = totalMembers > 0 ? Math.round(totalApproved / totalMembers) : 0;
 
-    // Sheet 1: Summary
-    sheets['Summary'] = [
-        ['LAPORAN TABUNGAN QURBAN', '', ''],
-        ['Masjid Dhafinul Jariyah', '', ''],
-        ['', '', ''],
-        ['Total Tabungan', totalApproved, 'Rp'],
-        ['Total Anggota', appData.members.filter(m => m.id !== 1).length, ''],
-        ['Total Transaksi', appData.savings.length, ''],
-        ['', '', ''],
-        ['', '', ''],
-        ['INFORMASI REKENING TUJUAN', '', ''],
-        ['Bank', 'Bank Muamalat', ''],
-        ['Kode Bank', '147', ''],
-        ['No. Rekening', '341 002 0637', ''],
-        ['Atas Nama', 'Masjid Dhafinul Jariyah', ''],
-        ['', '', ''],
-        ['', '', ''],
-        ['PER SAPI', '', ''],
-        ['Sapi', 'Jumlah Anggota', 'Total Terkumpul']
-    ];
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'Tabungan Qurban - Masjid Dhafinul Jariyah';
+        wb.created = new Date();
 
-    Object.keys(sapiStats).sort((a, b) => a - b).forEach(sapi => {
-        const stats = sapiStats[sapi];
-        sheets['Summary'].push([`Sapi #${sapi}`, stats.members.length, stats.total]);
-    });
+        // ===== SHEET 1: RINGKASAN =====
+        const ws = wb.addWorksheet('Ringkasan', { views: [{ showGridLines: false }] });
+        ws.columns = [{ width: 22 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 16 }];
 
-    // Sheet 2: Detail Anggota
-    sheets['Anggota'] = [
-        ['ID', 'Nama', 'RT', 'Blok', 'No', 'Sapi', 'Total', 'Transaksi']
-    ];
+        ws.mergeCells('A1:E1');
+        ws.getCell('A1').value = 'LAPORAN TABUNGAN QURBAN';
+        ws.getCell('A1').font = { bold: true, size: 16, color: { argb: argb(c.emerald) } };
+        ws.getCell('A1').alignment = { horizontal: 'center' };
 
-    appData.members.filter(m => m.id !== 1 && m.id > 0).forEach(member => {
-        const memberSavings = appData.savings.filter(s => s.memberId === member.id && s.status === 'APPROVED');
-        const total = memberSavings.reduce((sum, s) => sum + s.amount, 0);
-        sheets['Anggota'].push([
-            member.id,
-            member.name,
-            member.rt || '',
-            member.blok || '',
-            member.no || '',
-            member.sapi || '',
-            total,
-            memberSavings.length
-        ]);
-    });
+        ws.mergeCells('A2:E2');
+        ws.getCell('A2').value = 'Masjid Dhafinul Jariyah';
+        ws.getCell('A2').font = { italic: true, size: 11, color: { argb: argb(c.inkFaint) } };
+        ws.getCell('A2').alignment = { horizontal: 'center' };
 
-    // Sheet 3: Transaksi
-    sheets['Transaksi'] = [
-        ['Tanggal', 'ID', 'Nama', 'Nominal', 'Bank', 'Status']
-    ];
+        ws.mergeCells('A4:E4');
+        const heroCell = ws.getCell('A4');
+        heroCell.value = `TOTAL TABUNGAN QURBAN: Rp ${totalApproved.toLocaleString('id-ID')}`;
+        heroCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+        heroCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(c.emerald) } };
+        heroCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(4).height = 28;
 
-    appData.savings.forEach(trans => {
-        const member = appData.members.find(m => m.id === trans.memberId);
-        sheets['Transaksi'].push([
-            formatDate(trans.transferDate),
-            trans.memberId,
-            member?.name || '-',
-            trans.amount,
-            trans.bankSource,
-            trans.status
-        ]);
-    });
+        ws.addRow([]);
+        const statHeaderRow = ws.addRow(['Total Anggota', 'Total Transaksi', 'Rata-rata/Anggota']);
+        statHeaderRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: argb(c.inkSoft) } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(c.emeraldTint) } };
+        });
+        const statValRow = ws.addRow([totalMembers, totalTransactions, average]);
+        statValRow.getCell(3).numFmt = '"Rp" #,##0';
 
-    // Lebar kolom otomatis menyesuaikan isi terpanjang tiap kolom, supaya teks
-    // tidak terpotong seperti tampilan default Excel (lebar kolom seragam kecil).
-    const autoSizeColumns = (data) => {
-        const colCount = data.reduce((max, row) => Math.max(max, row.length), 0);
-        const widths = [];
-        for (let c = 0; c < colCount; c++) {
-            let maxLen = 8;
-            data.forEach(row => {
-                const val = row[c];
-                const len = val === undefined || val === null ? 0 : String(val).length;
-                if (len > maxLen) maxLen = len;
-            });
-            widths.push({ wch: Math.min(maxLen + 2, 40) });
+        ws.addRow([]);
+        const perSapiTitleRow = ws.addRow(['PER SAPI']);
+        perSapiTitleRow.getCell(1).font = { bold: true, size: 12, color: { argb: argb(c.gold) } };
+
+        const sapiHeaderRow = ws.addRow(['Sapi', 'Jumlah Anggota', 'Total Terkumpul', 'Rata-rata']);
+        sapiHeaderRow.eachCell(cell => { cell.font = headerFont; cell.fill = headerFill; });
+
+        Object.keys(sapiStats).sort((a, b) => a - b).forEach(sapi => {
+            const stats = sapiStats[sapi];
+            const row = ws.addRow([`Sapi #${sapi}`, stats.members.length, stats.total, stats.average]);
+            row.getCell(3).numFmt = '"Rp" #,##0';
+            row.getCell(4).numFmt = '"Rp" #,##0';
+        });
+
+        // Sisipkan gambar chart yang sama persis dengan yang tampil di web
+        if (laporanCharts.sapi && typeof laporanCharts.sapi.toBase64Image === 'function') {
+            const imgId = wb.addImage({ base64: laporanCharts.sapi.toBase64Image(), extension: 'png' });
+            const startRow = ws.lastRow.number + 2;
+            ws.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 560, height: 260 } });
         }
-        return widths;
-    };
 
-    const wb = XLSX.utils.book_new();
-    Object.entries(sheets).forEach(([name, data]) => {
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        ws['!cols'] = autoSizeColumns(data);
-        XLSX.utils.book_append_sheet(wb, ws, name);
-    });
+        // ===== SHEET 2: Anggota =====
+        const wsMembers = wb.addWorksheet('Anggota');
+        wsMembers.columns = [
+            { header: 'ID', key: 'id', width: 8 }, { header: 'Nama', key: 'nama', width: 24 },
+            { header: 'RT', key: 'rt', width: 8 }, { header: 'Blok', key: 'blok', width: 10 },
+            { header: 'No', key: 'no', width: 8 }, { header: 'Sapi', key: 'sapi', width: 8 },
+            { header: 'Total', key: 'total', width: 16 }, { header: 'Transaksi', key: 'transaksi', width: 12 }
+        ];
+        wsMembers.getRow(1).eachCell(cell => { cell.font = headerFont; cell.fill = headerFill; });
+        appData.members.filter(m => m.id !== 1 && m.id > 0).forEach(member => {
+            const memberSavings = appData.savings.filter(s => s.memberId === member.id && s.status === 'APPROVED');
+            const total = memberSavings.reduce((sum, s) => sum + s.amount, 0);
+            wsMembers.addRow({
+                id: member.id, nama: member.name, rt: member.rt || '', blok: member.blok || '',
+                no: member.no || '', sapi: member.sapi || '', total, transaksi: memberSavings.length
+            });
+        });
+        wsMembers.getColumn('total').numFmt = '"Rp" #,##0';
 
-    XLSX.writeFile(wb, `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.xlsx`);
+        // ===== SHEET 3: Transaksi =====
+        const wsTrans = wb.addWorksheet('Transaksi');
+        wsTrans.columns = [
+            { header: 'Tanggal', key: 'tgl', width: 14 }, { header: 'ID', key: 'id', width: 8 },
+            { header: 'Nama', key: 'nama', width: 24 }, { header: 'Nominal', key: 'nominal', width: 16 },
+            { header: 'Bank', key: 'bank', width: 16 }, { header: 'Status', key: 'status', width: 12 }
+        ];
+        wsTrans.getRow(1).eachCell(cell => { cell.font = headerFont; cell.fill = headerFill; });
+        appData.savings.forEach(trans => {
+            const member = appData.members.find(m => m.id === trans.memberId);
+            wsTrans.addRow({
+                tgl: formatDate(trans.transferDate), id: trans.memberId, nama: member?.name || '-',
+                nominal: trans.amount, bank: trans.bankSource, status: trans.status
+            });
+        });
+        wsTrans.getColumn('nominal').numFmt = '"Rp" #,##0';
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
     } catch (err) {
         console.error('Export Excel gagal:', err);
         alert('Gagal membuat file Excel: ' + (err && err.message ? err.message : err));
@@ -4058,40 +4103,121 @@ function exportLaporanPDF(evt) {
     const originalHTML = btn ? btn.innerHTML : null;
     if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
 
-    // Supaya PDF persis sama dengan tampilan di web (gradient, warna, chart,
-    // count-up angka, dll), kita screenshot langsung bagian #laporan yang
-    // sedang tampil di layar — bukan bikin ulang tabel HTML polos.
-    // Tombol tab & tombol export disembunyikan HANYA pada hasil clone-nya
-    // (via onclone), jadi tampilan asli di layar user tidak ikut berubah.
-    const target = document.getElementById('laporan');
-    if (!target) {
-        alert('Konten laporan tidak ditemukan.');
-        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
-        return;
-    }
+    // Catatan: sempat dicoba screenshot langsung #laporan (elemen asli di
+    // halaman), tapi html2canvas tidak sanggup merender layout CSS grid/flex
+    // aplikasi ini dengan benar -> hasilnya kosong/terpotong jadi banyak
+    // halaman blank. Jadi kita susun ulang template PDF sendiri (layout
+    // simpel: div & table biasa) memakai palet warna & chart yang SAMA
+    // dengan tampilan web, supaya hasilnya identik secara visual tapi tetap
+    // reliable untuk dirender html2canvas.
+    try {
+        const c = REPORT_COLORS;
+        const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
 
-    html2pdf().set({
-        margin: 8,
-        filename: `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#FBF8F0',
-            onclone: (clonedDoc) => {
-                clonedDoc.querySelectorAll('#laporan .report-tabs, #laporan .report-export-actions')
-                    .forEach(el => { el.style.display = 'none'; });
-            }
-        },
-        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-        pagebreak: { mode: ['css', 'avoid-all'] }
-    }).from(target).save().then(() => {
-        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
-    }).catch(err => {
+        const approved = appData.savings.filter(s => s.status === 'APPROVED');
+        const totalApproved = approved.reduce((sum, s) => sum + s.amount, 0);
+        const totalTransactions = appData.savings.length;
+        const totalMembers = appData.members.filter(m => m.id !== 1 && m.id > 0).length;
+        const average = totalMembers > 0 ? Math.round(totalApproved / totalMembers) : 0;
+
+        const sapiStats = getSapiStatistics();
+        const sortedSapi = Object.entries(sapiStats).sort((a, b) => b[1].total - a[1].total).slice(0, 10);
+        const sapiChartImg = (laporanCharts.sapi && typeof laporanCharts.sapi.toBase64Image === 'function')
+            ? laporanCharts.sapi.toBase64Image() : null;
+
+        const rowsHtml = sortedSapi.map(([num, stats]) => {
+            const pct = totalApproved > 0 ? (stats.total / totalApproved * 100).toFixed(1) : '0.0';
+            return `
+                <tr>
+                    <td style="padding:9px 12px;border-bottom:1px solid ${c.border};font-weight:600;color:${c.ink};">Sapi #${num}</td>
+                    <td style="padding:9px 12px;border-bottom:1px solid ${c.border};text-align:center;color:${c.inkSoft};">${stats.members.length}</td>
+                    <td style="padding:9px 12px;border-bottom:1px solid ${c.border};color:${c.emerald};font-weight:700;">${rupiah(stats.total)}</td>
+                    <td style="padding:9px 12px;border-bottom:1px solid ${c.border};color:${c.inkSoft};">${rupiah(stats.average)}</td>
+                    <td style="padding:9px 12px;border-bottom:1px solid ${c.border};width:130px;">
+                        <div style="height:8px;background:${c.emeraldTint};border-radius:5px;overflow:hidden;">
+                            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg, ${c.emerald2}, ${c.emerald});"></div>
+                        </div>
+                        <div style="font-size:10px;color:${c.inkFaint};margin-top:2px;">${pct}%</div>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        const element = document.createElement('div');
+        element.style.cssText = `position:fixed;left:-9999px;top:0;width:760px;background:${c.paper};font-family:Arial,sans-serif;`;
+        element.innerHTML = `
+            <div style="padding:28px;">
+                <div style="text-align:center;margin-bottom:18px;">
+                    <div style="font-size:11px;letter-spacing:2px;color:${c.gold};font-weight:700;">MASJID DHAFINUL JARIYAH</div>
+                    <div style="font-size:22px;font-weight:700;color:${c.emerald};margin-top:4px;">Laporan Tabungan Qurban</div>
+                    <div style="font-size:11px;color:${c.inkFaint};margin-top:2px;">Dicetak ${new Date().toLocaleString('id-ID')}</div>
+                </div>
+
+                <div style="background:linear-gradient(135deg, ${c.emerald}, ${c.emerald2});border-top:4px solid ${c.gold};border-radius:14px;padding:24px 26px;color:#fff;margin-bottom:22px;">
+                    <div style="font-size:11px;letter-spacing:1.5px;color:${c.goldSoft};text-transform:uppercase;">Total Tabungan Qurban</div>
+                    <div style="font-size:32px;font-weight:700;margin-top:6px;">${rupiah(totalApproved)}</div>
+                    <div style="display:flex;gap:32px;margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.2);">
+                        <div><div style="font-size:10px;color:rgba(255,255,255,.7);">Total Anggota</div><div style="font-size:18px;font-weight:700;">${totalMembers}</div></div>
+                        <div><div style="font-size:10px;color:rgba(255,255,255,.7);">Total Transaksi</div><div style="font-size:18px;font-weight:700;">${totalTransactions}</div></div>
+                        <div><div style="font-size:10px;color:rgba(255,255,255,.7);">Rata-rata/Anggota</div><div style="font-size:18px;font-weight:700;">${rupiah(average)}</div></div>
+                    </div>
+                </div>
+
+                ${sapiChartImg ? `
+                <div style="margin-bottom:8px;"><span style="display:inline-block;width:4px;height:16px;background:${c.gold};vertical-align:-3px;margin-right:8px;border-radius:2px;"></span><span style="font-size:15px;font-weight:700;color:${c.emerald};">Progress Tabungan per Sapi</span></div>
+                <div style="background:#fff;border:1px solid ${c.border};border-radius:12px;padding:14px;margin-bottom:22px;">
+                    <img src="${sapiChartImg}" style="width:100%;display:block;">
+                </div>` : ''}
+
+                <div style="margin-bottom:8px;"><span style="display:inline-block;width:4px;height:16px;background:${c.gold};vertical-align:-3px;margin-right:8px;border-radius:2px;"></span><span style="font-size:15px;font-weight:700;color:${c.emerald};">Top Sapi Terkumpul</span></div>
+                <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid ${c.border};margin-bottom:22px;">
+                    <thead>
+                        <tr style="background:${c.emeraldTint};">
+                            <th style="padding:9px 12px;text-align:left;font-size:11px;color:${c.inkSoft};">Sapi</th>
+                            <th style="padding:9px 12px;text-align:center;font-size:11px;color:${c.inkSoft};">Anggota</th>
+                            <th style="padding:9px 12px;text-align:left;font-size:11px;color:${c.inkSoft};">Total</th>
+                            <th style="padding:9px 12px;text-align:left;font-size:11px;color:${c.inkSoft};">Rata-rata</th>
+                            <th style="padding:9px 12px;text-align:left;font-size:11px;color:${c.inkSoft};">Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml || `<tr><td colspan="5" style="padding:16px;text-align:center;color:${c.inkFaint};">Belum ada data</td></tr>`}</tbody>
+                </table>
+
+                <div style="background:${c.goldTint};border:1.5px solid ${c.gold};border-radius:12px;padding:16px 18px;">
+                    <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:${c.gold};margin-bottom:10px;">REKENING TUJUAN TRANSFER TABUNGAN QURBAN</div>
+                    <table style="width:100%;font-size:12.5px;">
+                        <tr><td style="padding:3px 0;color:${c.inkSoft};">Bank</td><td style="padding:3px 0;text-align:right;font-weight:700;color:${c.ink};">Bank Muamalat</td></tr>
+                        <tr><td style="padding:3px 0;color:${c.inkSoft};">Kode Bank</td><td style="padding:3px 0;text-align:right;font-weight:700;color:${c.ink};">147</td></tr>
+                        <tr><td style="padding:3px 0;color:${c.inkSoft};">No. Rekening</td><td style="padding:3px 0;text-align:right;font-weight:700;letter-spacing:1px;color:${c.ink};">341 002 0637</td></tr>
+                        <tr><td style="padding:3px 0;color:${c.inkSoft};">Atas Nama</td><td style="padding:3px 0;text-align:right;font-weight:700;color:${c.ink};">Masjid Dhafinul Jariyah</td></tr>
+                    </table>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(element);
+
+        const cleanup = () => { if (element.parentNode) element.parentNode.removeChild(element); };
+
+        html2pdf().set({
+            margin: 8,
+            filename: `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: c.paper },
+            jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+            pagebreak: { mode: ['css', 'legacy'] }
+        }).from(element).save().then(() => {
+            cleanup();
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+        }).catch(err => {
+            cleanup();
+            console.error('Export PDF gagal:', err);
+            alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
+            if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+        });
+    } catch (err) {
         console.error('Export PDF gagal:', err);
         alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
         if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
-    });
+    }
 }
 
 function printLaporan() {
