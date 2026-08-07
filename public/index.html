@@ -4252,109 +4252,266 @@ function exportLaporanPDF(evt) {
             });
         y += heroH + 10;
 
-        // Chart: Progress Tabungan per Sapi (gambar asli dari Chart.js, bukan gambar ulang)
-        const sapiChart = laporanCharts.sapi;
-        if (sapiChart && sapiChart.canvas && typeof sapiChart.toBase64Image === 'function') {
-            const imgData = sapiChart.toBase64Image();
-            const ratio = sapiChart.canvas.height / sapiChart.canvas.width;
-            const imgW = usableW - 8;
-            const imgH = imgW * ratio;
-            checkPageBreak(imgH + 20);
-
+        // ----- Helper: judul section dengan aksen garis emas -----
+        const drawSectionTitle = (text) => {
+            checkPageBreak(12);
             doc.setFillColor(...rgb(c.gold));
             doc.rect(marginX, y, 1.2, 5, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11.5);
             doc.setTextColor(...rgb(c.emerald));
-            doc.text('Progress Tabungan per Sapi', marginX + 4, y + 4);
-            y += 8;
+            doc.text(text, marginX + 4, y + 4);
+            y += 9;
+        };
 
+        // ----- Helper: embed gambar chart Chart.js asli (bukan gambar ulang) -----
+        const drawChartImage = (chart, label) => {
+            if (!chart || !chart.canvas || typeof chart.toBase64Image !== 'function') return;
+            const imgData = chart.toBase64Image();
+            const ratio = chart.canvas.height / chart.canvas.width;
+            const imgW = usableW - 8;
+            const imgH = imgW * ratio;
+            checkPageBreak(imgH + 20);
+            drawSectionTitle(label);
             doc.setDrawColor(...rgb(c.border));
             doc.setLineWidth(0.2);
             doc.roundedRect(marginX, y, usableW, imgH + 8, 2, 2, 'S');
             doc.addImage(imgData, 'PNG', marginX + 4, y + 4, imgW, imgH);
             y += imgH + 8 + 10;
-        }
-
-        // Tabel: Top Sapi Terkumpul
-        checkPageBreak(18);
-        doc.setFillColor(...rgb(c.gold));
-        doc.rect(marginX, y, 1.2, 5, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11.5);
-        doc.setTextColor(...rgb(c.emerald));
-        doc.text('Top Sapi Terkumpul', marginX + 4, y + 4);
-        y += 9;
-
-        const colX = {
-            sapi: marginX + 3,
-            anggota: marginX + usableW * 0.24,
-            total: marginX + usableW * 0.38,
-            rata: marginX + usableW * 0.63,
-            progress: marginX + usableW * 0.83
         };
-        const rowH = 8;
 
-        const drawTableHeader = () => {
+        // Konten mengikuti sub-tab Laporan yang SEDANG AKTIF di layar user,
+        // supaya PDF yang di-download sesuai dengan yang sedang dilihat
+        // (sebelumnya selalu Ringkasan apapun tab yang dipilih).
+        const activeTabEl = document.querySelector('#laporan .sub-tab-content:not([style*="display: none"]):not([style*="display:none"])');
+        const activeTabId = activeTabEl ? activeTabEl.id : 'overviewTab';
+
+        if (activeTabId === 'sapiTab') {
+            // ===== TAB: PER SAPI =====
+            const selectedSapi = document.getElementById('sapiFilter')?.value || '';
+            drawSectionTitle(selectedSapi ? `Detail Anggota - Sapi #${selectedSapi}` : 'Detail Semua Anggota');
+
+            const members = selectedSapi
+                ? appData.members.filter(m => m.sapi === parseInt(selectedSapi))
+                : appData.members.filter(m => m.id !== 1 && m.id > 0);
+
+            const cx = {
+                id: marginX + 3,
+                nama: marginX + usableW * 0.11,
+                alamat: marginX + usableW * 0.40,
+                total: marginX + usableW * 0.70,
+                trx: marginX + usableW * 0.92
+            };
+            const rH = 8;
+            checkPageBreak(rH * 2);
             doc.setFillColor(...rgb(c.emeraldTint));
-            doc.rect(marginX, y, usableW, rowH, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(7);
-            doc.setTextColor(...rgb(c.inkSoft));
-            doc.text('SAPI', colX.sapi, y + 5.3);
-            doc.text('ANGGOTA', colX.anggota, y + 5.3);
-            doc.text('TOTAL', colX.total, y + 5.3);
-            doc.text('RATA-RATA', colX.rata, y + 5.3);
-            doc.text('PROGRESS', colX.progress, y + 5.3);
-            y += rowH;
-        };
-        drawTableHeader();
+            doc.rect(marginX, y, usableW, rH, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...rgb(c.inkSoft));
+            doc.text('ID', cx.id, y + 5.3);
+            doc.text('NAMA', cx.nama, y + 5.3);
+            doc.text('ALAMAT', cx.alamat, y + 5.3);
+            doc.text('TOTAL', cx.total, y + 5.3);
+            doc.text('TRX', cx.trx, y + 5.3);
+            y += rH;
 
-        if (sortedSapi.length === 0) {
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8.5);
-            doc.setTextColor(...rgb(c.inkFaint));
-            doc.text('Belum ada data', colX.sapi, y + 5.5);
-            y += rowH;
-        } else {
-            sortedSapi.forEach(([num, stats]) => {
-                checkPageBreak(rowH + 2);
-                const pct = totalApproved > 0 ? (stats.total / totalApproved * 100) : 0;
+            if (members.length === 0) {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...rgb(c.inkFaint));
+                doc.text('Belum ada anggota', cx.id, y + 5.5);
+                y += rH;
+            } else {
+                members.forEach(member => {
+                    checkPageBreak(rH + 2);
+                    const memberSavings = appData.savings.filter(s => s.memberId === member.id && s.status === 'APPROVED');
+                    const total = memberSavings.reduce((sum, s) => sum + s.amount, 0);
 
-                doc.setDrawColor(...rgb(c.border));
-                doc.setLineWidth(0.1);
-                doc.line(marginX, y + rowH, marginX + usableW, y + rowH);
+                    doc.setDrawColor(...rgb(c.border)); doc.setLineWidth(0.1);
+                    doc.line(marginX, y + rH, marginX + usableW, y + rH);
 
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(8.5);
-                doc.setTextColor(...rgb(c.ink));
-                doc.text(`Sapi #${num}`, colX.sapi, y + 5.3);
+                    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...rgb(c.ink));
+                    doc.text(String(member.id), cx.id, y + 5.3);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(String(member.name || '-').substring(0, 22), cx.nama, y + 5.3);
+                    doc.setTextColor(...rgb(c.inkSoft));
+                    const alamat = member.rt ? `RT ${member.rt}/Blok ${member.blok}/No ${member.no}` : '-';
+                    doc.text(alamat.substring(0, 24), cx.alamat, y + 5.3);
+                    doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(c.emerald));
+                    doc.text(rupiah(total), cx.total, y + 5.3);
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(String(memberSavings.length), cx.trx, y + 5.3);
 
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(...rgb(c.inkSoft));
-                doc.text(String(stats.members.length), colX.anggota, y + 5.3);
+                    y += rH;
+                });
+            }
+            y += 8;
 
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(...rgb(c.emerald));
-                doc.text(rupiah(stats.total), colX.total, y + 5.3);
+        } else if (activeTabId === 'detailTab') {
+            // ===== TAB: DETAIL TRANSAKSI =====
+            const selSapi = document.getElementById('transactionSapiFilter')?.value || '';
+            const selStatus = document.getElementById('transactionStatusFilter')?.value || '';
 
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(...rgb(c.inkSoft));
-                doc.text(rupiah(stats.average), colX.rata, y + 5.3);
+            let transactions = appData.savings;
+            if (selSapi) {
+                const memberIds = appData.members.filter(m => m.sapi === parseInt(selSapi)).map(m => m.id);
+                transactions = transactions.filter(t => memberIds.includes(t.memberId));
+            }
+            if (selStatus) transactions = transactions.filter(t => t.status === selStatus);
+            transactions = [...transactions].sort((a, b) => new Date(b.transferDate) - new Date(a.transferDate));
 
-                const barW = 20, barH = 2.2;
-                doc.setFillColor(...rgb(c.emeraldTint));
-                doc.roundedRect(colX.progress, y + 3, barW, barH, 1, 1, 'F');
-                doc.setFillColor(...rgb(c.emerald));
-                doc.roundedRect(colX.progress, y + 3, Math.max(barW * pct / 100, 1), barH, 1, 1, 'F');
-                doc.setFontSize(6.5);
-                doc.setTextColor(...rgb(c.inkFaint));
-                doc.text(`${pct.toFixed(1)}%`, colX.progress + barW + 2, y + 4.8);
+            const filterNotes = [selSapi ? `Sapi #${selSapi}` : null, selStatus || null].filter(Boolean);
+            drawSectionTitle(`Detail Transaksi${filterNotes.length ? ` (${filterNotes.join(', ')})` : ''}`);
 
-                y += rowH;
+            const cx = {
+                tgl: marginX + 3,
+                id: marginX + usableW * 0.18,
+                nama: marginX + usableW * 0.28,
+                nominal: marginX + usableW * 0.55,
+                bank: marginX + usableW * 0.76,
+                status: marginX + usableW * 0.90
+            };
+            const rH = 8;
+            checkPageBreak(rH * 2);
+            doc.setFillColor(...rgb(c.emeraldTint));
+            doc.rect(marginX, y, usableW, rH, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...rgb(c.inkSoft));
+            doc.text('TANGGAL', cx.tgl, y + 5.3);
+            doc.text('ID', cx.id, y + 5.3);
+            doc.text('NAMA', cx.nama, y + 5.3);
+            doc.text('NOMINAL', cx.nominal, y + 5.3);
+            doc.text('BANK', cx.bank, y + 5.3);
+            doc.text('STATUS', cx.status, y + 5.3);
+            y += rH;
+
+            if (transactions.length === 0) {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...rgb(c.inkFaint));
+                doc.text('Belum ada transaksi', cx.tgl, y + 5.5);
+                y += rH;
+            } else {
+                const statusHex = st => st === 'APPROVED' ? c.emerald : st === 'REJECTED' ? c.brick : c.gold;
+                transactions.forEach(trans => {
+                    checkPageBreak(rH + 2);
+                    const member = appData.members.find(m => m.id === trans.memberId);
+
+                    doc.setDrawColor(...rgb(c.border)); doc.setLineWidth(0.1);
+                    doc.line(marginX, y + rH, marginX + usableW, y + rH);
+
+                    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(formatDate(trans.transferDate), cx.tgl, y + 5.3);
+                    doc.setTextColor(...rgb(c.ink));
+                    doc.text(String(trans.memberId), cx.id, y + 5.3);
+                    doc.text(String(member?.name || '-').substring(0, 16), cx.nama, y + 5.3);
+                    doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(c.emerald));
+                    doc.text(rupiah(trans.amount), cx.nominal, y + 5.3);
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(String(trans.bankSource || '-').substring(0, 12), cx.bank, y + 5.3);
+                    doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(statusHex(trans.status)));
+                    doc.text(trans.status, cx.status, y + 5.3);
+
+                    y += rH;
+                });
+            }
+            y += 8;
+
+        } else if (activeTabId === 'analisisTab') {
+            // ===== TAB: ANALISIS =====
+            drawChartImage(laporanCharts.distribution, 'Distribusi per Sapi');
+            drawChartImage(laporanCharts.monthly, 'Transaksi per Bulan');
+
+            const pendingS = appData.savings.filter(s => s.status === 'PENDING');
+            const activeMembers = appData.members.filter(m => m.id !== 1 && m.id > 0).length;
+            const paidMembers = new Set(approved.map(s => s.memberId)).size;
+            const pendingMembers = new Set(pendingS.map(s => s.memberId)).size;
+            const avgApproved = paidMembers > 0 ? Math.round(totalApproved / paidMembers) : 0;
+            const maxApproved = approved.length > 0 ? Math.max(...approved.map(s => s.amount)) : 0;
+            const minApproved = approved.length > 0 ? Math.min(...approved.map(s => s.amount)) : 0;
+
+            drawSectionTitle('Statistik Anggota');
+            const statRows = [
+                ['Total Anggota Aktif', String(activeMembers)],
+                ['Anggota Sudah Bayar', `${paidMembers} orang`],
+                ['Anggota Menunggu Verifikasi', `${pendingMembers} orang`],
+                ['Rata-rata Tabungan/Anggota', rupiah(avgApproved)],
+                ['Nominal Terbesar', rupiah(maxApproved)],
+                ['Nominal Terkecil', rupiah(minApproved)]
+            ];
+            const rH = 8;
+            checkPageBreak(rH * 2);
+            doc.setFillColor(...rgb(c.emeraldTint));
+            doc.rect(marginX, y, usableW, rH, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...rgb(c.inkSoft));
+            doc.text('METRIK', marginX + 3, y + 5.3);
+            doc.text('NILAI', marginX + usableW * 0.6, y + 5.3);
+            y += rH;
+            statRows.forEach(([label, val]) => {
+                checkPageBreak(rH + 2);
+                doc.setDrawColor(...rgb(c.border)); doc.setLineWidth(0.1);
+                doc.line(marginX, y + rH, marginX + usableW, y + rH);
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...rgb(c.ink));
+                doc.text(label, marginX + 3, y + 5.3);
+                doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(c.emerald));
+                doc.text(val, marginX + usableW * 0.6, y + 5.3);
+                y += rH;
             });
+            y += 8;
+
+        } else {
+            // ===== TAB: RINGKASAN (default) =====
+            drawChartImage(laporanCharts.sapi, 'Progress Tabungan per Sapi');
+            drawSectionTitle('Top Sapi Terkumpul');
+
+            const cx = {
+                sapi: marginX + 3,
+                anggota: marginX + usableW * 0.24,
+                total: marginX + usableW * 0.38,
+                rata: marginX + usableW * 0.63,
+                progress: marginX + usableW * 0.83
+            };
+            const rH = 8;
+            checkPageBreak(rH * 2);
+            doc.setFillColor(...rgb(c.emeraldTint));
+            doc.rect(marginX, y, usableW, rH, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...rgb(c.inkSoft));
+            doc.text('SAPI', cx.sapi, y + 5.3);
+            doc.text('ANGGOTA', cx.anggota, y + 5.3);
+            doc.text('TOTAL', cx.total, y + 5.3);
+            doc.text('RATA-RATA', cx.rata, y + 5.3);
+            doc.text('PROGRESS', cx.progress, y + 5.3);
+            y += rH;
+
+            if (sortedSapi.length === 0) {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...rgb(c.inkFaint));
+                doc.text('Belum ada data', cx.sapi, y + 5.5);
+                y += rH;
+            } else {
+                sortedSapi.forEach(([num, stats]) => {
+                    checkPageBreak(rH + 2);
+                    const pct = totalApproved > 0 ? (stats.total / totalApproved * 100) : 0;
+
+                    doc.setDrawColor(...rgb(c.border)); doc.setLineWidth(0.1);
+                    doc.line(marginX, y + rH, marginX + usableW, y + rH);
+
+                    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...rgb(c.ink));
+                    doc.text(`Sapi #${num}`, cx.sapi, y + 5.3);
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(String(stats.members.length), cx.anggota, y + 5.3);
+                    doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(c.emerald));
+                    doc.text(rupiah(stats.total), cx.total, y + 5.3);
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(rupiah(stats.average), cx.rata, y + 5.3);
+
+                    const barW = 20, barH = 2.2;
+                    doc.setFillColor(...rgb(c.emeraldTint));
+                    doc.roundedRect(cx.progress, y + 3, barW, barH, 1, 1, 'F');
+                    doc.setFillColor(...rgb(c.emerald));
+                    doc.roundedRect(cx.progress, y + 3, Math.max(barW * pct / 100, 1), barH, 1, 1, 'F');
+                    doc.setFontSize(6.5);
+                    doc.setTextColor(...rgb(c.inkFaint));
+                    doc.text(`${pct.toFixed(1)}%`, cx.progress + barW + 2, y + 4.8);
+
+                    y += rH;
+                });
+            }
+            y += 8;
         }
-        y += 8;
 
         // Info rekening tujuan transfer
         const bankRows = [
