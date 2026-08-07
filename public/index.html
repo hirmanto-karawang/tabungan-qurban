@@ -1471,6 +1471,9 @@
     height:100%; border-radius:4px;
     background: linear-gradient(90deg, var(--emerald-2), var(--emerald));
   }
+  .top-saver-pct{
+    font-size:10px; color: var(--ink-faint); margin-top:4px;
+  }
   .top-saver-amount{ flex-shrink:0; text-align:right; }
   .top-saver-total{
     font-family: var(--font-mono); font-size:13.5px; font-weight:700;
@@ -4854,10 +4857,13 @@ function updateDashboard() {
         return;
     }
 
-    const maxTotal = top5[0].total || 1;
+    // Progress bar dipatok ke target tabungan per porsi qurban (Rp 3.500.000),
+    // sama dengan patokan {PROGRESS} di template WA - BUKAN relatif ke sesama
+    // top 5 (supaya angkanya konsisten di seluruh aplikasi).
     const medals = ['🥇', '🥈', '🥉'];
     list.innerHTML = top5.map((member, i) => {
-        const pct = Math.max(6, Math.round((member.total / maxTotal) * 100));
+        const pctRaw = QURBAN_TARGET_PER_ORANG > 0 ? (member.total / QURBAN_TARGET_PER_ORANG) * 100 : 0;
+        const pct = Math.max(4, Math.min(100, Math.round(pctRaw)));
         const initial = (member.name || '?').charAt(0).toUpperCase();
         const rankHtml = i < 3
             ? `<div class="top-saver-rank">${medals[i]}</div>`
@@ -4869,6 +4875,7 @@ function updateDashboard() {
                 <div class="top-saver-info">
                     <div class="top-saver-name">${member.name}</div>
                     <div class="top-saver-bar-track"><div class="top-saver-bar-fill" style="width:${pct}%;"></div></div>
+                    <div class="top-saver-pct">${pct}% dari target</div>
                 </div>
                 <div class="top-saver-amount">
                     <div class="top-saver-total">${rupiah(member.total)}</div>
@@ -5117,6 +5124,11 @@ function insertVariable(variable) {
 
 const APP_URL = 'https://tabungan-qurban-orpin.vercel.app';
 
+// Target tabungan per porsi qurban (Rp) - dipakai buat {PROGRESS} di template
+// WA maupun progress bar di Dashboard "Lima Tabungan Tertinggi", supaya
+// keduanya konsisten pakai patokan yang sama.
+const QURBAN_TARGET_PER_ORANG = 3500000;
+
 function fillVariables(text, member) {
     const approved = appData.savings.filter(s => s.status === 'APPROVED');
     const total = approved.reduce((sum, s) => sum + s.amount, 0);
@@ -5127,7 +5139,7 @@ function fillVariables(text, member) {
     const lastAmount = member
         ? (appData.savings.filter(s => s.memberId === member.id).slice(-1)[0]?.amount || 0)
         : 0;
-    const target = 3500000; // target tabungan per porsi qurban (Rp)
+    const target = QURBAN_TARGET_PER_ORANG;
     const progress = target > 0 ? Math.min(100, Math.round((saldo / target) * 100)) : 0;
 
     return text
