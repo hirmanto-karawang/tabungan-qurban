@@ -4870,7 +4870,7 @@ function fillVariables(text, member) {
     const lastAmount = member
         ? (appData.savings.filter(s => s.memberId === member.id).slice(-1)[0]?.amount || 0)
         : 0;
-    const target = 3000000;
+    const target = 3500000; // target tabungan per porsi qurban (Rp)
     const progress = target > 0 ? Math.min(100, Math.round((saldo / target) * 100)) : 0;
 
     return text
