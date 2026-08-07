@@ -2024,16 +2024,55 @@
 
           <!-- Sub-tab: Template -->
           <div id="templatesTab" class="sub-tab-content" style="display:none;">
-            <h3 style="margin-top:0;">Template Pesan</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <h3 style="margin:0;">Template Pesan</h3>
+              <button class="btn btn-primary btn-small" onclick="openTemplateEditor()">+ Template Baru</button>
+            </div>
             <div class="table-container">
               <table>
                 <thead><tr><th>Nama</th><th>Cuplikan</th><th>Aksi</th></tr></thead>
                 <tbody id="templatesTable"><tr><td colspan="3" class="loading">Memuat…</td></tr></tbody>
               </table>
             </div>
+
+            <!-- Panel edit/tambah template -->
+            <div id="templateEditPanel" style="display:none;margin-top:22px;padding-top:20px;border-top:1px dashed var(--border);">
+              <h3 id="templateEditHeading" style="margin-top:0;">Edit Template</h3>
+              <input type="hidden" id="templateEditKey">
+
+              <div class="form-group" id="templateEditKeyGroup" style="display:none;">
+                <label>Kode Template (huruf kecil tanpa spasi, contoh: promo_ramadhan)</label>
+                <input type="text" id="templateEditNewKey" placeholder="contoh: promo_ramadhan">
+              </div>
+
+              <div class="form-group">
+                <label>Judul / Nama Template</label>
+                <input type="text" id="templateEditTitle" placeholder="Contoh: Pengingat Bulanan">
+              </div>
+
+              <div class="form-group">
+                <label>Isi Pesan</label>
+                <textarea id="templateEditMessage" rows="8" placeholder="Assalamu'alaikum {NAMA}! …"></textarea>
+                <div class="var-chips">
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{NAMA}')">{NAMA}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{SALDO}')">{SALDO}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{NOMINAL}')">{NOMINAL}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{TOTAL}')">{TOTAL}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{PESERTA}')">{PESERTA}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{PROGRESS}')">{PROGRESS}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{TANGGAL}')">{TANGGAL}</span>
+                </div>
+              </div>
+
+              <div class="actions">
+                <button class="btn btn-success" onclick="saveTemplateEdit(event)">Simpan Template</button>
+                <button class="btn btn-ghost" onclick="closeTemplateEditor()">Batal</button>
+              </div>
+            </div>
+
             <div class="info-box">
               <strong>Tips</strong>
-              Klik "Gunakan" untuk memuat template ke form Kirim Sekarang. Isi template bisa diedit dulu sebelum dikirim.
+              Klik "Gunakan" untuk memuat template ke form Kirim Sekarang. Klik "Edit" untuk mengubah judul/susunan kata template - perubahan tersimpan otomatis dan langsung berlaku.
             </div>
           </div>
 
@@ -2382,7 +2421,8 @@ let appData = {
     members: [],
     savings: [],
     verifications: [],
-    messages: []
+    messages: [],
+    templates: []
 };
 
 let currentUser = null;
@@ -2514,6 +2554,7 @@ async function loadDataFromSheets() {
     const verificationsRows = bootstrap ? (bootstrap.Verifications || []) : await fetchSheetDBTable('Verifications');
     const messagesRows = bootstrap ? (bootstrap.Pesan || []) : await fetchSheetDBTable('Pesan');
     const pendaftaranRows = bootstrap ? (bootstrap.Pendaftaran || []) : await fetchSheetDBTable('Pendaftaran');
+    const templatesRows = bootstrap ? (bootstrap.Templates || []) : await fetchSheetDBTable('Templates');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -2590,6 +2631,15 @@ async function loadDataFromSheets() {
         approved_at: row.approved_at || '',
         approved_by: row.approved_by || ''
     })).filter(p => p.id);
+
+    // Parse Templates (override/tambahan untuk MESSAGE_TEMPLATES bawaan kode -
+    // lihat getTemplates(). Kalau sheet "Templates" belum dibuat user, ini
+    // akan kosong dan template bawaan tetap dipakai seperti biasa.)
+    appData.templates = templatesRows.map(row => ({
+        key: String(row.key || '').trim(),
+        title: row.title || '',
+        message: row.message || ''
+    })).filter(t => t.key);
 
     lastDataLoadTime = Date.now();
 
@@ -4748,6 +4798,27 @@ const MESSAGE_TEMPLATES = {
     }
 };
 
+// Gabungkan template bawaan (MESSAGE_TEMPLATES, di kode) dengan template yang
+// sudah diedit/ditambah admin lewat menu (tersimpan di sheet "Templates").
+// Baris di sheet dengan "key" yang sama akan MENIMPA judul/isi bawaan;
+// "key" baru (bukan salah satu dari 5 bawaan) akan jadi template tambahan.
+// Dengan begini, kalau sheet "Templates" belum dibuat/masih kosong, aplikasi
+// tetap jalan normal pakai template bawaan seperti sebelumnya.
+function getTemplates() {
+    const merged = {};
+    Object.entries(MESSAGE_TEMPLATES).forEach(([key, tpl]) => {
+        merged[key] = { title: tpl.title, message: tpl.message };
+    });
+    (appData.templates || []).forEach(row => {
+        if (!row.key) return;
+        merged[row.key] = {
+            title: row.title || merged[row.key]?.title || row.key,
+            message: row.message || merged[row.key]?.message || ''
+        };
+    });
+    return merged;
+}
+
 function switchBroadcastTab(tabName, btn) {
     ['sendNow', 'schedule', 'templates', 'history'].forEach(t => {
         const el = document.getElementById(t + 'Tab');
@@ -4766,19 +4837,27 @@ function switchBroadcastTab(tabName, btn) {
 
 function loadTemplate() {
     const key = document.getElementById('broadcastTemplate').value;
-    if (!MESSAGE_TEMPLATES[key]) return;
-    document.getElementById('broadcastTitle').value = MESSAGE_TEMPLATES[key].title;
-    document.getElementById('broadcastMessage').value = MESSAGE_TEMPLATES[key].message;
+    const tpl = getTemplates()[key];
+    if (!tpl) return;
+    document.getElementById('broadcastTitle').value = tpl.title;
+    document.getElementById('broadcastMessage').value = tpl.message;
     updateMessagePreview();
 }
 
-function insertVariable(variable) {
-    const box = document.getElementById('broadcastMessage');
-    const start = box.selectionStart || box.value.length;
-    box.value = box.value.slice(0, start) + variable + box.value.slice(box.selectionEnd || start);
+// Sisipkan variabel ke field manapun (dipakai form Kirim Sekarang & editor Template)
+function insertVariableInto(fieldId, variable) {
+    const box = document.getElementById(fieldId);
+    if (!box) return;
+    const start = box.selectionStart ?? box.value.length;
+    const end = box.selectionEnd ?? start;
+    box.value = box.value.slice(0, start) + variable + box.value.slice(end);
     box.focus();
     box.selectionStart = box.selectionEnd = start + variable.length;
-    updateMessagePreview();
+    if (fieldId === 'broadcastMessage') updateMessagePreview();
+}
+
+function insertVariable(variable) {
+    insertVariableInto('broadcastMessage', variable);
 }
 
 function fillVariables(text, member) {
@@ -5014,24 +5093,129 @@ function loadTemplates() {
     const tbody = document.getElementById('templatesTable');
     tbody.innerHTML = '';
 
-    Object.entries(MESSAGE_TEMPLATES).forEach(([key, tpl]) => {
+    const templates = getTemplates();
+    Object.entries(templates).forEach(([key, tpl]) => {
         const row = tbody.insertRow();
         row.innerHTML = `
             <td>${tpl.title}</td>
             <td>${tpl.message.replace(/\n/g, ' ').substring(0, 60)}…</td>
-            <td><button class="btn btn-ghost btn-small" onclick="useTemplate('${key}')">Gunakan</button></td>
+            <td>
+                <button class="btn btn-ghost btn-small" onclick="useTemplate('${key}')">Gunakan</button>
+                <button class="btn btn-ghost btn-small" onclick="openTemplateEditor('${key}')">Edit</button>
+            </td>
         `;
     });
+
+    populateTemplateSelect();
+}
+
+// Isi ulang dropdown "Pilih Template" di form Kirim Sekarang secara dinamis,
+// supaya template baru/hasil edit langsung muncul di situ juga (sebelumnya
+// daftar ini statis di HTML, cuma memuat 5 template bawaan).
+function populateTemplateSelect() {
+    const select = document.getElementById('broadcastTemplate');
+    if (!select) return;
+    const currentVal = select.value;
+    const templates = getTemplates();
+    select.innerHTML = '<option value="">— Tulis Manual —</option>' +
+        Object.entries(templates).map(([key, tpl]) => `<option value="${key}">${tpl.title}</option>`).join('');
+    if (templates[currentVal]) select.value = currentVal;
 }
 
 function useTemplate(key) {
-    const tpl = MESSAGE_TEMPLATES[key];
+    const tpl = getTemplates()[key];
     if (!tpl) return;
     document.getElementById('broadcastTemplate').value = key;
     document.getElementById('broadcastTitle').value = tpl.title;
     document.getElementById('broadcastMessage').value = tpl.message;
     switchBroadcastTab('sendNow', document.querySelector('#broadcast .sub-tab-btn'));
     updateMessagePreview();
+}
+
+// ----- Editor template (buka/simpan/batal) -----
+function openTemplateEditor(key) {
+    const panel = document.getElementById('templateEditPanel');
+    const keyGroup = document.getElementById('templateEditKeyGroup');
+    const heading = document.getElementById('templateEditHeading');
+
+    if (key) {
+        const tpl = getTemplates()[key];
+        if (!tpl) return;
+        heading.textContent = `Edit Template: ${tpl.title}`;
+        document.getElementById('templateEditKey').value = key;
+        keyGroup.style.display = 'none';
+        document.getElementById('templateEditTitle').value = tpl.title;
+        document.getElementById('templateEditMessage').value = tpl.message;
+    } else {
+        heading.textContent = 'Template Baru';
+        document.getElementById('templateEditKey').value = '';
+        keyGroup.style.display = 'block';
+        document.getElementById('templateEditNewKey').value = '';
+        document.getElementById('templateEditTitle').value = '';
+        document.getElementById('templateEditMessage').value = '';
+    }
+
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeTemplateEditor() {
+    document.getElementById('templateEditPanel').style.display = 'none';
+}
+
+async function saveTemplateEdit(evt) {
+    const btn = evt?.currentTarget || evt?.target;
+    const originalHTML = btn ? btn.innerHTML : null;
+
+    const existingKey = document.getElementById('templateEditKey').value;
+    const title = document.getElementById('templateEditTitle').value.trim();
+    const message = document.getElementById('templateEditMessage').value.trim();
+
+    if (!title || !message) {
+        showAlert('Judul dan isi pesan wajib diisi', 'error');
+        return;
+    }
+
+    let key = existingKey;
+    if (!key) {
+        const rawKey = document.getElementById('templateEditNewKey').value.trim();
+        key = (rawKey ? rawKey.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') : '') || ('custom_' + Date.now());
+        if (getTemplates()[key]) {
+            showAlert('Kode template sudah dipakai, gunakan kode lain', 'error');
+            return;
+        }
+    }
+
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Menyimpan...'; }
+
+    try {
+        const existingRow = (appData.templates || []).find(t => t.key === key);
+        const ok = existingRow
+            ? await updateSheetDB('Templates', 'key', key, { title, message })
+            : await appendSheetDB('Templates', { key, title, message });
+
+        if (!ok) {
+            showAlert('Gagal menyimpan template. Pastikan sheet "Templates" (kolom: key, title, message) sudah dibuat di Google Sheets.', 'error');
+            return;
+        }
+
+        if (existingRow) {
+            existingRow.title = title;
+            existingRow.message = message;
+        } else {
+            appData.templates = appData.templates || [];
+            appData.templates.push({ key, title, message });
+        }
+
+        showAlert('Template tersimpan', 'success');
+        closeTemplateEditor();
+        loadTemplates();
+    } catch (err) {
+        console.error('Simpan template gagal:', err);
+        showAlert('Gagal menyimpan template', 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }
 }
 
 // ===== APPROVAL ANGGOTA BARU =====

@@ -17,13 +17,13 @@
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id> -> { id, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
 //   POST /api/sheets?sheet=Members&action=update  body: { keyColumn, keyValue, updates }
 
 const SHEET_ID = '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran'];
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates'];
 
 // ----- Cache access token di memori (bertahan selama instance function masih "warm") -----
 let cachedAccessToken = null;
@@ -125,21 +125,41 @@ async function readSheet(sheetName, accessToken) {
 }
 
 async function readAllSheetsBatch(accessToken) {
-  const rangesQuery = SHEET_NAMES.map(n => `ranges=${encodeURIComponent(n)}`).join('&');
-  const data = await sheetsFetch(`/values:batchGet?${rangesQuery}`, accessToken);
-  const result = {};
-  SHEET_NAMES.forEach((name, idx) => {
-    const valueRange = data.valueRanges[idx];
-    let rows = valuesToObjects(valueRange.values || []);
-    if (name === 'Savings') {
-      rows = rows.map(row => {
-        const hasFile = !!row.fileData;
-        return { ...row, fileData: '', hasFile };
-      });
-    }
-    result[name] = rows;
-  });
-  return result;
+  try {
+    const rangesQuery = SHEET_NAMES.map(n => `ranges=${encodeURIComponent(n)}`).join('&');
+    const data = await sheetsFetch(`/values:batchGet?${rangesQuery}`, accessToken);
+    const result = {};
+    SHEET_NAMES.forEach((name, idx) => {
+      const valueRange = data.valueRanges[idx];
+      let rows = valuesToObjects(valueRange.values || []);
+      if (name === 'Savings') {
+        rows = rows.map(row => {
+          const hasFile = !!row.fileData;
+          return { ...row, fileData: '', hasFile };
+        });
+      }
+      result[name] = rows;
+    });
+    return result;
+  } catch (err) {
+    // Kalau salah satu sheet di SHEET_NAMES belum ada (mis. sheet "Templates"
+    // belum dibuat user), Google Sheets API menolak SELURUH request batchGet
+    // (bukan cuma range yang bermasalah) -> tanpa fallback ini, satu sheet
+    // yang belum ada bisa bikin SEMUA data (Members, Savings, dst) gagal
+    // dimuat. Jadi kalau batch gagal, coba baca satu-satu; yang error
+    // (sheet belum ada) cukup dianggap kosong, bukan bikin semuanya gagal.
+    console.error('batchGet gagal, fallback ke baca per-sheet:', err.message);
+    const result = {};
+    await Promise.all(SHEET_NAMES.map(async (name) => {
+      try {
+        result[name] = await readSheet(name, accessToken);
+      } catch (innerErr) {
+        console.error(`Sheet "${name}" gagal dibaca (mungkin belum dibuat):`, innerErr.message);
+        result[name] = [];
+      }
+    }));
+    return result;
+  }
 }
 
 async function appendRow(sheetName, record, accessToken) {
