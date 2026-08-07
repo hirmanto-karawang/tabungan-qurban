@@ -4128,29 +4128,30 @@ function printLaporan() {
 // dibuka di tab baru dulu (browser HP otomatis punya PDF viewer bawaan) -
 // dari situ user bisa lihat hasilnya langsung dan simpan/share sendiri.
 function downloadPdfDoc(doc, filename) {
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    if (!isMobile) {
-        doc.save(filename);
-        return;
-    }
-    try {
-        const blob = doc.output('blob');
-        const url = URL.createObjectURL(blob);
-        const win = window.open(url, '_blank');
-        if (!win) {
-            // Popup diblokir browser -> fallback ke link download biasa
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-        }
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (err) {
-        console.error('Buka PDF di tab baru gagal, coba cara biasa:', err);
-        doc.save(filename);
-    }
+    // Sempat dicoba buka blob URL di tab baru khusus HP, tapi ternyata malah
+    // jadi halaman putih kosong di sebagian besar browser Android (mereka
+    // tidak semua punya PDF viewer bawaan yang bisa baca blob: URL). Jadi
+    // balik ke cara paling standar jsPDF (Blob + <a download>) yang memang
+    // sudah teruji luas dan bekerja di hampir semua browser termasuk HP -
+    // hanya saja di HP prosesnya "diam" (file langsung masuk folder Downloads
+    // tanpa notifikasi jelas), makanya ditambah pesan konfirmasi di layar.
+    doc.save(filename);
+    showQuickToast('PDF berhasil disimpan. Cek folder Downloads atau notifikasi di HP Anda.');
+}
+
+// Notifikasi kecil di pojok bawah layar, dipakai supaya user tahu proses
+// selesai walau browser tidak menampilkan indikator download yang jelas
+// (umum terjadi di banyak browser HP).
+function showQuickToast(message) {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:${REPORT_COLORS.ink};color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999999;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:88vw;text-align:center;`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'opacity .4s';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
 }
 
 // PDF Laporan digambar manual pakai jsPDF (vector/teks langsung ke PDF, TIDAK
