@@ -4020,9 +4020,27 @@ function exportLaporanExcel(evt) {
         ]);
     });
 
+    // Lebar kolom otomatis menyesuaikan isi terpanjang tiap kolom, supaya teks
+    // tidak terpotong seperti tampilan default Excel (lebar kolom seragam kecil).
+    const autoSizeColumns = (data) => {
+        const colCount = data.reduce((max, row) => Math.max(max, row.length), 0);
+        const widths = [];
+        for (let c = 0; c < colCount; c++) {
+            let maxLen = 8;
+            data.forEach(row => {
+                const val = row[c];
+                const len = val === undefined || val === null ? 0 : String(val).length;
+                if (len > maxLen) maxLen = len;
+            });
+            widths.push({ wch: Math.min(maxLen + 2, 40) });
+        }
+        return widths;
+    };
+
     const wb = XLSX.utils.book_new();
     Object.entries(sheets).forEach(([name, data]) => {
         const ws = XLSX.utils.aoa_to_sheet(data);
+        ws['!cols'] = autoSizeColumns(data);
         XLSX.utils.book_append_sheet(wb, ws, name);
     });
 
@@ -4112,6 +4130,19 @@ function exportLaporanPDF(evt) {
         </div>
     `;
 
+    // html2canvas butuh elemen benar-benar ada di DOM (punya layout/ukuran)
+    // supaya tidak menghasilkan PDF kosong. Ditaruh di luar layar, dihapus lagi setelah selesai.
+    element.style.position = 'fixed';
+    element.style.left = '-9999px';
+    element.style.top = '0';
+    element.style.width = '780px';
+    element.style.background = '#ffffff';
+    document.body.appendChild(element);
+
+    const cleanupElement = () => {
+        if (element.parentNode) element.parentNode.removeChild(element);
+    };
+
     html2pdf().set({
         margin: 10,
         filename: `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`,
@@ -4119,8 +4150,10 @@ function exportLaporanPDF(evt) {
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
     }).from(element).save().then(() => {
+        cleanupElement();
         if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
     }).catch(err => {
+        cleanupElement();
         console.error('Export PDF gagal:', err);
         alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
         if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
