@@ -1402,16 +1402,27 @@
     color: var(--gold);
     font-size:14px;
     font-weight: 600;
+    white-space:nowrap;
+  }
+  .rek-row-account{ flex-wrap:wrap; row-gap:10px; }
+  .rek-account-value{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    justify-content:flex-end;
   }
   .rek-copy-btn{
     display:inline-flex; align-items:center; gap:6px;
     background:none; border:1px solid var(--gold-soft);
     color: var(--gold); font-size:11.5px; font-weight:600;
     padding:5px 10px; border-radius:20px; cursor:pointer;
-    margin-left:8px; transition: background .15s ease;
+    white-space:nowrap;
+    transition: background .15s ease;
   }
   .rek-copy-btn:hover{ background: rgba(182,137,58,.1); }
-  .rek-copy-btn svg{ width:12px; height:12px; }
+  .rek-copy-btn svg{ width:12px; height:12px; flex-shrink:0; }
+  @media (max-width:480px){
+    .rek-row-account{ flex-direction:column; align-items:flex-start; }
+    .rek-account-value{ justify-content:flex-start; width:100%; }
+  }
 
   /* ===== TOP SAVERS (Dashboard) ===== */
   .top-savers-list{ display:flex; flex-direction:column; gap:10px; }
@@ -1443,8 +1454,14 @@
   .top-saver-info{ flex:1; min-width:0; }
   .top-saver-name{
     font-size:13.5px; font-weight:600; color: var(--ink);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    line-height:1.3;
     margin-bottom:6px;
+    overflow-wrap:break-word;
+  }
+  @media (max-width:480px){
+    .top-saver-item{ flex-wrap:wrap; }
+    .top-saver-info{ flex-basis:100%; order:3; }
+    .top-saver-amount{ margin-left:auto; }
   }
   .top-saver-bar-track{
     height:6px; border-radius:4px; background: var(--sand);
@@ -1944,9 +1961,9 @@
             <div class="rek-label">📌 Rekening Tujuan Transfer Tabungan Qurban</div>
             <div class="rek-row"><span>Bank</span><code style="font-size:16px;font-weight:600;">Bank Muamalat</code></div>
             <div class="rek-row"><span>Kode Bank</span><code>147</code></div>
-            <div class="rek-row">
+            <div class="rek-row rek-row-account">
               <span>No. Rekening</span>
-              <span>
+              <span class="rek-account-value">
                 <code style="font-size:18px;font-weight:700;letter-spacing:2px;">341 002 0637</code>
                 <button class="rek-copy-btn" onclick="copyRekening(this)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
