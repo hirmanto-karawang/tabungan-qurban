@@ -12,6 +12,8 @@
 //   GOOGLE_CLIENT_ID
 //   GOOGLE_CLIENT_SECRET
 //   GOOGLE_REFRESH_TOKEN
+//   GOOGLE_SHEET_ID     - ID Google Sheet (lihat panduan setup: bagian antara
+//                         /d/ dan /edit di URL spreadsheet Anda)
 //
 // Endpoint & format request/response SENGAJA dibuat sama persis dengan Apps
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
@@ -22,7 +24,11 @@
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
 //   POST /api/sheets?sheet=Members&action=update  body: { keyColumn, keyValue, updates }
 
-const SHEET_ID = '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
+// Fallback ke ID spreadsheet Masjid Dhafinul Jariyah kalau env var belum
+// diset, supaya deployment yang sudah jalan tidak tiba-tiba rusak. Masjid/DKM
+// lain yang deploy ulang project ini WAJIB set GOOGLE_SHEET_ID di Vercel ke
+// ID spreadsheet mereka sendiri - jangan pakai ID di bawah ini.
+const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
 const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates'];
 
 // ----- Cache access token di memori (bertahan selama instance function masih "warm") -----

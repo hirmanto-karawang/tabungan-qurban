@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tabungan Qurban — Masjid Dhafinul Jariyah</title>
+<title id="pageTitle">Tabungan Qurban — Masjid Dhafinul Jariyah</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Preconnect ke server Apps Script (backend data), supaya koneksi (DNS+TLS)
@@ -1747,11 +1747,11 @@
 
     <div class="hero-brand">
       <div class="hero-logo-container">
-        <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="hero-logo">
+        <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="hero-logo js-brand-logo">
       </div>
       <div class="eyebrow">Sistem Amanah Digital</div>
       <h1>Tabungan Qurban, dicatat rapi, dipercaya bersama.</h1>
-      <p>Platform pencatatan tabungan Qurban untuk jemaah Masjid Dhafinul Jariyah — transparan dari transfer hingga hari penyembelihan.</p>
+      <p id="heroDesc">Platform pencatatan tabungan Qurban untuk jemaah Masjid Dhafinul Jariyah — transparan dari transfer hingga hari penyembelihan.</p>
     </div>
 
     <div class="hero-stats">
@@ -1885,10 +1885,10 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       <div class="brand-mark">
-        <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="brand-logo">
+        <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="brand-logo js-brand-logo">
       </div>
       <div>
-        <div class="name">Dhafinul Jariyah</div>
+        <div class="name" id="sidebarMosqueName">Dhafinul Jariyah</div>
         <div class="sub">Tabungan Qurban</div>
       </div>
     </div>
@@ -1957,7 +1957,7 @@
       <div id="dashboard" class="tab-content active">
         <div style="text-align:center;margin-bottom:28px;padding-top:8px;">
           <div class="dashboard-logo-wrap">
-            <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="dashboard-logo">
+            <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="dashboard-logo js-brand-logo">
           </div>
         </div>
 
@@ -1965,7 +1965,7 @@
         <div class="prayer-card" id="prayerCard">
           <div class="prayer-card-top">
             <div>
-              <div class="prayer-card-location">🕌 Waktu Sholat — Karawang</div>
+              <div class="prayer-card-location" id="prayerLocationLabel">🕌 Waktu Sholat — Karawang</div>
               <div class="prayer-card-date" id="prayerDate">Memuat…</div>
             </div>
             <div class="prayer-next-info">
@@ -1998,19 +1998,19 @@
         <div class="card">
           <div class="rek-box">
             <div class="rek-label">📌 Rekening Tujuan Transfer Tabungan Qurban</div>
-            <div class="rek-row"><span>Bank</span><code style="font-size:16px;font-weight:600;">Bank Muamalat</code></div>
-            <div class="rek-row"><span>Kode Bank</span><code>147</code></div>
+            <div class="rek-row"><span>Bank</span><code style="font-size:16px;font-weight:600;" id="rekBankName1">Bank Muamalat</code></div>
+            <div class="rek-row"><span>Kode Bank</span><code id="rekBankCode1">147</code></div>
             <div class="rek-row rek-row-account">
               <span>No. Rekening</span>
               <span class="rek-account-value">
-                <code style="font-size:18px;font-weight:700;letter-spacing:2px;">341 002 0637</code>
+                <code style="font-size:18px;font-weight:700;letter-spacing:2px;" id="rekAccountDisplay1">341 002 0637</code>
                 <button class="rek-copy-btn" onclick="copyRekening(this)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                   Salin
                 </button>
               </span>
             </div>
-            <div class="rek-row"><span>Atas nama</span><span style="color:var(--emerald);font-weight:600;">Masjid Dhafinul Jariyah</span></div>
+            <div class="rek-row"><span>Atas nama</span><span style="color:var(--emerald);font-weight:600;" id="rekAccountHolder1">Masjid Dhafinul Jariyah</span></div>
           </div>
 
           <h3>🏆 Lima Tabungan Tertinggi</h3>
@@ -2030,10 +2030,10 @@
 
           <div class="rek-box">
             <div class="rek-label">Rekening Tujuan Tabungan Qurban</div>
-            <div class="rek-row"><span>Bank</span><code style="font-size:16px;font-weight:600;">Bank Muamalat</code></div>
-            <div class="rek-row"><span>Kode Bank</span><code>147</code></div>
-            <div class="rek-row"><span>No. Rekening</span><code style="font-size:18px;font-weight:700;letter-spacing:2px;">341 002 0637</code></div>
-            <div class="rek-row"><span>Atas nama</span><span style="color:var(--emerald);font-weight:600;">Masjid Dhafinul Jariyah</span></div>
+            <div class="rek-row"><span>Bank</span><code style="font-size:16px;font-weight:600;" id="rekBankName2">Bank Muamalat</code></div>
+            <div class="rek-row"><span>Kode Bank</span><code id="rekBankCode2">147</code></div>
+            <div class="rek-row"><span>No. Rekening</span><code style="font-size:18px;font-weight:700;letter-spacing:2px;" id="rekAccountDisplay2">341 002 0637</code></div>
+            <div class="rek-row"><span>Atas nama</span><span style="color:var(--emerald);font-weight:600;" id="rekAccountHolder2">Masjid Dhafinul Jariyah</span></div>
           </div>
 
           <div class="form-grid">
@@ -2470,7 +2470,7 @@
       <div id="laporan" class="tab-content">
         <div style="text-align:center;margin-bottom:20px;">
           <div class="dashboard-logo-wrap">
-            <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="dashboard-logo">
+            <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="dashboard-logo js-brand-logo">
           </div>
         </div>
         <div class="report-hero">
@@ -2662,17 +2662,82 @@
   </div>
 
 <script>
-// ===== CONFIG =====
-// Endpoint sekarang mengarah ke Vercel Serverless Function (/api/sheets),
-// bukan Apps Script lagi - jauh lebih cepat, dan same-origin (tidak perlu
-// trik text/plain buat hindari CORS preflight, tapi tetap dibiarkan aman).
+// ================================================================
+// ===== APP_CONFIG - SATU-SATUNYA TEMPAT YANG PERLU DIEDIT     =====
+// ===== kalau aplikasi ini mau dipakai masjid/DKM lain.         =====
+// ================================================================
+// Ganti nilai-nilai di bawah ini sesuai masjid Anda, lalu simpan.
+// Tidak perlu edit bagian lain di file ini untuk kustomisasi dasar.
+// Panduan lengkap setup (Google Sheet, Vercel, dsb) ada di dokumen
+// "Panduan Setup Tabungan Qurban".
+const APP_CONFIG = {
+    // Nama lengkap masjid/DKM - dipakai di judul halaman, PDF, Excel, footer pesan WA
+    mosqueName: 'Masjid Dhafinul Jariyah',
+    // Nama singkat - dipakai di sidebar
+    mosqueShortName: 'Dhafinul Jariyah',
+    // Nama file logo - taruh file logo di folder public/ dengan nama yang sama
+    logoFile: 'logo-masjid.jpg',
+    // Lokasi (kota/kabupaten) untuk keperluan tampilan & jadwal sholat
+    locationName: 'Karawang',
+    // ID lokasi di api.myquran.com untuk jadwal sholat - cari kota Anda di
+    // https://api.myquran.com/v2/sholat/kota/cari/NAMA_KOTA lalu ambil nilai "id"
+    prayerLocationId: '1210',
+    // Rekening tujuan transfer tabungan qurban
+    bankName: 'Bank Muamalat',
+    bankCode: '147',
+    bankAccountNumber: '3410020637',       // tanpa spasi, dipakai untuk tombol "Salin"
+    bankAccountNumberDisplay: '341 002 0637', // dengan spasi, dipakai untuk tampilan
+    bankAccountHolder: 'Masjid Dhafinul Jariyah',
+    // Target tabungan per porsi qurban (Rp) - basis perhitungan {PROGRESS} di
+    // template WA dan progress bar "Lima Tabungan Tertinggi" di Dashboard
+    qurbanTarget: 3500000,
+    // URL aplikasi setelah di-deploy ke Vercel - dipakai di template pesan WA
+    appUrl: 'https://tabungan-qurban-orpin.vercel.app'
+};
+
+// ===== KONEKSI BACKEND =====
+// Endpoint mengarah ke Vercel Serverless Function (/api/sheets), same-origin
+// jadi tidak perlu edit meskipun aplikasi di-deploy ulang di domain lain.
 const SHEETDB_CONFIG = {
     ENDPOINT: '/api/sheets'
 };
 
-const FONNTE_CONFIG = {
-    API_KEY: 'ke8k4Py9BD3wyKhxFqRd'
-};
+// Pengiriman WhatsApp (Fonnte) sekarang lewat proxy /api/wa-send supaya API
+// key Fonnte TIDAK pernah tampil di kode sisi browser (dulu sempat hardcoded
+// di sini - itu risiko keamanan karena siapapun bisa lihat lewat "View Source"
+// dan pakai kuota WA masjid Anda). API key asli disimpan sebagai environment
+// variable FONNTE_API_KEY di Vercel, sama seperti kredensial Google Sheets.
+
+// Terapkan APP_CONFIG ke elemen-elemen statis di HTML (judul halaman, logo,
+// nama masjid, info rekening) supaya kustomisasi untuk masjid lain cukup
+// edit APP_CONFIG di atas - tidak perlu cari-cari teks di seluruh file HTML.
+// Dipanggil sekali saat halaman dimuat (lihat bagian bawah file).
+function applyBranding() {
+    document.title = `Tabungan Qurban — ${APP_CONFIG.mosqueName}`;
+
+    document.querySelectorAll('.js-brand-logo').forEach(img => {
+        img.src = APP_CONFIG.logoFile;
+        img.alt = APP_CONFIG.mosqueName;
+    });
+
+    const setText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    };
+
+    setText('heroDesc', `Platform pencatatan tabungan Qurban untuk jemaah ${APP_CONFIG.mosqueName} — transparan dari transfer hingga hari penyembelihan.`);
+    setText('sidebarMosqueName', APP_CONFIG.mosqueShortName);
+    setText('prayerLocationLabel', `🕌 Waktu Sholat — ${APP_CONFIG.locationName}`);
+
+    // Dua kotak info rekening (Dashboard & Upload Bukti) sama-sama diisi dari
+    // APP_CONFIG yang sama supaya selalu konsisten.
+    ['1', '2'].forEach(suffix => {
+        setText('rekBankName' + suffix, APP_CONFIG.bankName);
+        setText('rekBankCode' + suffix, APP_CONFIG.bankCode);
+        setText('rekAccountDisplay' + suffix, APP_CONFIG.bankAccountNumberDisplay);
+        setText('rekAccountHolder' + suffix, APP_CONFIG.bankAccountHolder);
+    });
+}
 
 // ===== STATE =====
 let appData = {
@@ -3059,13 +3124,13 @@ Periksa menu "Approval Anggota Baru" di aplikasi.`;
     // Kirim notif ke calon
     const candidateMsg = `Assalamu'alaikum ${name}! 👋
 
-Terima kasih telah mendaftar menjadi anggota Tabungan Qurban Masjid Dhafinul Jariyah.
+Terima kasih telah mendaftar menjadi anggota Tabungan Qurban ${APP_CONFIG.mosqueName}.
 
 Admin kami akan me-review data Anda dalam 1-2 jam kerja. Anda akan menerima ID dan password melalui WhatsApp.
 
 Barakallahu fiik! 🤲
 
-Admin Masjid Dhafinul Jariyah`;
+Admin ${APP_CONFIG.mosqueName}`;
     await sendFontneMessage(phone, candidateMsg);
 
     // Bersihkan form & tampilkan notifikasi sukses di menu daftar (tidak pindah tab)
@@ -4299,7 +4364,7 @@ async function exportLaporanExcel(evt) {
         const average = totalMembers > 0 ? Math.round(totalApproved / totalMembers) : 0;
 
         const wb = new ExcelJS.Workbook();
-        wb.creator = 'Tabungan Qurban - Masjid Dhafinul Jariyah';
+        wb.creator = `Tabungan Qurban - ${APP_CONFIG.mosqueName}`;
         wb.created = new Date();
 
         // ===== SHEET 1: RINGKASAN =====
@@ -4312,7 +4377,7 @@ async function exportLaporanExcel(evt) {
         ws.getCell('A1').alignment = { horizontal: 'center' };
 
         ws.mergeCells('A2:E2');
-        ws.getCell('A2').value = 'Masjid Dhafinul Jariyah';
+        ws.getCell('A2').value = APP_CONFIG.mosqueName;
         ws.getCell('A2').font = { italic: true, size: 11, color: { argb: argb(c.inkFaint) } };
         ws.getCell('A2').alignment = { horizontal: 'center' };
 
@@ -4512,7 +4577,7 @@ function exportLaporanPDF(evt) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(...rgb(c.gold));
-        doc.text('MASJID DHAFINUL JARIYAH', pageW / 2, y, { align: 'center' });
+        doc.text(APP_CONFIG.mosqueName.toUpperCase(), pageW / 2, y, { align: 'center' });
         y += 7;
         doc.setFontSize(17);
         doc.setTextColor(...rgb(c.emerald));
@@ -4823,10 +4888,10 @@ function exportLaporanPDF(evt) {
 
         // Info rekening tujuan transfer
         const bankRows = [
-            ['Bank', 'Bank Muamalat'],
-            ['Kode Bank', '147'],
-            ['No. Rekening', '341 002 0637'],
-            ['Atas Nama', 'Masjid Dhafinul Jariyah']
+            ['Bank', APP_CONFIG.bankName],
+            ['Kode Bank', APP_CONFIG.bankCode],
+            ['No. Rekening', APP_CONFIG.bankAccountNumberDisplay],
+            ['Atas Nama', APP_CONFIG.bankAccountHolder]
         ];
         const bankBoxH = 10 + bankRows.length * 6;
         checkPageBreak(bankBoxH + 5);
@@ -4936,7 +5001,7 @@ function updateDashboard() {
 // Salin nomor rekening ke clipboard, dengan fallback kalau Clipboard API
 // diblokir (mis. koneksi non-HTTPS lama atau browser lawas).
 function copyRekening(btn) {
-    const nomor = '3410020637';
+    const nomor = APP_CONFIG.bankAccountNumber;
     const originalHTML = btn.innerHTML;
     const showCopied = () => {
         btn.innerHTML = '✓ Tersalin';
@@ -4970,7 +5035,7 @@ Kami akan notifikasi Anda saat sudah di-review.
 
 Barakallahu fiik! 🤲
 
-Admin Masjid Dhafinul Jariyah`;
+Admin ${APP_CONFIG.mosqueName}`;
 
     return await sendFontneMessage(member.phone, message);
 }
@@ -4991,7 +5056,7 @@ Terima kasih atas kepercayaan dan ketulusan Anda. Semoga Allah menerima amal kit
 
 Barakallahu fiik! 🤲
 
-Admin Masjid Dhafinul Jariyah`;
+Admin ${APP_CONFIG.mosqueName}`;
 
     return await sendFontneMessage(member.phone, message);
 }
@@ -5009,7 +5074,7 @@ Mohon maaf, tabungan Qurban Anda sebesar Rp ${amount.toLocaleString('id-ID')} be
 
 Terima kasih atas pengertian dan kesabaran Anda.
 
-Admin Masjid Dhafinul Jariyah`;
+Admin ${APP_CONFIG.mosqueName}`;
 
     return await sendFontneMessage(member.phone, message);
 }
@@ -5087,23 +5152,23 @@ document.addEventListener('click', e => {
 const MESSAGE_TEMPLATES = {
     upload_ack: {
         title: 'Konfirmasi Upload Bukti',
-        message: "Assalamu'alaikum {NAMA}!\n\nTerima kasih telah mengunggah bukti transfer Qurban sebesar Rp {NOMINAL}.\n\nStatus: MENUNGGU VERIFIKASI ADMIN\nAdmin akan memverifikasi dalam 1-2 jam kerja.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
+        message: `Assalamu'alaikum {NAMA}!\n\nTerima kasih telah mengunggah bukti transfer Qurban sebesar Rp {NOMINAL}.\n\nStatus: MENUNGGU VERIFIKASI ADMIN\nAdmin akan memverifikasi dalam 1-2 jam kerja.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     approval: {
         title: 'Notifikasi Disetujui',
-        message: "Alhamdulillah, {NAMA}!\n\nTabungan Qurban Anda sebesar Rp {NOMINAL} telah DISETUJUI.\n\nTotal tabungan Anda: Rp {SALDO}\nProgress: {PROGRESS}%\n\nTerima kasih atas kepercayaannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
+        message: `Alhamdulillah, {NAMA}!\n\nTabungan Qurban Anda sebesar Rp {NOMINAL} telah DISETUJUI.\n\nTotal tabungan Anda: Rp {SALDO}\nProgress: {PROGRESS}%\n\nTerima kasih atas kepercayaannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     rejection: {
         title: 'Notifikasi Ditolak',
-        message: "Assalamu'alaikum {NAMA},\n\nMohon maaf, bukti transfer Qurban Anda belum dapat kami verifikasi karena bukti kurang jelas terbaca.\n\nSilakan unggah ulang bukti transfer yang lebih jelas melalui aplikasi.\n\nTerima kasih atas pengertiannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
+        message: `Assalamu'alaikum {NAMA},\n\nMohon maaf, bukti transfer Qurban Anda belum dapat kami verifikasi karena bukti kurang jelas terbaca.\n\nSilakan unggah ulang bukti transfer yang lebih jelas melalui aplikasi.\n\nTerima kasih atas pengertiannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     reminder: {
         title: 'Pengingat Bulanan',
-        message: "Assalamu'alaikum {NAMA}!\n\nPengingat: saatnya menabung Qurban bulan ini.\n\nSaldo tabungan Anda saat ini: Rp {SALDO}\n\nSilakan transfer ke rekening DKM, lalu unggah bukti melalui aplikasi.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
+        message: `Assalamu'alaikum {NAMA}!\n\nPengingat: saatnya menabung Qurban bulan ini.\n\nSaldo tabungan Anda saat ini: Rp {SALDO}\n\nSilakan transfer ke rekening DKM, lalu unggah bukti melalui aplikasi.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     recap: {
         title: 'Rekap Bulanan',
-        message: "REKAP TABUNGAN QURBAN\n{TANGGAL}\n\nAssalamu'alaikum {NAMA}!\n\nTabungan Anda: Rp {SALDO}\nTotal terkumpul: Rp {TOTAL}\nJumlah peserta: {PESERTA} anggota\nProgress: {PROGRESS}%\n\nJazakumullahu khairan.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
+        message: `REKAP TABUNGAN QURBAN\n{TANGGAL}\n\nAssalamu'alaikum {NAMA}!\n\nTabungan Anda: Rp {SALDO}\nTotal terkumpul: Rp {TOTAL}\nJumlah peserta: {PESERTA} anggota\nProgress: {PROGRESS}%\n\nJazakumullahu khairan.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
     }
 };
 
@@ -5169,12 +5234,14 @@ function insertVariable(variable) {
     insertVariableInto('broadcastMessage', variable);
 }
 
-const APP_URL = 'https://tabungan-qurban-orpin.vercel.app';
+// Diambil dari APP_CONFIG di bagian atas file (satu-satunya tempat yang perlu
+// diedit kalau nilai ini mau diganti).
+const APP_URL = APP_CONFIG.appUrl;
 
 // Target tabungan per porsi qurban (Rp) - dipakai buat {PROGRESS} di template
 // WA maupun progress bar di Dashboard "Lima Tabungan Tertinggi", supaya
 // keduanya konsisten pakai patokan yang sama.
-const QURBAN_TARGET_PER_ORANG = 3500000;
+const QURBAN_TARGET_PER_ORANG = APP_CONFIG.qurbanTarget;
 
 function fillVariables(text, member) {
     const approved = appData.savings.filter(s => s.status === 'APPROVED');
@@ -5304,30 +5371,28 @@ async function sendBroadcastNow() {
     clearBroadcastForm();
 }
 
+// Kirim WA lewat proxy /api/wa-send (bukan langsung ke Fonnte dari browser),
+// supaya API key Fonnte tidak pernah kelihatan di sisi client.
 async function sendFonnteMessage(phoneNumber, message) {
     try {
-        const body = new FormData();
-        body.append('target', String(phoneNumber).trim());
-        body.append('message', message);
-
-        const response = await fetch('https://api.fonnte.com/send', {
+        const response = await fetch('/api/wa-send', {
             method: 'POST',
-            headers: { 'Authorization': FONNTE_CONFIG.API_KEY },
-            body: body
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: String(phoneNumber).trim(), message })
         });
 
         if (!response.ok) {
-            console.error('Fonnte HTTP error', phoneNumber, response.status);
+            console.error('WA send HTTP error', phoneNumber, response.status);
             return false;
         }
         const result = await response.json().catch(() => null);
-        if (result && result.status === false) {
-            console.error('Fonnte rejected', phoneNumber, result);
+        if (result && result.success === false) {
+            console.error('WA send rejected', phoneNumber, result);
             return false;
         }
         return true;
     } catch (error) {
-        console.error('Fonnte request failed for', phoneNumber, error);
+        console.error('WA send request failed for', phoneNumber, error);
         return false;
     }
 }
@@ -5649,7 +5714,7 @@ Terima kasih telah bergabung. Semoga Allah memudahkan niat kita semua.
 
 Barakallahu fiik! 🤲
 
-Admin Masjid Dhafinul Jariyah`;
+Admin ${APP_CONFIG.mosqueName}`;
 
     await sendFontneMessage(pendaftar.phone, credMsg);
 
@@ -5695,7 +5760,7 @@ Silakan hubungi kami melalui WhatsApp untuk diskusi lebih lanjut, atau coba daft
 
 Terima kasih atas pengertian Anda.
 
-Admin Masjid Dhafinul Jariyah`;
+Admin ${APP_CONFIG.mosqueName}`;
 
     await sendFontneMessage(pendaftar.phone, rejectMsg);
 
@@ -5730,23 +5795,23 @@ function loadBroadcastHistory() {
     });
 }
 
+// Sama seperti sendFonnteMessage() - dipertahankan karena dipakai di banyak
+// tempat lain di kode ini (nama historis, ada typo "Fontne" vs "Fonnte").
 async function sendFontneMessage(phoneNumber, message) {
     try {
-        const url = 'https://api.fonnte.com/send';
-        const formData = new FormData();
-        formData.append('target', phoneNumber);
-        formData.append('message', message);
-
-        const response = await fetch(url, {
+        const response = await fetch('/api/wa-send', {
             method: 'POST',
-            headers: {
-                'Authorization': FONNTE_CONFIG.API_KEY
-            },
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: phoneNumber, message })
         });
 
         if (!response.ok) {
-            console.error(`Fonnte error for ${phoneNumber}:`, response.status);
+            console.error(`WA send error for ${phoneNumber}:`, response.status);
+            return false;
+        }
+        const result = await response.json().catch(() => null);
+        if (result && result.success === false) {
+            console.error(`WA send rejected for ${phoneNumber}:`, result);
             return false;
         }
 
@@ -5892,13 +5957,12 @@ async function handleProfileUpdate(event) {
     
     
     // Kirim notif ke member dengan password baru
-    await fetch('https://api.fonnte.com/send', {
+    await fetch('/api/wa-send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             target: phone,
-            message: `Assalamu'alaikum ${name}!\\n\\n✅ Data pribadi Anda telah diperbarui:\\n\\n📋 Informasi Terbaru:\\n├─ Nama: ${name}\\n├─ WhatsApp: ${phone}\\n├─ Alamat: RT ${rt}, Blok ${blok}, No ${no}\\n\\n🔐 Password Baru:\\n└─ ${newPassword} (dari 4 digit terakhir nomor HP)\\n\\nJika ada yang tidak sesuai, hubungi admin.\\n\\nBarakallahu fiik!\\n\\nAdmin Masjid Dhafinul Jariyah`,
-            apikey: FONNTE_CONFIG.API_KEY
+            message: `Assalamu'alaikum ${name}!\\n\\n✅ Data pribadi Anda telah diperbarui:\\n\\n📋 Informasi Terbaru:\\n├─ Nama: ${name}\\n├─ WhatsApp: ${phone}\\n├─ Alamat: RT ${rt}, Blok ${blok}, No ${no}\\n\\n🔐 Password Baru:\\n└─ ${newPassword} (dari 4 digit terakhir nomor HP)\\n\\nJika ada yang tidak sesuai, hubungi admin.\\n\\nBarakallahu fiik!\\n\\nAdmin ${APP_CONFIG.mosqueName}`
         })
     }).catch(err => console.log('Notif sent'));
 }
@@ -5912,7 +5976,7 @@ function resetProfileForm() {
 // Sumber: api.myquran.com (data Kemenag RI), gratis & tanpa API key.
 // Lokasi Kab. Karawang -> id lokasi 1210 (cek ulang di
 // https://api.myquran.com/v2/sholat/kota/cari/<nama kota> kalau lokasi masjid pindah kota lain.
-const PRAYER_LOCATION_ID = '1210';
+const PRAYER_LOCATION_ID = APP_CONFIG.prayerLocationId;
 const PRAYER_ITEMS = [
     { key: 'imsak', label: 'Imsak' },
     { key: 'subuh', label: 'Subuh', fardhu: true },
@@ -6016,6 +6080,11 @@ function renderPrayerTimes(jadwal) {
 // ===== INIT =====
 document.getElementById('uploadDate').valueAsDate = new Date();
 initFileDropzone();
+
+// Terapkan identitas masjid (nama, logo, rekening) ke seluruh halaman dari
+// APP_CONFIG - supaya kustomisasi cukup edit satu tempat di atas, tidak
+// perlu cari-cari teks di HTML.
+applyBranding();
 
 // Prefetch data di background begitu halaman dibuka (sebelum user login),
 // supaya saat user selesai isi form & klik "Masuk", data kemungkinan besar
