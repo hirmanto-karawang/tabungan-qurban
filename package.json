@@ -27,10 +27,6 @@
   "author": "Your Name",
   "license": "MIT",
   
-  "devDependencies": {
-    "vercel": "^latest"
-  },
-  
   "dependencies": {},
   
   "engines": {
