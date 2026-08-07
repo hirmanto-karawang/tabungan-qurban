@@ -712,6 +712,123 @@
     word-break:break-word;
   }
 
+  /* ===== WAKTU SHOLAT ===== */
+  .prayer-card{
+    position:relative;
+    overflow:hidden;
+    background: linear-gradient(135deg, var(--emerald-2) 0%, var(--emerald) 65%, #0A2C27 100%);
+    color:#fff;
+    border-radius: var(--radius-lg);
+    padding:22px 22px 20px;
+    margin-bottom:22px;
+    box-shadow: 0 12px 32px -12px rgba(14,59,52,.45);
+  }
+  .prayer-card::before{
+    content:'';
+    position:absolute;
+    top:-60px; right:-40px;
+    width:200px; height:200px;
+    border-radius:50%;
+    background: radial-gradient(circle, rgba(231,200,120,.16) 0%, transparent 70%);
+    pointer-events:none;
+  }
+  .prayer-card::after{
+    content:'';
+    position:absolute;
+    left:0; right:0; top:0;
+    height:3px;
+    background: linear-gradient(90deg, var(--gold-soft), var(--gold), var(--gold-soft));
+  }
+  .prayer-card-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    gap:14px;
+    position:relative;
+    z-index:1;
+  }
+  .prayer-card-location{
+    font-size:12px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    opacity:.85;
+    font-weight:600;
+  }
+  .prayer-card-date{
+    font-size:12.5px;
+    opacity:.75;
+    margin-top:4px;
+  }
+  .prayer-next-info{ text-align:right; }
+  .prayer-next-label{
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    opacity:.7;
+  }
+  .prayer-next-name{
+    font-family: var(--font-display);
+    font-size:19px;
+    font-weight:700;
+    color: var(--gold-soft);
+    margin-top:2px;
+  }
+  .prayer-next-countdown{
+    font-family: var(--font-mono);
+    font-size:11.5px;
+    opacity:.85;
+    margin-top:2px;
+  }
+  .prayer-times-row{
+    display:flex;
+    gap:8px;
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid rgba(255,255,255,.16);
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    position:relative;
+    z-index:1;
+  }
+  .prayer-times-row::-webkit-scrollbar{ display:none; }
+  .prayer-time-chip{
+    flex:1 0 auto;
+    min-width:64px;
+    text-align:center;
+    padding:9px 6px;
+    border-radius:10px;
+    background: rgba(255,255,255,.07);
+    transition: transform .2s ease, background .2s ease;
+  }
+  .prayer-time-chip.minor{ opacity:.6; }
+  .prayer-time-chip.active{
+    background: linear-gradient(135deg, var(--gold-soft), var(--gold));
+    box-shadow: 0 6px 16px -4px rgba(231,200,120,.5);
+    transform: translateY(-2px);
+    opacity:1;
+  }
+  .prayer-time-chip .label{
+    font-size:9.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    opacity:.8;
+  }
+  .prayer-time-chip.active .label{ color: var(--emerald); opacity:.9; }
+  .prayer-time-chip .time{
+    font-family: var(--font-mono);
+    font-size:13.5px;
+    font-weight:700;
+    margin-top:4px;
+  }
+  .prayer-time-chip.active .time{ color: var(--emerald); }
+  @media (max-width:480px){
+    .prayer-card{ padding:18px 16px; }
+    .prayer-next-info{ text-align:left; }
+    .prayer-card-top{ flex-direction:column; }
+  }
+
   /* ===== LAPORAN - TAB NAVIGATION ===== */
   .report-card{ padding:18px 16px; }
   .report-tabs{
@@ -1729,6 +1846,25 @@
             <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="dashboard-logo">
           </div>
         </div>
+
+        <!-- Waktu Sholat -->
+        <div class="prayer-card" id="prayerCard">
+          <div class="prayer-card-top">
+            <div>
+              <div class="prayer-card-location">🕌 Waktu Sholat — Karawang</div>
+              <div class="prayer-card-date" id="prayerDate">Memuat…</div>
+            </div>
+            <div class="prayer-next-info">
+              <div class="prayer-next-label">Sholat Berikutnya</div>
+              <div class="prayer-next-name" id="prayerNextName">—</div>
+              <div class="prayer-next-countdown" id="prayerNextCountdown"></div>
+            </div>
+          </div>
+          <div class="prayer-times-row" id="prayerTimesRow">
+            <div style="opacity:.7;font-size:12.5px;padding:6px 0;">Memuat jadwal sholat…</div>
+          </div>
+        </div>
+
         <div class="card">
           <h2>Ringkasan Tabungan</h2>
           <div class="stats-grid">
@@ -5600,6 +5736,111 @@ function resetProfileForm() {
     document.getElementById('profileMessage').innerHTML = '';
 }
 
+// ===== WAKTU SHOLAT (Dashboard) =====
+// Sumber: api.myquran.com (data Kemenag RI), gratis & tanpa API key.
+// Lokasi Kab. Karawang -> id lokasi 1210 (cek ulang di
+// https://api.myquran.com/v2/sholat/kota/cari/<nama kota> kalau lokasi masjid pindah kota lain.
+const PRAYER_LOCATION_ID = '1210';
+const PRAYER_ITEMS = [
+    { key: 'imsak', label: 'Imsak' },
+    { key: 'subuh', label: 'Subuh', fardhu: true },
+    { key: 'terbit', label: 'Terbit' },
+    { key: 'dhuha', label: 'Dhuha' },
+    { key: 'dzuhur', label: 'Dzuhur', fardhu: true },
+    { key: 'ashar', label: 'Ashar', fardhu: true },
+    { key: 'maghrib', label: 'Maghrib', fardhu: true },
+    { key: 'isya', label: 'Isya', fardhu: true }
+];
+let currentPrayerJadwal = null;
+
+async function loadPrayerTimes() {
+    const container = document.getElementById('prayerTimesRow');
+    const dateEl = document.getElementById('prayerDate');
+    if (!container) return;
+
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const cacheKey = `prayerTimes_${y}-${m}-${d}`;
+
+    if (dateEl) {
+        dateEl.textContent = today.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    // Cache per-hari di localStorage supaya tidak nge-fetch API tiap kali
+    // buka Dashboard - jadwal sholat 1 lokasi kan sama sepanjang hari itu.
+    let jadwal = null;
+    try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) jadwal = JSON.parse(cached);
+    } catch (e) { /* localStorage tidak tersedia, lanjut fetch biasa */ }
+
+    if (!jadwal) {
+        try {
+            const resp = await fetch(`https://api.myquran.com/v2/sholat/jadwal/${PRAYER_LOCATION_ID}/${y}/${m}/${d}`);
+            const data = await resp.json();
+            if (data && data.status && data.data && data.data.jadwal) {
+                jadwal = data.data.jadwal;
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify(jadwal));
+                    // Buang cache hari-hari lama biar tidak menumpuk terus
+                    Object.keys(localStorage).forEach(k => {
+                        if (k.startsWith('prayerTimes_') && k !== cacheKey) localStorage.removeItem(k);
+                    });
+                } catch (e) { /* abaikan kalau localStorage penuh/diblokir */ }
+            }
+        } catch (err) {
+            console.error('Gagal memuat jadwal sholat:', err);
+        }
+    }
+
+    if (!jadwal) {
+        container.innerHTML = '<div style="opacity:.7;font-size:12.5px;padding:6px 0;">Jadwal sholat tidak tersedia saat ini.</div>';
+        return;
+    }
+
+    currentPrayerJadwal = jadwal;
+    renderPrayerTimes(jadwal);
+}
+
+function renderPrayerTimes(jadwal) {
+    const container = document.getElementById('prayerTimesRow');
+    const nameEl = document.getElementById('prayerNextName');
+    const cdEl = document.getElementById('prayerNextCountdown');
+    if (!container) return;
+
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const fardhuTimes = PRAYER_ITEMS.filter(p => p.fardhu).map(p => {
+        const [h, mnt] = (jadwal[p.key] || '00:00').split(':').map(Number);
+        return { ...p, minutes: (h || 0) * 60 + (mnt || 0) };
+    });
+
+    let nextPrayer = fardhuTimes.find(p => p.minutes > nowMinutes);
+    if (!nextPrayer) nextPrayer = fardhuTimes[0]; // sudah lewat Isya -> hitung mundur ke Subuh besok
+
+    container.innerHTML = PRAYER_ITEMS.map(p => {
+        const isNext = nextPrayer && p.key === nextPrayer.key;
+        return `
+            <div class="prayer-time-chip ${isNext ? 'active' : ''} ${p.fardhu ? '' : 'minor'}">
+                <div class="label">${p.label}</div>
+                <div class="time">${jadwal[p.key] || '--:--'}</div>
+            </div>
+        `;
+    }).join('');
+
+    if (nameEl && nextPrayer) {
+        nameEl.textContent = nextPrayer.label;
+        let diff = nextPrayer.minutes - nowMinutes;
+        if (diff <= 0) diff += 24 * 60;
+        const hh = Math.floor(diff / 60);
+        const mm = diff % 60;
+        if (cdEl) cdEl.textContent = hh > 0 ? `${hh} jam ${mm} menit lagi` : `${mm} menit lagi`;
+    }
+}
+
 // ===== INIT =====
 document.getElementById('uploadDate').valueAsDate = new Date();
 initFileDropzone();
@@ -5608,6 +5849,12 @@ initFileDropzone();
 // supaya saat user selesai isi form & klik "Masuk", data kemungkinan besar
 // sudah siap/sedang siap - tidak perlu nunggu round-trip dari nol.
 ensureDataLoaded();
+
+// Waktu sholat: tampil terlepas dari status login (info umum, bukan data
+// pribadi), dan di-refresh tiap menit supaya highlight "sholat berikutnya" +
+// hitung mundur tetap akurat tanpa perlu reload halaman.
+loadPrayerTimes();
+setInterval(loadPrayerTimes, 60000);
 </script>
 </body>
 </html>
