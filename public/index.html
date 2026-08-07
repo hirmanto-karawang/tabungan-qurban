@@ -1495,7 +1495,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <!-- Excel Export Library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 </head>
 <body>
@@ -4118,7 +4118,7 @@ function exportLaporanPDF(evt) {
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
-    }).save(element).then(() => {
+    }).from(element).save().then(() => {
         if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
     }).catch(err => {
         console.error('Export PDF gagal:', err);
