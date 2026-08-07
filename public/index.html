@@ -1468,6 +1468,24 @@
     .field-readonly-row{ grid-template-columns: 1fr; gap:10px; }
     .profile-actions{ flex-direction:column; }
   }
+
+  /* ===== PRINT: laporan bersih, tanpa sidebar/topbar/tombol ===== */
+  @media print{
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    body{ background:#fff !important; }
+    .sidebar, .sidebar-overlay, .topbar, .report-tabs, .report-export-actions,
+    .bottom-nav, .fab, button, .card:not(.report-card){ display:none !important; }
+    .main-area{ margin:0 !important; padding:0 !important; width:100% !important; }
+    .tab-content{ display:none !important; }
+    #laporan{ display:block !important; }
+    #laporan .sub-tab-content{ display:none !important; }
+    #laporan .sub-tab-content.print-active{ display:block !important; }
+    .report-card{ box-shadow:none !important; border:none !important; padding:0 !important; }
+    .report-chart-box{ break-inside:avoid; page-break-inside:avoid; }
+    .table-container{ overflow:visible !important; }
+    table{ min-width:0 !important; font-size:11px !important; }
+    .report-hero{ break-inside:avoid; }
+  }
 </style>
 
 <!-- Chart Library -->
@@ -3929,6 +3947,10 @@ function exportTransactionCSV() {
 }
 
 function exportLaporanExcel() {
+    const btn = event?.currentTarget;
+    const originalHTML = btn ? btn.innerHTML : null;
+    try {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
     const sapiStats = getSapiStatistics();
     const approved = appData.savings.filter(s => s.status === 'APPROVED');
     const totalApproved = approved.reduce((sum, s) => sum + s.amount, 0);
@@ -4005,9 +4027,19 @@ function exportLaporanExcel() {
     });
 
     XLSX.writeFile(wb, `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.xlsx`);
+    } catch (err) {
+        console.error('Export Excel gagal:', err);
+        alert('Gagal membuat file Excel. Silakan coba lagi.');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }
 }
 
 function exportLaporanPDF() {
+    const btn = event?.currentTarget;
+    const originalHTML = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
+    try {
     const sapiStats = getSapiStatistics();
     const approved = appData.savings.filter(s => s.status === 'APPROVED');
     const totalApproved = approved.reduce((sum, s) => sum + s.amount, 0);
@@ -4030,7 +4062,7 @@ function exportLaporanPDF() {
                 </tr>
                 <tr style="background-color:#E6EEEA;">
                     <td style="padding:10px;border:1px solid #E4DBC5;"><strong>Rata-rata/Anggota</strong></td>
-                    <td style="padding:10px;border:1px solid #E4DBC5;">Rp ${(totalApproved/totalMembers).toLocaleString('id-ID')}</td>
+                    <td style="padding:10px;border:1px solid #E4DBC5;">Rp ${(totalMembers > 0 ? Math.round(totalApproved/totalMembers) : 0).toLocaleString('id-ID')}</td>
                 </tr>
             </table>
 
@@ -4084,12 +4116,37 @@ function exportLaporanPDF() {
         margin: 10,
         filename: `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { scale: 2, useCORS: true },
         jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
-    }).save(element);
+    }).save(element).then(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }).catch(err => {
+        console.error('Export PDF gagal:', err);
+        alert('Gagal membuat PDF. Silakan coba lagi.');
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    });
+    } catch (err) {
+        console.error('Export PDF gagal:', err);
+        alert('Gagal membuat PDF. Silakan coba lagi.');
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }
 }
 
 function printLaporan() {
+    // Tandai sub-tab Laporan yang sedang aktif supaya stylesheet @media print
+    // tahu bagian mana yang harus ditampilkan (yang lain otomatis disembunyikan).
+    const activeTab = document.querySelector('#laporan .sub-tab-content:not([style*="display: none"]):not([style*="display:none"])');
+    if (activeTab) activeTab.classList.add('print-active');
+
+    const cleanup = () => {
+        if (activeTab) activeTab.classList.remove('print-active');
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+
+    // Fallback jika browser tidak memicu 'afterprint' (mis. sebagian browser mobile)
+    setTimeout(cleanup, 3000);
+
     window.print();
 }
 
