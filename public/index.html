@@ -4057,112 +4057,41 @@ function exportLaporanPDF(evt) {
     const btn = evt?.currentTarget || evt?.target;
     const originalHTML = btn ? btn.innerHTML : null;
     if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
-    try {
-    const sapiStats = getSapiStatistics();
-    const approved = appData.savings.filter(s => s.status === 'APPROVED');
-    const totalApproved = approved.reduce((sum, s) => sum + s.amount, 0);
-    const totalMembers = appData.members.filter(m => m.id !== 1).length;
 
-    const element = document.createElement('div');
-    element.innerHTML = `
-        <div style="font-family:Arial;padding:20px;">
-            <h1 style="text-align:center;color:#0E3B34;margin-bottom:5px;">LAPORAN TABUNGAN QURBAN</h1>
-            <p style="text-align:center;color:#4C5851;margin-bottom:30px;">Masjid Dhafinul Jariyah</p>
-
-            <table style="width:100%;border-collapse:collapse;margin-bottom:30px;">
-                <tr style="background-color:#E6EEEA;">
-                    <td style="padding:10px;border:1px solid #E4DBC5;"><strong>Total Tabungan</strong></td>
-                    <td style="padding:10px;border:1px solid #E4DBC5;">Rp ${totalApproved.toLocaleString('id-ID')}</td>
-                </tr>
-                <tr>
-                    <td style="padding:10px;border:1px solid #E4DBC5;"><strong>Total Anggota</strong></td>
-                    <td style="padding:10px;border:1px solid #E4DBC5;">${totalMembers} orang</td>
-                </tr>
-                <tr style="background-color:#E6EEEA;">
-                    <td style="padding:10px;border:1px solid #E4DBC5;"><strong>Rata-rata/Anggota</strong></td>
-                    <td style="padding:10px;border:1px solid #E4DBC5;">Rp ${(totalMembers > 0 ? Math.round(totalApproved/totalMembers) : 0).toLocaleString('id-ID')}</td>
-                </tr>
-            </table>
-
-            <h3 style="color:#0E3B34;margin-bottom:15px;">Per Sapi</h3>
-            <table style="width:100%;border-collapse:collapse;">
-                <tr style="background-color:#0E3B34;color:white;">
-                    <th style="padding:10px;border:1px solid #E4DBC5;text-align:left;">Sapi</th>
-                    <th style="padding:10px;border:1px solid #E4DBC5;text-align:left;">Anggota</th>
-                    <th style="padding:10px;border:1px solid #E4DBC5;text-align:left;">Total</th>
-                    <th style="padding:10px;border:1px solid #E4DBC5;text-align:left;">Rata-rata</th>
-                </tr>
-                ${Object.keys(sapiStats).sort((a, b) => a - b).map(sapi => `
-                    <tr>
-                        <td style="padding:10px;border:1px solid #E4DBC5;">Sapi #${sapi}</td>
-                        <td style="padding:10px;border:1px solid #E4DBC5;">${sapiStats[sapi].members.length}</td>
-                        <td style="padding:10px;border:1px solid #E4DBC5;">Rp ${sapiStats[sapi].total.toLocaleString('id-ID')}</td>
-                        <td style="padding:10px;border:1px solid #E4DBC5;">Rp ${sapiStats[sapi].average.toLocaleString('id-ID')}</td>
-                    </tr>
-                `).join('')}
-            </table>
-
-            <div style="background-color:#F7EFDA;border:2px solid #B6893A;border-radius:8px;padding:15px;margin-top:30px;margin-bottom:20px;">
-                <h4 style="margin:0 0 10px 0;color:#B6893A;font-size:13px;font-weight:700;letter-spacing:.5px;">📌 REKENING TUJUAN TRANSFER TABUNGAN QURBAN</h4>
-                <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                    <tr>
-                        <td style="padding:4px 0;color:#4C5851;"><strong>Bank</strong></td>
-                        <td style="padding:4px 0;color:#0E3B34;text-align:right;"><strong>Bank Muamalat</strong></td>
-                    </tr>
-                    <tr>
-                        <td style="padding:4px 0;color:#4C5851;"><strong>Kode Bank</strong></td>
-                        <td style="padding:4px 0;color:#0E3B34;text-align:right;"><strong>147</strong></td>
-                    </tr>
-                    <tr>
-                        <td style="padding:4px 0;color:#4C5851;"><strong>No. Rekening</strong></td>
-                        <td style="padding:4px 0;color:#0E3B34;text-align:right;font-family:monospace;font-weight:700;letter-spacing:1px;"><strong>341 002 0637</strong></td>
-                    </tr>
-                    <tr>
-                        <td style="padding:4px 0;color:#4C5851;"><strong>Atas Nama</strong></td>
-                        <td style="padding:4px 0;color:#0E3B34;text-align:right;"><strong>Masjid Dhafinul Jariyah</strong></td>
-                    </tr>
-                </table>
-            </div>
-
-            <p style="margin-top:20px;text-align:center;color:#869089;font-size:12px;">
-                Dicetak pada: ${new Date().toLocaleString('id-ID')}
-            </p>
-        </div>
-    `;
-
-    // html2canvas butuh elemen benar-benar ada di DOM (punya layout/ukuran)
-    // supaya tidak menghasilkan PDF kosong. Ditaruh di luar layar, dihapus lagi setelah selesai.
-    element.style.position = 'fixed';
-    element.style.left = '-9999px';
-    element.style.top = '0';
-    element.style.width = '780px';
-    element.style.background = '#ffffff';
-    document.body.appendChild(element);
-
-    const cleanupElement = () => {
-        if (element.parentNode) element.parentNode.removeChild(element);
-    };
+    // Supaya PDF persis sama dengan tampilan di web (gradient, warna, chart,
+    // count-up angka, dll), kita screenshot langsung bagian #laporan yang
+    // sedang tampil di layar — bukan bikin ulang tabel HTML polos.
+    // Tombol tab & tombol export disembunyikan HANYA pada hasil clone-nya
+    // (via onclone), jadi tampilan asli di layar user tidak ikut berubah.
+    const target = document.getElementById('laporan');
+    if (!target) {
+        alert('Konten laporan tidak ditemukan.');
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+        return;
+    }
 
     html2pdf().set({
-        margin: 10,
+        margin: 8,
         filename: `Laporan_Tabungan_Qurban_${new Date().toISOString().slice(0,10)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
-    }).from(element).save().then(() => {
-        cleanupElement();
+        html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#FBF8F0',
+            onclone: (clonedDoc) => {
+                clonedDoc.querySelectorAll('#laporan .report-tabs, #laporan .report-export-actions')
+                    .forEach(el => { el.style.display = 'none'; });
+            }
+        },
+        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+        pagebreak: { mode: ['css', 'avoid-all'] }
+    }).from(target).save().then(() => {
         if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
     }).catch(err => {
-        cleanupElement();
         console.error('Export PDF gagal:', err);
         alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
         if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
     });
-    } catch (err) {
-        console.error('Export PDF gagal:', err);
-        alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
-        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
-    }
 }
 
 function printLaporan() {
