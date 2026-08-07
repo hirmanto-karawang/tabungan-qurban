@@ -1959,6 +1959,9 @@
                 <span class="var-chip" onclick="insertVariable('{PESERTA}')">{PESERTA}</span>
                 <span class="var-chip" onclick="insertVariable('{PROGRESS}')">{PROGRESS}</span>
                 <span class="var-chip" onclick="insertVariable('{TANGGAL}')">{TANGGAL}</span>
+                <span class="var-chip" onclick="insertVariable('{ID}')">{ID}</span>
+                <span class="var-chip" onclick="insertVariable('{PASSWORD}')">{PASSWORD}</span>
+                <span class="var-chip" onclick="insertVariable('{LINK}')">{LINK}</span>
               </div>
             </div>
 
@@ -2061,6 +2064,9 @@
                   <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{PESERTA}')">{PESERTA}</span>
                   <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{PROGRESS}')">{PROGRESS}</span>
                   <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{TANGGAL}')">{TANGGAL}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{ID}')">{ID}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{PASSWORD}')">{PASSWORD}</span>
+                  <span class="var-chip" onclick="insertVariableInto('templateEditMessage','{LINK}')">{LINK}</span>
                 </div>
               </div>
 
@@ -4778,23 +4784,23 @@ document.addEventListener('click', e => {
 const MESSAGE_TEMPLATES = {
     upload_ack: {
         title: 'Konfirmasi Upload Bukti',
-        message: "Assalamu'alaikum {NAMA}!\n\nTerima kasih telah mengunggah bukti transfer Qurban sebesar Rp {NOMINAL}.\n\nStatus: MENUNGGU VERIFIKASI ADMIN\nAdmin akan memverifikasi dalam 1-2 jam kerja.\n\nBarakallahu fiik.\n\nAdmin Masjid Dhafinul Jariyah"
+        message: "Assalamu'alaikum {NAMA}!\n\nTerima kasih telah mengunggah bukti transfer Qurban sebesar Rp {NOMINAL}.\n\nStatus: MENUNGGU VERIFIKASI ADMIN\nAdmin akan memverifikasi dalam 1-2 jam kerja.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
     },
     approval: {
         title: 'Notifikasi Disetujui',
-        message: "Alhamdulillah, {NAMA}!\n\nTabungan Qurban Anda sebesar Rp {NOMINAL} telah DISETUJUI.\n\nTotal tabungan Anda: Rp {SALDO}\nProgress: {PROGRESS}%\n\nTerima kasih atas kepercayaannya.\n\nAdmin Masjid Dhafinul Jariyah"
+        message: "Alhamdulillah, {NAMA}!\n\nTabungan Qurban Anda sebesar Rp {NOMINAL} telah DISETUJUI.\n\nTotal tabungan Anda: Rp {SALDO}\nProgress: {PROGRESS}%\n\nTerima kasih atas kepercayaannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
     },
     rejection: {
         title: 'Notifikasi Ditolak',
-        message: "Assalamu'alaikum {NAMA},\n\nMohon maaf, bukti transfer Qurban Anda belum dapat kami verifikasi karena bukti kurang jelas terbaca.\n\nSilakan unggah ulang bukti transfer yang lebih jelas melalui aplikasi.\n\nTerima kasih atas pengertiannya.\n\nAdmin Masjid Dhafinul Jariyah"
+        message: "Assalamu'alaikum {NAMA},\n\nMohon maaf, bukti transfer Qurban Anda belum dapat kami verifikasi karena bukti kurang jelas terbaca.\n\nSilakan unggah ulang bukti transfer yang lebih jelas melalui aplikasi.\n\nTerima kasih atas pengertiannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
     },
     reminder: {
         title: 'Pengingat Bulanan',
-        message: "Assalamu'alaikum {NAMA}!\n\nPengingat: saatnya menabung Qurban bulan ini.\n\nSaldo tabungan Anda saat ini: Rp {SALDO}\n\nSilakan transfer ke rekening DKM, lalu unggah bukti melalui aplikasi.\n\nBarakallahu fiik.\n\nAdmin Masjid Dhafinul Jariyah"
+        message: "Assalamu'alaikum {NAMA}!\n\nPengingat: saatnya menabung Qurban bulan ini.\n\nSaldo tabungan Anda saat ini: Rp {SALDO}\n\nSilakan transfer ke rekening DKM, lalu unggah bukti melalui aplikasi.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
     },
     recap: {
         title: 'Rekap Bulanan',
-        message: "REKAP TABUNGAN QURBAN\n{TANGGAL}\n\nAssalamu'alaikum {NAMA}!\n\nTabungan Anda: Rp {SALDO}\nTotal terkumpul: Rp {TOTAL}\nJumlah peserta: {PESERTA} anggota\nProgress: {PROGRESS}%\n\nJazakumullahu khairan.\n\nAdmin Masjid Dhafinul Jariyah"
+        message: "REKAP TABUNGAN QURBAN\n{TANGGAL}\n\nAssalamu'alaikum {NAMA}!\n\nTabungan Anda: Rp {SALDO}\nTotal terkumpul: Rp {TOTAL}\nJumlah peserta: {PESERTA} anggota\nProgress: {PROGRESS}%\n\nJazakumullahu khairan.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin Masjid Dhafinul Jariyah"
     }
 };
 
@@ -4860,6 +4866,8 @@ function insertVariable(variable) {
     insertVariableInto('broadcastMessage', variable);
 }
 
+const APP_URL = 'https://tabungan-qurban-orpin.vercel.app';
+
 function fillVariables(text, member) {
     const approved = appData.savings.filter(s => s.status === 'APPROVED');
     const total = approved.reduce((sum, s) => sum + s.amount, 0);
@@ -4880,7 +4888,10 @@ function fillVariables(text, member) {
         .replace(/\{TOTAL\}/g, total.toLocaleString('id-ID'))
         .replace(/\{PESERTA\}/g, peserta)
         .replace(/\{PROGRESS\}/g, progress)
-        .replace(/\{TANGGAL\}/g, new Date().toLocaleDateString('id-ID'));
+        .replace(/\{TANGGAL\}/g, new Date().toLocaleDateString('id-ID'))
+        .replace(/\{ID\}/g, member ? String(member.id) : '-')
+        .replace(/\{PASSWORD\}/g, member ? (member.password || '-') : '-')
+        .replace(/\{LINK\}/g, APP_URL);
 }
 
 function updateMessagePreview() {
