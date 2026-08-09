@@ -2808,11 +2808,19 @@ async function appendSheetDB(tableName, record) {
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json().catch(() => null);
-        if (result && result.error) throw new Error(result.error);
+        if (result && result.error) throw new Error(typeof result.error === 'string' ? result.error : JSON.stringify(result.error));
         return true;
     } catch (error) {
         console.error(`Error appending to ${tableName}:`, error);
-        showAlert('Gagal menyimpan data.', 'error');
+        // Kalau penyebabnya kelewat batas karakter sel Google Sheets (mis.
+        // ada jalur lain yang lolos dari validasi kompresi di sisi upload),
+        // kasih pesan yang jelas ke user - bukan cuma "gagal" generik.
+        const msg = String(error && error.message || error);
+        if (/50000|50,000|exceeds|cell limit/i.test(msg)) {
+            showAlert('Gagal menyimpan: file bukti transfer masih terlalu besar untuk disimpan. Coba upload ulang dengan foto yang lebih sederhana.', 'error');
+        } else {
+            showAlert('Gagal menyimpan data.', 'error');
+        }
         return false;
     }
 }
@@ -3352,35 +3360,67 @@ function updateAmountHint() {
     hint.style.color = 'var(--emerald-2)';
 }
 
-function compressImage(base64Data, callback, maxWidth = 800, maxHeight = 800, quality = 0.8) {
+// Google Sheets punya batas KERAS 50.000 karakter per sel (bukan batas
+// ukuran file, tapi batas produk Google Sheets sendiri - kalau dilewati,
+// baris gagal tersimpan atau datanya kepotong diam-diam). Ini alasan utama
+// kenapa upload bukti transfer "sering gagal" walau file kelihatan kecil
+// (di bawah 1MB): begitu diubah ke base64 ukurannya naik ~33%, jadi file
+// yang tampak kecil pun gampang melebihi 50.000 karakter itu, apalagi untuk
+// foto dengan banyak detail/teks (screenshot struk transfer) atau PDF yang
+// sama sekali tidak dikompres. Sisakan margin aman di bawah batas keras.
+const SHEETS_CELL_SAFE_LIMIT = 45000;
+
+function renderImageToJpeg(img, maxDim, quality) {
+    let width = img.width;
+    let height = img.height;
+    if (width > height) {
+        if (width > maxDim) { height = Math.round((height * maxDim) / width); width = maxDim; }
+    } else {
+        if (height > maxDim) { width = Math.round((width * maxDim) / height); height = maxDim; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', quality);
+}
+
+// Kompresi ADAPTIF: coba beberapa kombinasi ukuran/kualitas, turun bertahap,
+// sampai hasil base64-nya muat di bawah SHEETS_CELL_SAFE_LIMIT. Ini beda
+// dari versi lama yang cuma kompres SEKALI dengan setelan tetap (800px,
+// quality 0.8) - untuk foto detail/resolusi tinggi (mis. screenshot struk
+// transfer bank), hasil kompresi sekali itu masih sering kelewat besar.
+function compressImage(base64Data, callback, onFail) {
     const img = new Image();
     img.onload = function () {
-        let width = img.width;
-        let height = img.height;
+        const attempts = [
+            { maxDim: 800, quality: 0.8 },
+            { maxDim: 800, quality: 0.6 },
+            { maxDim: 600, quality: 0.6 },
+            { maxDim: 600, quality: 0.45 },
+            { maxDim: 450, quality: 0.4 },
+            { maxDim: 350, quality: 0.35 },
+            { maxDim: 280, quality: 0.3 }
+        ];
 
-        // Hitung resize ratio
-        if (width > height) {
-            if (width > maxWidth) {
-                height = Math.round((height * maxWidth) / width);
-                width = maxWidth;
-            }
-        } else {
-            if (height > maxHeight) {
-                width = Math.round((width * maxHeight) / height);
-                height = maxHeight;
+        let smallest = null;
+        for (const attempt of attempts) {
+            const candidate = renderImageToJpeg(img, attempt.maxDim, attempt.quality);
+            if (!smallest || candidate.length < smallest.length) smallest = candidate;
+            if (candidate.length <= SHEETS_CELL_SAFE_LIMIT) {
+                callback(candidate);
+                return;
             }
         }
 
-        // Draw ke canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Convert ke JPEG quality rendah untuk ukuran lebih kecil
-        const compressed = canvas.toDataURL('image/jpeg', quality);
-        callback(compressed);
+        // Sudah dikompres habis-habisan tapi tetap kelewat besar - biarkan
+        // pemanggil kasih tahu user, jangan dipaksa upload (nanti gagal
+        // tersimpan tanpa pesan yang jelas).
+        if (typeof onFail === 'function') onFail(smallest);
+    };
+    img.onerror = function () {
+        if (typeof onFail === 'function') onFail(null);
     };
     img.src = base64Data;
 }
@@ -3397,8 +3437,12 @@ function previewFile() {
 
     if (!file) return;
 
-    if (file.size > 1 * 1024 * 1024) {
-        error.textContent = `File terlalu besar (${formatBytes(file.size)}). Maksimal 1 MB.`;
+    // Ini cuma filter kasar di awal (tolak file yang jelas kebesaran sebelum
+    // buang waktu baca/proses). Untuk gambar, batas SEBENARNYA yang berlaku
+    // adalah SHEETS_CELL_SAFE_LIMIT di atas (setelah dikompres). Untuk PDF,
+    // batas itu dicek langsung di bawah karena PDF tidak dikompres.
+    if (file.size > 8 * 1024 * 1024) {
+        error.textContent = `File terlalu besar (${formatBytes(file.size)}). Maksimal sekitar 8 MB (foto akan otomatis dikompres).`;
         input.value = '';
         return;
     }
@@ -3413,8 +3457,9 @@ function previewFile() {
     const reader = new FileReader();
     reader.onload = function (e) {
         const base64Data = e.target.result;
-        
-        // Jika gambar, compress dulu
+
+        // Jika gambar, compress dulu secara adaptif sampai muat di batas
+        // sel Google Sheets (lihat komentar SHEETS_CELL_SAFE_LIMIT di atas).
         if (file.type.startsWith('image/')) {
             compressImage(base64Data, function(compressedBase64) {
                 selectedFileData = {
@@ -3434,9 +3479,25 @@ function previewFile() {
                     </div>`;
 
                 preview.innerHTML = chip + `<img src="${compressedBase64}" class="preview-image" alt="Pratinjau bukti transfer" style="margin-top:12px;">`;
+            }, function() {
+                // Sudah dikompres maksimal tapi tetap kelewat besar (jarang
+                // terjadi, biasanya foto sangat detail/resolusi ekstrem).
+                selectedFileData = null;
+                error.textContent = 'Foto ini terlalu detail untuk disimpan walau sudah dikompres maksimal. Coba foto ulang lebih dekat/sederhana, atau kirim potongan bagian penting saja.';
+                input.value = '';
             });
         } else {
-            // PDF, simpan as-is
+            // PDF tidak bisa dikompres di browser, jadi base64-nya harus
+            // sudah muat DARI AWAL. PDF hasil scan/print biasanya jauh lebih
+            // besar dari foto dengan konten yang sama, jadi ini yang paling
+            // sering jadi penyebab "upload gagal padahal file kecil".
+            if (base64Data.length > SHEETS_CELL_SAFE_LIMIT) {
+                selectedFileData = null;
+                error.textContent = `File PDF ini terlalu besar untuk disimpan (perlu di bawah ~${formatBytes(Math.floor(SHEETS_CELL_SAFE_LIMIT * 3 / 4))} setelah encoding). Silakan screenshot/foto bukti transfernya saja lalu upload sebagai JPG/PNG - foto otomatis dikompres oleh aplikasi.`;
+                input.value = '';
+                return;
+            }
+
             selectedFileData = {
                 name: file.name,
                 type: file.type,
