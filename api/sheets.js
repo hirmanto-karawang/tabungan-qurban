@@ -12,18 +12,24 @@
 //   GOOGLE_CLIENT_ID
 //   GOOGLE_CLIENT_SECRET
 //   GOOGLE_REFRESH_TOKEN
+//   GOOGLE_SHEET_ID     - ID Google Sheet (lihat panduan setup: bagian antara
+//                         /d/ dan /edit di URL spreadsheet Anda)
 //
 // Endpoint & format request/response SENGAJA dibuat sama persis dengan Apps
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id> -> { id, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
 //   POST /api/sheets?sheet=Members&action=update  body: { keyColumn, keyValue, updates }
 
-const SHEET_ID = '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran'];
+// Fallback ke ID spreadsheet Masjid Dhafinul Jariyah kalau env var belum
+// diset, supaya deployment yang sudah jalan tidak tiba-tiba rusak. Masjid/DKM
+// lain yang deploy ulang project ini WAJIB set GOOGLE_SHEET_ID di Vercel ke
+// ID spreadsheet mereka sendiri - jangan pakai ID di bawah ini.
+const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog'];
 
 // ----- Cache access token di memori (bertahan selama instance function masih "warm") -----
 let cachedAccessToken = null;
@@ -125,21 +131,41 @@ async function readSheet(sheetName, accessToken) {
 }
 
 async function readAllSheetsBatch(accessToken) {
-  const rangesQuery = SHEET_NAMES.map(n => `ranges=${encodeURIComponent(n)}`).join('&');
-  const data = await sheetsFetch(`/values:batchGet?${rangesQuery}`, accessToken);
-  const result = {};
-  SHEET_NAMES.forEach((name, idx) => {
-    const valueRange = data.valueRanges[idx];
-    let rows = valuesToObjects(valueRange.values || []);
-    if (name === 'Savings') {
-      rows = rows.map(row => {
-        const hasFile = !!row.fileData;
-        return { ...row, fileData: '', hasFile };
-      });
-    }
-    result[name] = rows;
-  });
-  return result;
+  try {
+    const rangesQuery = SHEET_NAMES.map(n => `ranges=${encodeURIComponent(n)}`).join('&');
+    const data = await sheetsFetch(`/values:batchGet?${rangesQuery}`, accessToken);
+    const result = {};
+    SHEET_NAMES.forEach((name, idx) => {
+      const valueRange = data.valueRanges[idx];
+      let rows = valuesToObjects(valueRange.values || []);
+      if (name === 'Savings') {
+        rows = rows.map(row => {
+          const hasFile = !!row.fileData;
+          return { ...row, fileData: '', hasFile };
+        });
+      }
+      result[name] = rows;
+    });
+    return result;
+  } catch (err) {
+    // Kalau salah satu sheet di SHEET_NAMES belum ada (mis. sheet "Templates"
+    // belum dibuat user), Google Sheets API menolak SELURUH request batchGet
+    // (bukan cuma range yang bermasalah) -> tanpa fallback ini, satu sheet
+    // yang belum ada bisa bikin SEMUA data (Members, Savings, dst) gagal
+    // dimuat. Jadi kalau batch gagal, coba baca satu-satu; yang error
+    // (sheet belum ada) cukup dianggap kosong, bukan bikin semuanya gagal.
+    console.error('batchGet gagal, fallback ke baca per-sheet:', err.message);
+    const result = {};
+    await Promise.all(SHEET_NAMES.map(async (name) => {
+      try {
+        result[name] = await readSheet(name, accessToken);
+      } catch (innerErr) {
+        console.error(`Sheet "${name}" gagal dibaca (mungkin belum dibuat):`, innerErr.message);
+        result[name] = [];
+      }
+    }));
+    return result;
+  }
 }
 
 async function appendRow(sheetName, record, accessToken) {
@@ -148,10 +174,20 @@ async function appendRow(sheetName, record, accessToken) {
   const headers = (headerData.values && headerData.values[0]) || [];
   const newRow = headers.map(h => (record[h] !== undefined ? record[h] : ''));
 
+  // Batasi range append ke kolom A sampai kolom terakhir header (mis. "Members!A:K"),
+  // JANGAN cuma nama sheet tanpa batas kolom. Kalau range tidak dibatasi, Google
+  // Sheets API mendeteksi "tabel" secara otomatis - dan kalau ada teks nyasar di
+  // kolom jauh (mis. catatan/komentar admin), append bisa salah sasaran nulis ke
+  // kolom yang jauh sekali alih-alih bikin baris baru di kolom A. Sudah pernah
+  // kejadian nyata: data anggota baru nyasar ke kolom M-U gara-gara ada teks
+  // "<- baris contoh" di kolom M baris 2.
+  const lastColLetter = columnToLetter(headers.length - 1);
+  const appendRange = `${encodeURIComponent(sheetName)}!A:${lastColLetter}`;
+
   // valueInputOption=RAW penting: supaya nilai seperti "0812..." TIDAK diubah
   // jadi angka (dan kehilangan 0 di depan) oleh Google Sheets.
   await sheetsFetch(
-    `/values/${encodeURIComponent(sheetName)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    `/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     accessToken,
     { method: 'POST', body: JSON.stringify({ values: [newRow] }) }
   );
