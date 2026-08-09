@@ -2243,14 +2243,14 @@
             <div class="form-group">
               <label>Penerima</label>
               <select id="broadcastRecipients" onchange="onBroadcastRecipientChange()">
-                <option value="ALL">Semua Anggota</option>
-                <option value="APPROVED">Anggota dengan Tabungan Disetujui</option>
-                <option value="PENDING">Anggota dengan Tabungan Menunggu</option>
-                <option value="NO_UPLOAD">Belum Upload Apapun</option>
                 <option value="MEMBER">Pilih Anggota Manual…</option>
                 <optgroup label="Per Grup Sapi" id="sapiOptGroup"></optgroup>
               </select>
               <small id="recipientCount" style="display:block; margin-top:7px;">—</small>
+              <div class="info-box" style="margin-top:10px;">
+                <strong>Kenapa tidak ada "Kirim ke Semua Anggota"?</strong>
+                Broadcast massal ke semua anggota sekaligus berisiko bikin nomor WhatsApp masjid diblokir (WhatsApp mendeteksi pola kirim pesan sama ke banyak orang sebagai spam). Untuk keamanan nomor WA masjid, pengiriman dibatasi maksimal per grup sapi atau pilih manual.
+              </div>
 
               <div class="member-picker-box" id="memberPickerBox" style="display:none;">
                 <div class="member-picker-toolbar">
@@ -2319,10 +2319,9 @@
             <div class="form-group">
               <label>Penerima</label>
               <select id="scheduleRecipients">
-                <option value="ALL">Semua Anggota</option>
-                <option value="APPROVED">Anggota dengan Tabungan Disetujui</option>
-                <option value="PENDING">Anggota dengan Tabungan Menunggu</option>
+                <optgroup label="Per Grup Sapi" id="scheduleSapiOptGroup"></optgroup>
               </select>
+              <small style="display:block; margin-top:7px; color:var(--ink-faint);">Jadwal juga dibatasi maksimal per grup sapi, sama seperti Kirim Sekarang - demi keamanan nomor WhatsApp masjid.</small>
             </div>
 
             <div class="form-group">
@@ -5431,23 +5430,15 @@ function updateMessagePreview() {
 // lewat kolom pencarian.
 let selectedBroadcastMemberIds = new Set();
 
+// SENGAJA cuma mendukung dua mode: MEMBER (pilih manual) dan SAPI:<nilai>
+// (per grup sapi). Broadcast ke SEMUA anggota sekaligus dihapus total dari
+// aplikasi ini - bukan cuma disembunyikan di dropdown - supaya tidak ada
+// jalur kode manapun (termasuk data jadwal lama yang mungkin masih tersimpan
+// dengan recipients=ALL dari versi sebelumnya) yang bisa memicu pengiriman
+// massal. Nomor WhatsApp masjid pernah diblokir karena pola broadcast massal
+// ini, jadi mode selain MEMBER/SAPI sengaja dianggap TIDAK VALID (return
+// kosong) alih-alih "aman default ke semua orang".
 function getRecipientList(mode) {
-    const idsWithStatus = status => new Set(
-        appData.savings.filter(s => s.status === status).map(s => s.memberId)
-    );
-
-    if (mode === 'APPROVED') {
-        const ids = idsWithStatus('APPROVED');
-        return appData.members.filter(m => ids.has(m.id));
-    }
-    if (mode === 'PENDING') {
-        const ids = idsWithStatus('PENDING');
-        return appData.members.filter(m => ids.has(m.id));
-    }
-    if (mode === 'NO_UPLOAD') {
-        const ids = new Set(appData.savings.map(s => s.memberId));
-        return appData.members.filter(m => !ids.has(m.id));
-    }
     if (mode === 'MEMBER') {
         return appData.members.filter(m => selectedBroadcastMemberIds.has(String(m.id)));
     }
@@ -5455,7 +5446,7 @@ function getRecipientList(mode) {
         const sapiValue = mode.slice(5);
         return appData.members.filter(m => String(m.sapi || '') === sapiValue);
     }
-    return appData.members.slice();
+    return [];
 }
 
 // Ambil semua nilai "sapi" yang benar-benar ada di data anggota (buang yang
@@ -5463,23 +5454,27 @@ function getRecipientList(mode) {
 // string biasa), lalu isi jadi opsi di dropdown Penerima. Dipanggil setiap
 // buka menu Broadcast supaya selalu ikut data anggota terbaru.
 function populateSapiOptions() {
-    const group = document.getElementById('sapiOptGroup');
-    if (!group) return;
-
     const values = [...new Set(appData.members.map(m => String(m.sapi || '').trim()).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
 
-    if (values.length === 0) {
-        group.innerHTML = '';
-        group.style.display = 'none';
-        return;
-    }
+    // Isi ke dua tempat: dropdown "Kirim Sekarang" dan dropdown "Jadwalkan" -
+    // keduanya dibatasi maksimal per grup sapi juga.
+    ['sapiOptGroup', 'scheduleSapiOptGroup'].forEach(groupId => {
+        const group = document.getElementById(groupId);
+        if (!group) return;
 
-    group.style.display = '';
-    group.innerHTML = values.map(v => {
-        const count = appData.members.filter(m => String(m.sapi || '') === v).length;
-        return `<option value="SAPI:${v}">Sapi #${v} (${count} anggota)</option>`;
-    }).join('');
+        if (values.length === 0) {
+            group.innerHTML = '';
+            group.style.display = 'none';
+            return;
+        }
+
+        group.style.display = '';
+        group.innerHTML = values.map(v => {
+            const count = appData.members.filter(m => String(m.sapi || '') === v).length;
+            return `<option value="SAPI:${v}">Sapi #${v} (${count} anggota)</option>`;
+        }).join('');
+    });
 }
 
 // Dipanggil saat dropdown Penerima berganti - tampilkan/sembunyikan kotak
@@ -5582,15 +5577,26 @@ async function sendBroadcastNow() {
         return;
     }
 
-    if (!confirm(`Kirim pesan "${title}" ke ${targets.length} anggota?`)) return;
-
-    showAlert(`Mengirim ke ${targets.length} anggota…`, 'info');
+    if (!confirm(`Kirim pesan "${title}" ke ${targets.length} anggota?\n\nPengiriman akan diberi jeda beberapa detik antar pesan (bukan langsung semua) supaya nomor WhatsApp masjid tidak dianggap spam oleh WhatsApp.`)) return;
 
     let sent = 0, failed = 0;
-    for (const member of targets) {
+    for (let i = 0; i < targets.length; i++) {
+        const member = targets[i];
+        showAlert(`Mengirim ${i + 1}/${targets.length} — ke ${member.name}…`, 'info');
+
         const ok = await sendFonnteMessage(member.phone, fillVariables(message, member));
         ok ? sent++ : failed++;
-        await new Promise(r => setTimeout(r, 600));
+
+        // Jeda ACAK (bukan interval tetap) di antara 2.5-5.5 detik sebelum
+        // pesan berikutnya. Interval tetap yang cepat (dulu 600ms untuk
+        // semua orang) adalah salah satu pola paling gampang dikenali sebagai
+        // bot oleh sistem anti-spam WhatsApp, dan pernah bikin nomor masjid
+        // diblokir. Jeda lebih manusiawi + acak + jumlah penerima yang sudah
+        // dibatasi maksimal per grup sapi, sama-sama mengurangi risiko itu.
+        if (i < targets.length - 1) {
+            const delay = 2500 + Math.floor(Math.random() * 3000);
+            await new Promise(r => setTimeout(r, delay));
+        }
     }
 
     await appendSheetDB('Pesan', {
@@ -5747,12 +5753,23 @@ function loadScheduledMessages() {
 function useScheduled(id) {
     const msg = appData.messages.find(m => parseInt(m.id) === parseInt(id));
     if (!msg) return;
-    document.getElementById('broadcastRecipients').value = msg.recipients || 'ALL';
+
+    const select = document.getElementById('broadcastRecipients');
+    select.value = msg.recipients || 'MEMBER';
+    // Jadwal lama (sebelum broadcast massal dihapus) mungkin masih menyimpan
+    // recipients=ALL/APPROVED/PENDING/NO_UPLOAD - nilai itu sudah tidak ada
+    // lagi di dropdown, jadi select.value akan gagal ter-set dan balik ke
+    // opsi pertama. Kasih tahu admin secara eksplisit alih-alih diam-diam.
+    if (select.value !== (msg.recipients || 'MEMBER')) {
+        showAlert('Jadwal ini dulu ditujukan untuk "broadcast massal" yang sekarang sudah dihapus. Pilih ulang penerimanya (per anggota/grup sapi) sebelum kirim.', 'warning');
+    } else {
+        showAlert('Jadwal dimuat ke form. Periksa lalu kirim.', 'info');
+    }
+
     document.getElementById('broadcastTitle').value = msg.title;
     document.getElementById('broadcastMessage').value = msg.message;
     switchBroadcastTab('sendNow', document.querySelector('#broadcast .sub-tab-btn'));
-    updateRecipientCount();
-    showAlert('Jadwal dimuat ke form. Periksa lalu kirim.', 'info');
+    onBroadcastRecipientChange();
 }
 
 // ===== BROADCAST: TEMPLATES TABLE =====
