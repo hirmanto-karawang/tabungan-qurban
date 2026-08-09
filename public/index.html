@@ -43,7 +43,12 @@
   }
 
   *{ margin:0; padding:0; box-sizing:border-box; }
-  html{ scroll-behavior:smooth; }
+  /* scroll-behavior:smooth + overscroll-behavior-y:contain di bawah ini
+     mematikan pull-to-refresh BAWAAN browser di HP (yang me-reload seluruh
+     halaman dari nol dan bikin app "kelempar" balik ke layar login). Sebagai
+     gantinya dipakai gesture tarik-untuk-refresh custom (lihat #ptrIndicator
+     + initPullToRefresh() di JS) yang cuma me-refresh data, bukan reload. */
+  html{ scroll-behavior:smooth; overscroll-behavior-y: contain; }
   body{
     font-family: var(--font-body);
     background: var(--paper);
@@ -51,6 +56,7 @@
     min-height:100vh;
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
+    overscroll-behavior-y: contain;
   }
 
   a{ color:inherit; }
@@ -1366,6 +1372,35 @@
     font-size:13px; margin-bottom:14px; background: var(--paper);
   }
 
+  /* ===== PULL-TO-REFRESH (custom, ganti punya browser) ===== */
+  #ptrIndicator{
+    position:fixed; top:0; left:50%;
+    transform: translate(-50%, -60px);
+    z-index:500;
+    display:flex; align-items:center; gap:8px;
+    background: var(--emerald);
+    color:#F4EFE1;
+    padding:9px 18px;
+    border-radius:0 0 14px 14px;
+    font-size:12.5px; font-weight:600;
+    box-shadow: 0 6px 16px -6px rgba(14,59,52,.4);
+    transition: transform .18s ease, opacity .18s ease;
+    opacity:0;
+    pointer-events:none;
+  }
+  #ptrIndicator.visible{ opacity:1; }
+  #ptrIndicator .ptr-spinner{
+    width:13px; height:13px; border-radius:50%;
+    border:2px solid rgba(244,239,225,.35); border-top-color:#F4EFE1;
+    animation: ptrSpin .7s linear infinite;
+    display:none;
+  }
+  #ptrIndicator.spinning .ptr-spinner{ display:inline-block; }
+  #ptrIndicator.spinning .ptr-arrow{ display:none; }
+  .ptr-arrow{ display:inline-block; transition: transform .18s ease; }
+  #ptrIndicator.ready .ptr-arrow{ transform: rotate(180deg); }
+  @keyframes ptrSpin{ to{ transform: rotate(360deg); } }
+
   /* FORM GRID */
   .form-grid{
     display:grid;
@@ -1957,6 +1992,12 @@
 </div>
 
 <!-- MAIN APP -->
+<div id="ptrIndicator">
+  <span class="ptr-arrow">↓</span>
+  <span class="ptr-spinner"></span>
+  <span id="ptrText">Tarik untuk refresh</span>
+</div>
+
 <div id="appContainer">
 
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
@@ -2882,12 +2923,48 @@ let currentUser = null;
 let lastDataLoadTime = 0; // timestamp load terakhir, buat throttle refresh saat pindah tab
 let dataLoadPromise = null; // supaya tidak ada 2 fetch bootstrap jalan bersamaan
 
+// ===== SESI LOGIN (localStorage) =====
+// currentUser cuma variabel JS di memori - hilang setiap kali halaman
+// di-reload. Di HP, "tarik ke bawah" di posisi paling atas halaman biasanya
+// memicu pull-to-refresh BAWAAN BROWSER, yang me-reload seluruh halaman dari
+// nol (persis seperti tekan tombol refresh) - makanya app kembali ke layar
+// login walau usernya tidak benar-benar logout. Simpan sesi ke localStorage
+// supaya reload seperti itu (atau app di-buka lagi setelah HP membekukan
+// tab-nya di background) tetap otomatis lanjut ke akun yang sama.
+// Tidak menyimpan password, cuma identitas ringan yang aman disimpan di HP.
+const SESSION_STORAGE_KEY = 'tqSession';
+
+function saveSession(user) {
+    try {
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
+    } catch (e) {
+        console.warn('Gagal simpan sesi login (localStorage tidak tersedia):', e);
+    }
+}
+
+function loadSavedSession() {
+    try {
+        const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function clearSavedSession() {
+    try {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch (e) {
+        // abaikan
+    }
+}
+
 // Pastikan data ter-load, tapi hindari fetch dobel kalau sudah ada yang jalan
 // atau data masih segar (<5 detik). Dipakai baik oleh prefetch saat halaman
 // dibuka maupun oleh handleLogin/switchTab, supaya keduanya berbagi 1 request
 // yang sama alih-alih masing-masing fetch sendiri-sendiri.
-function ensureDataLoaded() {
-    const isFresh = appData.members.length > 0 && (Date.now() - lastDataLoadTime) < 5000;
+function ensureDataLoaded(force) {
+    const isFresh = !force && appData.members.length > 0 && (Date.now() - lastDataLoadTime) < 5000;
     if (isFresh) return Promise.resolve();
     if (!dataLoadPromise) {
         dataLoadPromise = loadDataFromSheets().finally(() => { dataLoadPromise = null; });
@@ -3144,6 +3221,7 @@ async function handleGuestLogin() {
         role: 'guest',
         phone: ''
     };
+    saveSession(currentUser);
 
     appData.members = [];
     appData.savings = [];
@@ -3326,6 +3404,7 @@ async function handleLogin() {
             role: (Number(member.id) === 1) ? 'admin' : 'member'
         };
         recordLogin(currentUser);
+        saveSession(currentUser);
         showApp();
         showAlert(`Selamat datang, ${member.name}!`, 'success');
         return;
@@ -3340,6 +3419,7 @@ async function handleLogin() {
     );
     if (demoUser) {
         currentUser = { id: demoUser.id, name: demoUser.name, phone: demoUser.phone, role: demoUser.role };
+        saveSession(currentUser);
         showApp();
         showAlert(`Selamat datang, ${demoUser.name}! (mode demo)`, 'success');
         return;
@@ -3381,12 +3461,62 @@ function nextLoginLogId() {
 
 function logout() {
     if (confirm('Yakin ingin keluar?')) {
-        currentUser = null;
-        document.getElementById('loginScreen').style.display = 'grid';
-        document.getElementById('appContainer').classList.remove('active');
-        document.getElementById('loginUsername').value = '';
-        document.getElementById('loginPassword').value = '';
+        forceLogout();
     }
+}
+
+// Sama seperti logout(), tapi tanpa dialog konfirmasi - dipakai untuk logout
+// OTOMATIS (mis. sesi tersimpan ternyata sudah tidak valid lagi), bukan aksi
+// yang diminta user secara sadar lewat tombol "Keluar".
+function forceLogout() {
+    currentUser = null;
+    clearSavedSession();
+    document.getElementById('loginScreen').style.display = 'grid';
+    document.getElementById('appContainer').classList.remove('active');
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
+}
+
+// Coba pulihkan sesi login yang tersimpan (lihat catatan di dekat
+// SESSION_STORAGE_KEY). Dipanggil sekali saat halaman pertama dibuka. Kalau
+// ada sesi tersimpan, langsung tampilkan app (skip layar login) supaya reload
+// dari pull-to-refresh atau app dibuka ulang tidak terasa seperti "logout".
+async function restoreSession() {
+    const saved = loadSavedSession();
+    if (!saved || !saved.role) return;
+
+    currentUser = saved;
+    showApp();
+
+    // Muat data terbaru (appData masih kosong di titik ini kalau ini benar-benar
+    // reload halaman dari nol, bukan cuma balik dari background). Berlaku buat
+    // semua role, termasuk guest, supaya Dashboard/Laporan tidak nyangkut kosong.
+    await ensureDataLoaded();
+
+    if (saved.role === 'member' || saved.role === 'admin') {
+        // Sinkronkan ulang dari data terbaru (nama/telepon mungkin berubah
+        // sejak login terakhir). Kalau member-nya ternyata sudah tidak ada
+        // lagi (mis. dihapus admin), otomatis logout alih-alih membiarkan
+        // sesi "hantu" nyangkut di app.
+        const stillExists = appData.members.find(m => m.id === saved.id);
+        if (!stillExists) {
+            forceLogout();
+            showAlert('Akun Anda sudah tidak terdaftar. Silakan hubungi admin.', 'error');
+            return;
+        }
+        currentUser = {
+            id: stillExists.id,
+            name: stillExists.name,
+            phone: stillExists.phone,
+            role: (Number(stillExists.id) === 1) ? 'admin' : 'member'
+        };
+        saveSession(currentUser);
+    }
+
+    // showApp() otomatis panggil updateDashboard() (dan switchTab('dashboard')
+    // untuk admin/guest) di akhir, jadi tampilan Dashboard otomatis ikut
+    // sinkron begitu data terbaru selesai dimuat - tidak perlu langkah tambahan.
+    showApp();
 }
 
 function showApp() {
@@ -3511,6 +3641,13 @@ async function switchTab(tabName) {
         await ensureDataLoaded();
     }
 
+    runTabDataLoaders(tabName);
+}
+
+// Dipisah dari switchTab() supaya bisa dipanggil ulang oleh pull-to-refresh
+// (refreshCurrentTabData()) tanpa perlu mengulang logika ganti-tab/highlight
+// menu - cuma perlu muat ulang data buat tab yang lagi aktif.
+function runTabDataLoaders(tabName) {
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'profile') loadProfileData();
     if (tabName === 'verify') loadVerifyData();
@@ -3524,6 +3661,87 @@ async function switchTab(tabName) {
         loadTemplates();
         loadFonnteStatus();
     }
+}
+
+// ===== PULL-TO-REFRESH (custom) =====
+// Browser HP punya pull-to-refresh bawaan yang me-reload SELURUH halaman
+// kalau ditarik ke bawah di posisi paling atas - itu menghapus semua state
+// JS (termasuk sesi login kalau localStorage belum sempat dibaca ulang) dan
+// terasa seperti "logout paksa". CSS overscroll-behavior-y di atas mematikan
+// perilaku bawaan itu; gesture ini gantinya - hasil akhirnya sama-sama
+// "data ter-refresh", tapi tanpa reload halaman.
+let ptrStartY = null;
+let ptrTracking = false;
+let ptrRefreshing = false;
+const PTR_THRESHOLD = 68; // jarak tarik (setelah resistance) buat memicu refresh
+
+function initPullToRefresh() {
+    const indicator = document.getElementById('ptrIndicator');
+    if (!indicator) return;
+
+    document.addEventListener('touchstart', (e) => {
+        const appActive = document.getElementById('appContainer')?.classList.contains('active');
+        if (!appActive || ptrRefreshing || window.scrollY > 0) { ptrTracking = false; return; }
+        ptrStartY = e.touches[0].clientY;
+        ptrTracking = true;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!ptrTracking || ptrRefreshing) return;
+        const deltaY = e.touches[0].clientY - ptrStartY;
+        if (deltaY <= 0 || window.scrollY > 0) {
+            indicator.classList.remove('visible', 'ready');
+            indicator.style.transform = 'translate(-50%, -60px)';
+            return;
+        }
+
+        // Resistance supaya tidak langsung "nempel" ke jari - kesan lebih alami.
+        const pulled = Math.min(deltaY * 0.45, 90);
+        if (deltaY > 12) e.preventDefault();
+
+        indicator.classList.add('visible');
+        indicator.style.transform = `translate(-50%, ${pulled - 60}px)`;
+
+        const ready = pulled >= PTR_THRESHOLD;
+        indicator.classList.toggle('ready', ready);
+        document.getElementById('ptrText').textContent = ready ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
+    }, { passive: false });
+
+    document.addEventListener('touchend', () => {
+        if (!ptrTracking) return;
+        ptrTracking = false;
+
+        if (indicator.classList.contains('ready')) {
+            triggerPullRefresh(indicator);
+        } else {
+            indicator.classList.remove('visible', 'ready');
+            indicator.style.transform = 'translate(-50%, -60px)';
+        }
+    }, { passive: true });
+}
+
+async function triggerPullRefresh(indicator) {
+    ptrRefreshing = true;
+    indicator.classList.add('spinning');
+    indicator.style.transform = 'translate(-50%, 14px)';
+    document.getElementById('ptrText').textContent = 'Memperbarui…';
+
+    try {
+        await ensureDataLoaded(true);
+        const activeTab = document.querySelector('.tab-content.active');
+        if (activeTab) runTabDataLoaders(activeTab.id);
+        await loadPrayerTimes();
+        document.getElementById('ptrText').textContent = 'Data terbaru dimuat';
+    } catch (err) {
+        console.error('Pull-to-refresh gagal:', err);
+        document.getElementById('ptrText').textContent = 'Gagal memperbarui data';
+    }
+
+    setTimeout(() => {
+        indicator.classList.remove('visible', 'ready', 'spinning');
+        indicator.style.transform = 'translate(-50%, -60px)';
+        ptrRefreshing = false;
+    }, 700);
 }
 
 // ===== UPLOAD =====
@@ -6605,16 +6823,24 @@ function renderPrayerTimes(jadwal) {
 // ===== INIT =====
 document.getElementById('uploadDate').valueAsDate = new Date();
 initFileDropzone();
+initPullToRefresh();
 
 // Terapkan identitas masjid (nama, logo, rekening) ke seluruh halaman dari
 // APP_CONFIG - supaya kustomisasi cukup edit satu tempat di atas, tidak
 // perlu cari-cari teks di HTML.
 applyBranding();
 
-// Prefetch data di background begitu halaman dibuka (sebelum user login),
-// supaya saat user selesai isi form & klik "Masuk", data kemungkinan besar
-// sudah siap/sedang siap - tidak perlu nunggu round-trip dari nol.
-ensureDataLoaded();
+// Kalau ada sesi login tersimpan (lihat SESSION_STORAGE_KEY), langsung
+// lanjutkan ke app tanpa lewat layar login - ini yang bikin pull-to-refresh
+// atau app dibuka ulang di HP tidak lagi terasa seperti "logout paksa".
+// Kalau tidak ada sesi tersimpan (benar-benar pertama kali/sudah logout),
+// tetap prefetch data di background seperti biasa supaya begitu user login
+// manual, datanya kemungkinan besar sudah siap.
+if (loadSavedSession()) {
+    restoreSession();
+} else {
+    ensureDataLoaded();
+}
 
 // Waktu sholat: tampil terlepas dari status login (info umum, bukan data
 // pribadi), dan di-refresh tiap menit supaya highlight "sholat berikutnya" +
