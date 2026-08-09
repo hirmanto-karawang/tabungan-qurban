@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title id="pageTitle">Tabungan Qurban — Masjid Dhafinul Jariyah</title>
+<title>Tabungan Qurban — Masjid Dhafinul Jariyah</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Preconnect ke server Apps Script (backend data), supaya koneksi (DNS+TLS)
@@ -1287,6 +1287,64 @@
   .btn-danger{ background: var(--brick-tint); color:#7A2E1C; }
   .btn-danger:hover{ background:#EFD5CC; }
 
+  /* ===== WA CONNECTION STATUS BAR (menu Broadcast) ===== */
+  .wa-status-bar{
+    display:flex; align-items:center; gap:12px;
+    background: var(--surface);
+    border:1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding:12px 16px;
+    margin-bottom:18px;
+  }
+  .wa-status-dot{
+    flex-shrink:0; width:11px; height:11px; border-radius:50%;
+    background:#B9B9B0;
+    box-shadow: 0 0 0 4px rgba(0,0,0,.04);
+  }
+  .wa-status-dot.checking{ background:#C9A227; animation: waPulse 1.1s ease-in-out infinite; }
+  .wa-status-dot.online{ background:#2E9E5B; box-shadow: 0 0 0 4px rgba(46,158,91,.15); }
+  .wa-status-dot.offline{ background:#C0392B; box-shadow: 0 0 0 4px rgba(192,57,43,.15); }
+  @keyframes waPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.4; } }
+  .wa-status-text{ flex:1; min-width:0; }
+  .wa-status-label{ font-size:13.5px; font-weight:600; color: var(--ink); }
+  .wa-status-detail{ font-size:11.5px; color: var(--ink-faint); margin-top:2px; }
+  @media (max-width:480px){
+    .wa-status-bar{ flex-wrap:wrap; }
+    .wa-status-text{ flex-basis:100%; order:2; }
+    .wa-status-bar > .btn{ order:3; margin-left:auto; }
+  }
+
+  /* ===== MEMBER PICKER (kirim broadcast per anggota) ===== */
+  .member-picker-box{
+    border:1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding:14px;
+    margin-top:10px;
+    background: var(--surface);
+  }
+  .member-picker-toolbar{
+    display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;
+  }
+  .member-picker-toolbar input[type="text"]{
+    flex:1; min-width:160px;
+    padding:8px 12px; border-radius:9px; border:1px solid var(--border);
+    font-size:13px; background: var(--paper);
+  }
+  .member-picker-list{
+    max-height:260px; overflow-y:auto;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .member-picker-item{
+    display:flex; align-items:center; gap:9px;
+    padding:7px 8px; border-radius:8px; cursor:pointer;
+    font-size:13px;
+  }
+  .member-picker-item:hover{ background: var(--sand); }
+  .member-picker-item input{ flex-shrink:0; }
+  .member-picker-item .mp-name{ font-weight:600; color: var(--ink); }
+  .member-picker-item .mp-meta{ color: var(--ink-faint); font-size:11px; margin-left:auto; padding-left:8px; white-space:nowrap; }
+  .member-picker-empty{ text-align:center; padding:16px 0; color: var(--ink-faint); font-size:12.5px; }
+
   /* FORM GRID */
   .form-grid{
     display:grid;
@@ -2161,6 +2219,16 @@
         <div class="card">
           <h2>Broadcast WhatsApp</h2>
 
+          <!-- Status koneksi Fonnte -->
+          <div class="wa-status-bar" id="waStatusBar">
+            <div class="wa-status-dot checking" id="waStatusDot"></div>
+            <div class="wa-status-text">
+              <div class="wa-status-label" id="waStatusLabel">Memeriksa koneksi WhatsApp…</div>
+              <div class="wa-status-detail" id="waStatusDetail"></div>
+            </div>
+            <button class="btn btn-ghost btn-small" onclick="loadFonnteStatus()">Cek Ulang</button>
+          </div>
+
           <div class="sub-tabs">
             <button class="sub-tab-btn active" onclick="switchBroadcastTab('sendNow', this)">Kirim Sekarang</button>
             <button class="sub-tab-btn" onclick="switchBroadcastTab('schedule', this)">Jadwalkan</button>
@@ -2174,13 +2242,24 @@
 
             <div class="form-group">
               <label>Penerima</label>
-              <select id="broadcastRecipients" onchange="updateRecipientCount()">
+              <select id="broadcastRecipients" onchange="onBroadcastRecipientChange()">
                 <option value="ALL">Semua Anggota</option>
                 <option value="APPROVED">Anggota dengan Tabungan Disetujui</option>
                 <option value="PENDING">Anggota dengan Tabungan Menunggu</option>
                 <option value="NO_UPLOAD">Belum Upload Apapun</option>
+                <option value="MEMBER">Pilih Anggota Manual…</option>
+                <optgroup label="Per Grup Sapi" id="sapiOptGroup"></optgroup>
               </select>
               <small id="recipientCount" style="display:block; margin-top:7px;">—</small>
+
+              <div class="member-picker-box" id="memberPickerBox" style="display:none;">
+                <div class="member-picker-toolbar">
+                  <input type="text" id="memberPickerSearch" placeholder="Cari nama / ID anggota…" oninput="renderMemberPicker()">
+                  <button type="button" class="btn btn-ghost btn-small" onclick="setAllMemberPicker(true)">Pilih Semua</button>
+                  <button type="button" class="btn btn-ghost btn-small" onclick="setAllMemberPicker(false)">Kosongkan</button>
+                </div>
+                <div class="member-picker-list" id="memberPickerList"></div>
+              </div>
             </div>
 
             <div class="form-group">
@@ -3339,8 +3418,10 @@ async function switchTab(tabName) {
     if (tabName === 'history') loadHistory();
     if (tabName === 'laporan') loadLaporan();
     if (tabName === 'broadcast') {
+        populateSapiOptions();
         updateRecipientCount();
         loadTemplates();
+        loadFonnteStatus();
     }
 }
 
@@ -5345,6 +5426,11 @@ function updateMessagePreview() {
     box.appendChild(bubble);
 }
 
+// Set berisi id anggota yang dicentang manual di mode "Pilih Anggota Manual".
+// Disimpan di luar fungsi supaya centangan tidak hilang saat list difilter
+// lewat kolom pencarian.
+let selectedBroadcastMemberIds = new Set();
+
 function getRecipientList(mode) {
     const idsWithStatus = status => new Set(
         appData.savings.filter(s => s.status === status).map(s => s.memberId)
@@ -5362,7 +5448,101 @@ function getRecipientList(mode) {
         const ids = new Set(appData.savings.map(s => s.memberId));
         return appData.members.filter(m => !ids.has(m.id));
     }
+    if (mode === 'MEMBER') {
+        return appData.members.filter(m => selectedBroadcastMemberIds.has(String(m.id)));
+    }
+    if (mode && mode.startsWith('SAPI:')) {
+        const sapiValue = mode.slice(5);
+        return appData.members.filter(m => String(m.sapi || '') === sapiValue);
+    }
     return appData.members.slice();
+}
+
+// Ambil semua nilai "sapi" yang benar-benar ada di data anggota (buang yang
+// kosong), diurutkan secara alami (1, 2, 10 - bukan 1, 10, 2 seperti sort
+// string biasa), lalu isi jadi opsi di dropdown Penerima. Dipanggil setiap
+// buka menu Broadcast supaya selalu ikut data anggota terbaru.
+function populateSapiOptions() {
+    const group = document.getElementById('sapiOptGroup');
+    if (!group) return;
+
+    const values = [...new Set(appData.members.map(m => String(m.sapi || '').trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+
+    if (values.length === 0) {
+        group.innerHTML = '';
+        group.style.display = 'none';
+        return;
+    }
+
+    group.style.display = '';
+    group.innerHTML = values.map(v => {
+        const count = appData.members.filter(m => String(m.sapi || '') === v).length;
+        return `<option value="SAPI:${v}">Sapi #${v} (${count} anggota)</option>`;
+    }).join('');
+}
+
+// Dipanggil saat dropdown Penerima berganti - tampilkan/sembunyikan kotak
+// pilih-anggota-manual sesuai mode yang dipilih.
+function onBroadcastRecipientChange() {
+    const mode = document.getElementById('broadcastRecipients').value;
+    const box = document.getElementById('memberPickerBox');
+    if (box) box.style.display = mode === 'MEMBER' ? 'block' : 'none';
+    if (mode === 'MEMBER') renderMemberPicker();
+    updateRecipientCount();
+}
+
+function renderMemberPicker() {
+    const list = document.getElementById('memberPickerList');
+    if (!list) return;
+    const query = (document.getElementById('memberPickerSearch')?.value || '').trim().toLowerCase();
+
+    const members = appData.members.filter(m => {
+        if (!query) return true;
+        return String(m.name || '').toLowerCase().includes(query) || String(m.id).includes(query);
+    });
+
+    if (members.length === 0) {
+        list.innerHTML = '<div class="member-picker-empty">Tidak ada anggota yang cocok.</div>';
+        return;
+    }
+
+    list.innerHTML = members.map(m => {
+        const id = String(m.id);
+        const checked = selectedBroadcastMemberIds.has(id) ? 'checked' : '';
+        const metaBits = [m.sapi ? `Sapi #${m.sapi}` : null, m.phone ? m.phone : 'tanpa WA'].filter(Boolean).join(' · ');
+        return `
+            <label class="member-picker-item">
+                <input type="checkbox" ${checked} onchange="toggleBroadcastMember('${id}', this.checked)">
+                <span class="mp-name">${m.name || '(tanpa nama)'}</span>
+                <span class="mp-meta">${metaBits}</span>
+            </label>
+        `;
+    }).join('');
+}
+
+function toggleBroadcastMember(id, checked) {
+    if (checked) selectedBroadcastMemberIds.add(id);
+    else selectedBroadcastMemberIds.delete(id);
+    updateRecipientCount();
+}
+
+function setAllMemberPicker(select) {
+    const query = (document.getElementById('memberPickerSearch')?.value || '').trim().toLowerCase();
+    const members = appData.members.filter(m => {
+        if (!query) return true;
+        return String(m.name || '').toLowerCase().includes(query) || String(m.id).includes(query);
+    });
+
+    if (select) {
+        members.forEach(m => selectedBroadcastMemberIds.add(String(m.id)));
+    } else {
+        // "Kosongkan" selalu bersihkan SELURUH pilihan, bukan cuma yang lagi
+        // kelihatan di hasil pencarian - lebih sesuai ekspektasi tombol ini.
+        selectedBroadcastMemberIds.clear();
+    }
+    renderMemberPicker();
+    updateRecipientCount();
 }
 
 function updateRecipientCount() {
@@ -5388,6 +5568,11 @@ async function sendBroadcastNow() {
 
     if (!title || !message) {
         showAlert('Judul dan pesan harus diisi', 'error');
+        return;
+    }
+
+    if (mode === 'MEMBER' && selectedBroadcastMemberIds.size === 0) {
+        showAlert('Belum ada anggota yang dipilih. Centang minimal satu anggota di daftar.', 'warning');
         return;
     }
 
@@ -5430,6 +5615,43 @@ async function sendBroadcastNow() {
     }
 
     clearBroadcastForm();
+}
+
+// Cek status koneksi device WhatsApp (Fonnte) lewat /api/wa-status, supaya
+// admin tahu dari awal kalau device-nya disconnect - sebelum capek nulis
+// pesan yang ujung-ujungnya gagal terkirim semua.
+async function loadFonnteStatus() {
+    const dot = document.getElementById('waStatusDot');
+    const label = document.getElementById('waStatusLabel');
+    const detail = document.getElementById('waStatusDetail');
+    if (!dot || !label || !detail) return;
+
+    dot.className = 'wa-status-dot checking';
+    label.textContent = 'Memeriksa koneksi WhatsApp…';
+    detail.textContent = '';
+
+    try {
+        const response = await fetch('/api/wa-status');
+        const data = await response.json().catch(() => null);
+
+        if (data && data.connected) {
+            dot.className = 'wa-status-dot online';
+            label.textContent = `Terhubung ke WhatsApp${data.device ? ' — ' + data.device : ''}`;
+            const bits = [];
+            if (data.quota !== undefined) bits.push(`Sisa kuota: ${data.quota}`);
+            if (data.package) bits.push(`Paket: ${data.package}`);
+            detail.textContent = bits.join(' · ') || 'Siap mengirim broadcast.';
+        } else {
+            dot.className = 'wa-status-dot offline';
+            label.textContent = 'Tidak terhubung ke Fonnte';
+            detail.textContent = (data && data.error) || 'Cek device Fonnte Anda - mungkin perlu scan ulang QR.';
+        }
+    } catch (error) {
+        console.error('Gagal cek status Fonnte:', error);
+        dot.className = 'wa-status-dot offline';
+        label.textContent = 'Gagal memeriksa status';
+        detail.textContent = 'Tidak bisa menghubungi server. Coba lagi sebentar.';
+    }
 }
 
 // Kirim WA lewat proxy /api/wa-send (bukan langsung ke Fonnte dari browser),
@@ -5849,11 +6071,26 @@ function loadBroadcastHistory() {
         const row = tbody.insertRow();
         row.innerHTML = `
             <td>${msg.title}</td>
-            <td>${msg.recipients}</td>
+            <td>${describeRecipientMode(msg.recipients)}</td>
             <td><span class="badge ${msg.status === 'SENT' ? 'sent' : 'rejected'}">${msg.status}</span></td>
             <td>${when && !isNaN(when) ? when.toLocaleString('id-ID') : '-'}</td>
         `;
     });
+}
+
+// Ubah kode mode penerima (mis. "SAPI:3", "MEMBER") jadi label yang enak
+// dibaca di tabel Riwayat/Jadwal - biar admin tidak lihat kode mentah.
+function describeRecipientMode(mode) {
+    const labels = {
+        ALL: 'Semua Anggota',
+        APPROVED: 'Tabungan Disetujui',
+        PENDING: 'Tabungan Menunggu',
+        NO_UPLOAD: 'Belum Upload',
+        MEMBER: 'Pilih Manual'
+    };
+    if (labels[mode]) return labels[mode];
+    if (mode && mode.startsWith('SAPI:')) return `Grup Sapi #${mode.slice(5)}`;
+    return mode || '-';
 }
 
 // Sama seperti sendFonnteMessage() - dipertahankan karena dipakai di banyak
