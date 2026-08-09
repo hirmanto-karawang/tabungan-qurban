@@ -174,10 +174,20 @@ async function appendRow(sheetName, record, accessToken) {
   const headers = (headerData.values && headerData.values[0]) || [];
   const newRow = headers.map(h => (record[h] !== undefined ? record[h] : ''));
 
+  // Batasi range append ke kolom A sampai kolom terakhir header (mis. "Members!A:K"),
+  // JANGAN cuma nama sheet tanpa batas kolom. Kalau range tidak dibatasi, Google
+  // Sheets API mendeteksi "tabel" secara otomatis - dan kalau ada teks nyasar di
+  // kolom jauh (mis. catatan/komentar admin), append bisa salah sasaran nulis ke
+  // kolom yang jauh sekali alih-alih bikin baris baru di kolom A. Sudah pernah
+  // kejadian nyata: data anggota baru nyasar ke kolom M-U gara-gara ada teks
+  // "<- baris contoh" di kolom M baris 2.
+  const lastColLetter = columnToLetter(headers.length - 1);
+  const appendRange = `${encodeURIComponent(sheetName)}!A:${lastColLetter}`;
+
   // valueInputOption=RAW penting: supaya nilai seperti "0812..." TIDAK diubah
   // jadi angka (dan kehilangan 0 di depan) oleh Google Sheets.
   await sheetsFetch(
-    `/values/${encodeURIComponent(sheetName)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    `/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     accessToken,
     { method: 'POST', body: JSON.stringify({ values: [newRow] }) }
   );
