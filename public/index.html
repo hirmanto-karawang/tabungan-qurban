@@ -1345,6 +1345,27 @@
   .member-picker-item .mp-meta{ color: var(--ink-faint); font-size:11px; margin-left:auto; padding-left:8px; white-space:nowrap; }
   .member-picker-empty{ text-align:center; padding:16px 0; color: var(--ink-faint); font-size:12.5px; }
 
+  /* ===== LOG AKTIVITAS ANGGOTA (menu admin) ===== */
+  .activity-stats{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr));
+    gap:10px; margin-bottom:20px;
+  }
+  .activity-stat-card{
+    background: var(--surface);
+    border:1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding:14px 16px;
+  }
+  .activity-stat-value{
+    font-family: var(--font-mono); font-size:22px; font-weight:700; color: var(--emerald);
+    line-height:1.2;
+  }
+  .activity-stat-label{ font-size:11.5px; color: var(--ink-faint); margin-top:4px; }
+  .activity-search{
+    width:100%; padding:9px 13px; border-radius:9px; border:1px solid var(--border);
+    font-size:13px; margin-bottom:14px; background: var(--paper);
+  }
+
   /* FORM GRID */
   .form-grid{
     display:grid;
@@ -1972,6 +1993,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 16c0-1 .5-2 1-3"/></svg>
         Approval Anggota Baru
       </button>
+      <button class="tab-btn" id="activityLogTabBtn" onclick="switchTab('activityLog')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M3.5 9L2 7.5M20.5 9L22 7.5"/></svg>
+        Log Aktivitas
+      </button>
       <button class="tab-btn" id="profileTabBtn" onclick="switchTab('profile')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Profil
@@ -2210,6 +2235,32 @@
             2. Generate password random
             3. Kirim ID & password via WhatsApp
             4. Calon bisa login dan mulai menabung
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Log Aktivitas Anggota (Admin) -->
+      <div id="activityLog" class="tab-content">
+        <div class="card">
+          <h2>Log Aktivitas Anggota</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-10px; margin-bottom:20px;">
+            Rekap kapan terakhir tiap anggota login ke aplikasi, supaya kelihatan siapa yang aktif dan siapa yang perlu diingatkan.
+          </p>
+
+          <div class="activity-stats" id="activityStats"></div>
+
+          <input type="text" class="activity-search" id="activityLogSearch" placeholder="Cari nama / ID anggota…" oninput="renderActivityLogTable()">
+
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Nama</th><th>Sapi</th><th>Login Terakhir</th><th>Jumlah Login</th><th>Status</th></tr></thead>
+              <tbody id="activityLogTableBody"><tr><td colspan="5" class="loading">Memuat…</td></tr></tbody>
+            </table>
+          </div>
+
+          <div class="info-box">
+            <strong>Catatan</strong>
+            "Aktif" = login dalam 7 hari terakhir. "Kurang Aktif" = login dalam 8-30 hari terakhir. "Tidak Aktif" = lebih dari 30 hari atau belum pernah login sama sekali. Data ini hanya mencatat login lewat aplikasi ini (bukan mode Guest).
           </div>
         </div>
       </div>
@@ -2823,7 +2874,8 @@ let appData = {
     savings: [],
     verifications: [],
     messages: [],
-    templates: []
+    templates: [],
+    loginLogs: []
 };
 
 let currentUser = null;
@@ -2964,6 +3016,7 @@ async function loadDataFromSheets() {
     const messagesRows = bootstrap ? (bootstrap.Pesan || []) : await fetchSheetDBTable('Pesan');
     const pendaftaranRows = bootstrap ? (bootstrap.Pendaftaran || []) : await fetchSheetDBTable('Pendaftaran');
     const templatesRows = bootstrap ? (bootstrap.Templates || []) : await fetchSheetDBTable('Templates');
+    const loginLogRows = bootstrap ? (bootstrap.LoginLog || []) : await fetchSheetDBTable('LoginLog');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -3049,6 +3102,17 @@ async function loadDataFromSheets() {
         title: row.title || '',
         message: row.message || ''
     })).filter(t => t.key);
+
+    // Parse LoginLog (jejak setiap kali anggota/admin berhasil login - dasar
+    // buat menu "Log Aktivitas Anggota". Kalau sheet "LoginLog" belum dibuat
+    // user, ini otomatis kosong dan menu log cuma nampilin "belum ada data".)
+    appData.loginLogs = loginLogRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        memberId: parseInt(row.memberId) || 0,
+        memberName: row.memberName || '',
+        role: row.role || 'member',
+        loginAt: row.loginAt || ''
+    })).filter(l => l.id);
 
     lastDataLoadTime = Date.now();
 
@@ -3261,6 +3325,7 @@ async function handleLogin() {
             phone: member.phone,
             role: (Number(member.id) === 1) ? 'admin' : 'member'
         };
+        recordLogin(currentUser);
         showApp();
         showAlert(`Selamat datang, ${member.name}!`, 'success');
         return;
@@ -3281,6 +3346,37 @@ async function handleLogin() {
     }
 
     showAlert('Username/ID atau password salah', 'error');
+}
+
+// Catat jejak login ke sheet "LoginLog" - dasar buat menu "Log Aktivitas
+// Anggota" supaya admin tahu siapa saja yang benar-benar aktif memakai
+// aplikasi. Sengaja "fire-and-forget" (tidak di-await) supaya proses login
+// tetap terasa instan buat user, dan kalau gagal tersimpan pun tidak
+// mengganggu login itu sendiri (cukup dicatat di console).
+function recordLogin(user) {
+    if (!user || !user.id) return;
+    appendSheetDB('LoginLog', {
+        id: nextLoginLogId(),
+        memberId: user.id,
+        memberName: user.name,
+        role: user.role || 'member',
+        loginAt: new Date().toISOString()
+    }).then(ok => {
+        if (ok) {
+            // Simpan juga ke state lokal supaya menu Log Aktivitas (kalau admin
+            // langsung buka setelahnya) tidak perlu tunggu reload data.
+            appData.loginLogs.push({
+                id: 0, memberId: user.id, memberName: user.name,
+                role: user.role || 'member', loginAt: new Date().toISOString()
+            });
+        }
+    }).catch(err => console.error('Gagal mencatat login:', err));
+}
+
+function nextLoginLogId() {
+    return appData.loginLogs.length > 0
+        ? Math.max(...appData.loginLogs.map(l => parseInt(l.id) || 0)) + 1
+        : 1;
 }
 
 function logout() {
@@ -3314,7 +3410,8 @@ function showApp() {
     const verifyTabBtn = document.getElementById('verifyTabBtn');
     const broadcastTabBtn = document.getElementById('broadcastTabBtn');
     const approvalTabBtn = document.getElementById('approvalTabBtn');
-    
+    const activityLogTabBtn = document.getElementById('activityLogTabBtn');
+
     // Menu untuk Anggota
     const profileTabBtn = document.getElementById('profileTabBtn');
     const uploadTabBtn = document.getElementById('uploadTabBtn');
@@ -3326,13 +3423,14 @@ function showApp() {
         verifyTabBtn.style.display = 'flex';
         broadcastTabBtn.style.display = 'flex';
         approvalTabBtn.style.display = 'flex';
+        activityLogTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';  // Admin bisa lihat laporan
-        
+
         // Hide menu anggota
         profileTabBtn.style.display = 'none';
         uploadTabBtn.style.display = 'none';
         historyTabBtn.style.display = 'none';
-        
+
         // Redirect ke dashboard
         switchTab('dashboard');
     } else if (currentUser.role === 'guest') {
@@ -3341,12 +3439,13 @@ function showApp() {
         uploadTabBtn.style.display = 'none';
         historyTabBtn.style.display = 'none';
         laporanTabBtn.style.display = 'flex';
-        
+
         // Hide menu admin
         verifyTabBtn.style.display = 'none';
         broadcastTabBtn.style.display = 'none';
         approvalTabBtn.style.display = 'none';
-        
+        activityLogTabBtn.style.display = 'none';
+
         // Redirect ke dashboard
         switchTab('dashboard');
     } else {
@@ -3355,11 +3454,12 @@ function showApp() {
         uploadTabBtn.style.display = 'flex';
         historyTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';
-        
+
         // Hide menu admin
         verifyTabBtn.style.display = 'none';
         broadcastTabBtn.style.display = 'none';
         approvalTabBtn.style.display = 'none';
+        activityLogTabBtn.style.display = 'none';
     }
 
     updateDashboard();
@@ -3378,6 +3478,7 @@ const TAB_META = {
     verify: { title: 'Verifikasi Tabungan', crumb: 'Admin' },
     broadcast: { title: 'Broadcast WhatsApp', crumb: 'Admin' },
     approval: { title: 'Approval Anggota Baru', crumb: 'Admin' },
+    activityLog: { title: 'Log Aktivitas Anggota', crumb: 'Admin' },
     history: { title: 'Riwayat', crumb: 'Tabungan' },
     laporan: { title: 'Laporan', crumb: 'Ringkasan' }
 };
@@ -3405,7 +3506,7 @@ async function switchTab(tabName) {
     // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
     // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
     // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
-    const needsFreshData = ['dashboard', 'verify', 'approval', 'history', 'laporan'];
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan'];
     if (needsFreshData.includes(tabName)) {
         await ensureDataLoaded();
     }
@@ -3414,6 +3515,7 @@ async function switchTab(tabName) {
     if (tabName === 'profile') loadProfileData();
     if (tabName === 'verify') loadVerifyData();
     if (tabName === 'approval') loadApprovalData();
+    if (tabName === 'activityLog') loadActivityLog();
     if (tabName === 'history') loadHistory();
     if (tabName === 'laporan') loadLaporan();
     if (tabName === 'broadcast') {
@@ -5903,6 +6005,114 @@ async function saveTemplateEdit(evt) {
 }
 
 // ===== APPROVAL ANGGOTA BARU =====
+// ===== LOG AKTIVITAS ANGGOTA (admin) =====
+
+// Ubah timestamp ISO jadi teks relatif ("3 hari lalu", "baru saja") ala media
+// sosial - lebih gampang dibaca sekilas daripada tanggal mentah.
+function timeAgo(isoString) {
+    if (!isoString) return null;
+    const then = new Date(isoString);
+    if (isNaN(then)) return null;
+    const diffMs = Date.now() - then.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Baru saja';
+    if (diffMin < 60) return `${diffMin} menit lalu`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour} jam lalu`;
+    const diffDay = Math.floor(diffHour / 24);
+    if (diffDay < 30) return `${diffDay} hari lalu`;
+    const diffMonth = Math.floor(diffDay / 30);
+    if (diffMonth < 12) return `${diffMonth} bulan lalu`;
+    return `${Math.floor(diffMonth / 12)} tahun lalu`;
+}
+
+// Susun ringkasan aktivitas per anggota (login terakhir + jumlah login) dari
+// appData.loginLogs, dipakai bareng oleh kartu ringkasan dan tabel.
+function computeActivitySummary() {
+    return appData.members.map(member => {
+        const logs = appData.loginLogs.filter(l => l.memberId === member.id);
+        const lastLog = logs.reduce((latest, l) => {
+            const t = new Date(l.loginAt).getTime();
+            return (!isNaN(t) && (!latest || t > latest)) ? t : latest;
+        }, null);
+
+        let statusClass = 'rejected', statusLabel = 'Belum Pernah Login';
+        if (lastLog) {
+            const diffDays = (Date.now() - lastLog) / 86400000;
+            if (diffDays <= 7) { statusClass = 'approved'; statusLabel = 'Aktif'; }
+            else if (diffDays <= 30) { statusClass = 'pending'; statusLabel = 'Kurang Aktif'; }
+            else { statusClass = 'rejected'; statusLabel = 'Tidak Aktif'; }
+        }
+
+        return {
+            member,
+            lastLogin: lastLog,
+            loginCount: logs.length,
+            statusClass,
+            statusLabel
+        };
+    });
+}
+
+function loadActivityLog() {
+    const summary = computeActivitySummary();
+
+    const active7 = summary.filter(s => s.lastLogin && (Date.now() - s.lastLogin) / 86400000 <= 7).length;
+    const active30 = summary.filter(s => s.lastLogin && (Date.now() - s.lastLogin) / 86400000 <= 30).length;
+    const neverLoggedIn = summary.filter(s => !s.lastLogin).length;
+
+    const statsBox = document.getElementById('activityStats');
+    if (statsBox) {
+        const stats = [
+            { value: appData.members.length, label: 'Total Anggota' },
+            { value: active7, label: 'Aktif 7 Hari Terakhir' },
+            { value: active30, label: 'Aktif 30 Hari Terakhir' },
+            { value: neverLoggedIn, label: 'Belum Pernah Login' }
+        ];
+        statsBox.innerHTML = stats.map(s => `
+            <div class="activity-stat-card">
+                <div class="activity-stat-value">${s.value}</div>
+                <div class="activity-stat-label">${s.label}</div>
+            </div>
+        `).join('');
+    }
+
+    renderActivityLogTable();
+}
+
+function renderActivityLogTable() {
+    const tbody = document.getElementById('activityLogTableBody');
+    if (!tbody) return;
+
+    const query = (document.getElementById('activityLogSearch')?.value || '').trim().toLowerCase();
+    let summary = computeActivitySummary();
+
+    if (query) {
+        summary = summary.filter(s =>
+            String(s.member.name || '').toLowerCase().includes(query) ||
+            String(s.member.id).includes(query)
+        );
+    }
+
+    // Paling aktif (login terbaru) di atas; yang belum pernah login di bawah sendiri.
+    summary.sort((a, b) => (b.lastLogin || 0) - (a.lastLogin || 0));
+
+    if (summary.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">Tidak ada anggota yang cocok.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = summary.map(s => `
+        <tr>
+            <td>${s.member.name}</td>
+            <td>${s.member.sapi ? '#' + s.member.sapi : '-'}</td>
+            <td>${s.lastLogin ? timeAgo(new Date(s.lastLogin).toISOString()) : '-'}</td>
+            <td>${s.loginCount}</td>
+            <td><span class="badge ${s.statusClass}">${s.statusLabel}</span></td>
+        </tr>
+    `).join('');
+}
+
 function loadApprovalData() {
     const pending = appData.pendaftaran ? appData.pendaftaran.filter(p => p.status === 'PENDING') : [];
     const approved = appData.pendaftaran ? appData.pendaftaran.filter(p => p.status === 'APPROVED') : [];
