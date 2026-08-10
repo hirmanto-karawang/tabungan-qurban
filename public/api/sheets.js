@@ -19,8 +19,9 @@
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[] }
-//   GET  /api/sheets?sheet=Savings&getFile=<id> -> { id, fileData }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[] }
+//   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
+//   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
 //   POST /api/sheets?sheet=Members&action=update  body: { keyColumn, keyValue, updates }
 
@@ -29,7 +30,23 @@
 // lain yang deploy ulang project ini WAJIB set GOOGLE_SHEET_ID di Vercel ke
 // ID spreadsheet mereka sendiri - jangan pakai ID di bawah ini.
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog'];
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi'];
+
+// Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
+// Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
+// diganti flag hasFotoN. Isi foto sebenarnya baru diambil on-demand lewat
+// ?sheet=SurveySapi&getFile=<id>&col=fotoN saat admin klik lihat foto.
+const SURVEY_FOTO_COLUMNS = ['foto1', 'foto2', 'foto3', 'foto4', 'foto5'];
+
+function stripSurveyFotos(row) {
+  const stripped = { ...row };
+  SURVEY_FOTO_COLUMNS.forEach(col => {
+    const hasKey = 'has' + col.charAt(0).toUpperCase() + col.slice(1);
+    stripped[hasKey] = !!row[col];
+    stripped[col] = '';
+  });
+  return stripped;
+}
 
 // ----- Cache access token di memori (bertahan selama instance function masih "warm") -----
 let cachedAccessToken = null;
@@ -127,6 +144,9 @@ async function readSheet(sheetName, accessToken) {
       return { ...row, fileData: '', hasFile };
     });
   }
+  if (sheetName === 'SurveySapi') {
+    rows = rows.map(stripSurveyFotos);
+  }
   return rows;
 }
 
@@ -143,6 +163,9 @@ async function readAllSheetsBatch(accessToken) {
           const hasFile = !!row.fileData;
           return { ...row, fileData: '', hasFile };
         });
+      }
+      if (name === 'SurveySapi') {
+        rows = rows.map(stripSurveyFotos);
       }
       result[name] = rows;
     });
@@ -232,15 +255,20 @@ async function updateRows(sheetName, keyColumn, keyValue, updates, accessToken) 
   return { success: true, updated: updatedCount };
 }
 
-async function getFileData(savingsId, accessToken) {
-  const data = await sheetsFetch(`/values/${encodeURIComponent('Savings')}`, accessToken);
+// Generik: ambil isi 1 kolom (biasanya base64 foto/file) dari 1 baris (dicari
+// via kolom "id") di sheet manapun. Dipakai baik oleh Savings!fileData maupun
+// SurveySapi!foto1..foto5 - keduanya sama-sama "kolom berat" yang sengaja
+// dibuang dari list biasa dan diambil satu-satu on-demand (lihat readSheet).
+async function getFileData(sheetName, recordId, accessToken, columnName) {
+  const data = await sheetsFetch(`/values/${encodeURIComponent(sheetName)}`, accessToken);
   const values = data.values || [];
   if (values.length === 0) return '';
   const headers = values[0];
   const idCol = headers.indexOf('id');
-  const fileCol = headers.indexOf('fileData');
+  const fileCol = headers.indexOf(columnName);
+  if (idCol === -1 || fileCol === -1) return '';
   for (let i = 1; i < values.length; i++) {
-    if (String(values[i][idCol] || '') === String(savingsId)) {
+    if (String(values[i][idCol] || '') === String(recordId)) {
       return values[i][fileCol] || '';
     }
   }
@@ -262,12 +290,18 @@ module.exports = async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
-    const { sheet, bootstrap, getFile, action } = req.query;
+    const { sheet, bootstrap, getFile, action, col } = req.query;
 
     if (req.method === 'GET') {
       if (sheet === 'Savings' && getFile) {
-        const fileData = await getFileData(getFile, accessToken);
+        const fileData = await getFileData('Savings', getFile, accessToken, 'fileData');
         return res.status(200).json({ id: getFile, fileData });
+      }
+
+      if (sheet === 'SurveySapi' && getFile) {
+        const columnName = SURVEY_FOTO_COLUMNS.includes(col) ? col : 'foto1';
+        const fileData = await getFileData('SurveySapi', getFile, accessToken, columnName);
+        return res.status(200).json({ id: getFile, col: columnName, fileData });
       }
 
       if (bootstrap) {
