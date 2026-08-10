@@ -3476,6 +3476,8 @@ async function loadDataFromSheets() {
         memberId: parseInt(row.memberId) || 0,
         memberName: row.memberName || '',
         phone: row.phone || '',
+        // Kosong (baris lama sebelum kolom status ada) dianggap 'aktif'.
+        status: row.status || 'aktif',
         created_date: row.created_date || ''
     })).filter(p => p.id);
 
@@ -4663,12 +4665,15 @@ function loadSurveySapiMemberList() {
         return;
     }
 
-    // 1 anggota cuma boleh ikut 1 sapi - cek dulu apakah user sudah terdaftar
-    // di survey manapun, dipakai buat kunci tombol Ikut di kartu-kartu lain.
-    const myJoin = currentUser ? appData.surveyPeserta.find(p => p.memberId === currentUser.id) : null;
+    // 1 anggota cuma boleh ikut 1 sapi. Partisipasi yang dibatalkan (pindah ke
+    // sapi lain) ditandai status='batal' - BUKAN dihapus dari sheet, supaya
+    // tetap ada jejaknya (sama pola dengan Verifications). Baris lama sebelum
+    // fitur ini ada (status kosong) tetap dianggap aktif.
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    const myJoin = currentUser ? activePeserta.find(p => p.memberId === currentUser.id) : null;
 
     container.innerHTML = appData.surveySapi.map(s => {
-        const peserta = appData.surveyPeserta.filter(p => p.surveyId === s.id);
+        const peserta = activePeserta.filter(p => p.surveyId === s.id);
         const sudahIkut = currentUser && peserta.some(p => p.memberId === currentUser.id);
         const lokasiCell = s.latitude && s.longitude
             ? `<a href="https://www.google.com/maps?q=${s.latitude},${s.longitude}" target="_blank" rel="noopener" style="color:var(--emerald-2);">📍 Lihat Peta</a>`
@@ -4681,7 +4686,8 @@ function loadSurveySapiMemberList() {
         if (sudahIkut) {
             ikutBtn = `<button class="btn btn-ghost btn-small" disabled>✓ Sudah Ikut</button>`;
         } else if (myJoin) {
-            ikutBtn = `<button class="btn btn-ghost btn-small" disabled title="1 anggota hanya boleh ikut 1 sapi">Sudah ikut sapi lain</button>`;
+            // Sudah ikut sapi lain -> tawarkan pindah ke sapi ini alih-alih dikunci total.
+            ikutBtn = `<button class="btn btn-ghost btn-small" onclick="switchSurveySapi(${s.id})">🔄 Pindah ke Sini</button>`;
         } else {
             ikutBtn = `<button class="btn btn-success btn-small" onclick="joinSurveySapi(${s.id})">Ikut</button>`;
         }
@@ -4714,16 +4720,15 @@ function loadSurveySapiMemberList() {
 
 async function joinSurveySapi(surveyId) {
     if (!currentUser) return;
-    const already = appData.surveyPeserta.some(p => p.surveyId === surveyId && p.memberId === currentUser.id);
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    const already = activePeserta.some(p => p.surveyId === surveyId && p.memberId === currentUser.id);
     if (already) return;
 
-    // 1 anggota cuma boleh ikut 1 sapi - jaga-jaga kalau tombol sempat aktif
-    // dari data lama (mis. anggota lain baru saja ikut di tab lain).
-    const joinedElsewhere = appData.surveyPeserta.some(p => p.memberId === currentUser.id && p.surveyId !== surveyId);
+    // 1 anggota cuma boleh ikut 1 sapi - kalau ternyata sudah ikut sapi lain
+    // (mis. data baru saja berubah), arahkan ke switchSurveySapi() bukan gagal diam-diam.
+    const joinedElsewhere = activePeserta.some(p => p.memberId === currentUser.id && p.surveyId !== surveyId);
     if (joinedElsewhere) {
-        showAlert('Anda sudah terdaftar di grup sapi lain. 1 anggota hanya boleh ikut 1 sapi.', 'error');
-        loadSurveySapiMemberList();
-        return;
+        return switchSurveySapi(surveyId);
     }
 
     const newId = appData.surveyPeserta.length > 0
@@ -4736,6 +4741,7 @@ async function joinSurveySapi(surveyId) {
         memberId: currentUser.id,
         memberName: currentUser.name,
         phone: currentUser.phone || '',
+        status: 'aktif',
         created_date: new Date().toISOString()
     };
 
@@ -4745,6 +4751,50 @@ async function joinSurveySapi(surveyId) {
         showAlert('Berhasil ikut grup sapi ini', 'success');
         loadSurveySapiMemberList();
     }
+}
+
+// Pindah dari sapi yang sudah diikuti ke sapi lain - baris lama ditandai
+// status='batal' (bukan dihapus, lihat komentar activePeserta di atas),
+// lalu daftar baris baru buat sapi tujuan.
+async function switchSurveySapi(newSurveyId) {
+    if (!currentUser) return;
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    const myCurrent = activePeserta.find(p => p.memberId === currentUser.id);
+
+    if (!myCurrent) return joinSurveySapi(newSurveyId);
+    if (myCurrent.surveyId === newSurveyId) return;
+
+    const survey = appData.surveySapi.find(s => s.id === newSurveyId);
+    if (!confirm(`Pindah dari grup sapi sebelumnya ke grup "${survey ? survey.supplier : 'ini'}"?`)) return;
+
+    const cancelSuccess = await updateSheetDB('SurveyPeserta', 'id', myCurrent.id, { status: 'batal' });
+    if (!cancelSuccess) {
+        showAlert('Gagal memindahkan grup sapi, coba lagi.', 'error');
+        return;
+    }
+    myCurrent.status = 'batal';
+
+    const newId = appData.surveyPeserta.length > 0
+        ? Math.max(...appData.surveyPeserta.map(p => p.id)) + 1
+        : 1;
+    const record = {
+        id: newId,
+        surveyId: newSurveyId,
+        memberId: currentUser.id,
+        memberName: currentUser.name,
+        phone: currentUser.phone || '',
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+
+    const success = await appendSheetDB('SurveyPeserta', record);
+    if (success) {
+        appData.surveyPeserta.push(record);
+        showAlert('Berhasil pindah grup sapi', 'success');
+    } else {
+        showAlert('Grup lama sudah dibatalkan tapi gagal daftar ke grup baru. Coba klik Ikut lagi.', 'error');
+    }
+    loadSurveySapiMemberList();
 }
 
 // ===== VERIFY =====
