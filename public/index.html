@@ -4663,6 +4663,10 @@ function loadSurveySapiMemberList() {
         return;
     }
 
+    // 1 anggota cuma boleh ikut 1 sapi - cek dulu apakah user sudah terdaftar
+    // di survey manapun, dipakai buat kunci tombol Ikut di kartu-kartu lain.
+    const myJoin = currentUser ? appData.surveyPeserta.find(p => p.memberId === currentUser.id) : null;
+
     container.innerHTML = appData.surveySapi.map(s => {
         const peserta = appData.surveyPeserta.filter(p => p.surveyId === s.id);
         const sudahIkut = currentUser && peserta.some(p => p.memberId === currentUser.id);
@@ -4673,9 +4677,14 @@ function loadSurveySapiMemberList() {
         const fotoCell = fotoCount > 0
             ? `<button class="btn btn-ghost btn-small" onclick="viewSurveyFotos(${s.id})">🖼️ ${fotoCount} foto</button>`
             : '—';
-        const ikutBtn = sudahIkut
-            ? `<button class="btn btn-ghost btn-small" disabled>✓ Sudah Ikut</button>`
-            : `<button class="btn btn-success btn-small" onclick="joinSurveySapi(${s.id})">Ikut</button>`;
+        let ikutBtn;
+        if (sudahIkut) {
+            ikutBtn = `<button class="btn btn-ghost btn-small" disabled>✓ Sudah Ikut</button>`;
+        } else if (myJoin) {
+            ikutBtn = `<button class="btn btn-ghost btn-small" disabled title="1 anggota hanya boleh ikut 1 sapi">Sudah ikut sapi lain</button>`;
+        } else {
+            ikutBtn = `<button class="btn btn-success btn-small" onclick="joinSurveySapi(${s.id})">Ikut</button>`;
+        }
         const pesertaHtml = peserta.length > 0
             ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.memberName}</span>`).join('')
             : '<span style="color:var(--ink-faint); font-size:12.5px;">Belum ada yang ikut.</span>';
@@ -4707,6 +4716,15 @@ async function joinSurveySapi(surveyId) {
     if (!currentUser) return;
     const already = appData.surveyPeserta.some(p => p.surveyId === surveyId && p.memberId === currentUser.id);
     if (already) return;
+
+    // 1 anggota cuma boleh ikut 1 sapi - jaga-jaga kalau tombol sempat aktif
+    // dari data lama (mis. anggota lain baru saja ikut di tab lain).
+    const joinedElsewhere = appData.surveyPeserta.some(p => p.memberId === currentUser.id && p.surveyId !== surveyId);
+    if (joinedElsewhere) {
+        showAlert('Anda sudah terdaftar di grup sapi lain. 1 anggota hanya boleh ikut 1 sapi.', 'error');
+        loadSurveySapiMemberList();
+        return;
+    }
 
     const newId = appData.surveyPeserta.length > 0
         ? Math.max(...appData.surveyPeserta.map(p => p.id)) + 1
