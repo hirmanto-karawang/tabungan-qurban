@@ -2669,12 +2669,26 @@
             </div>
             <div class="form-group">
               <label>Berat (kg)</label>
-              <input type="number" id="surveyBerat" placeholder="Contoh: 350" min="0">
+              <input type="number" id="surveyBerat" placeholder="Contoh: 350" min="0" oninput="updateSurveyKalkulasi()">
             </div>
             <div class="form-group">
               <label>Harga (Rp)</label>
-              <input type="number" id="surveyHarga" placeholder="Contoh: 25000000" min="0" oninput="updateSurveyHargaHint()">
+              <input type="number" id="surveyHarga" placeholder="Contoh: 25000000" min="0" oninput="updateSurveyKalkulasi()">
               <small id="surveyHargaHint" style="display:block;margin-top:6px;">&nbsp;</small>
+            </div>
+            <div class="form-group">
+              <label>Biaya Pengolahan (Rp)</label>
+              <input type="number" id="surveyBiayaPengolahan" placeholder="Contoh: 1500000" min="0" oninput="updateSurveyKalkulasi()">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Ringkasan Perhitungan</label>
+            <div class="rek-box" id="surveyKalkulasiBox" style="margin-bottom:0;">
+              <div class="rek-row"><span>Iuran per Peserta (1/7 + biaya olah)</span><span id="surveyKalkIuran">Rp 0</span></div>
+              <div class="rek-row"><span>Estimasi Daging (berat × 0,5 × 0,6)</span><span id="surveyKalkDaging">0 kg</span></div>
+              <div class="rek-row"><span>Hak Mudhohi (per 1/7 bagian)</span><span id="surveyKalkMudhohi">0 kg</span></div>
+              <div class="rek-row"><span>Share Warga (2/3 daging)</span><span id="surveyKalkWarga">0 kg</span></div>
             </div>
           </div>
 
@@ -2741,8 +2755,8 @@
           <h3 style="margin-top:0;">Riwayat Survey Sapi</h3>
           <div class="table-container">
             <table>
-              <thead><tr><th>Tanggal</th><th>Supplier</th><th>Jenis</th><th>Berat</th><th>Harga</th><th>Lokasi</th><th>Foto</th></tr></thead>
-              <tbody id="surveySapiTableBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
+              <thead><tr><th>Tanggal</th><th>Supplier</th><th>Jenis</th><th>Berat</th><th>Harga</th><th>Biaya Olah</th><th>Iuran</th><th>Lokasi</th><th>Foto</th></tr></thead>
+              <tbody id="surveySapiTableBody"><tr><td colspan="9" class="loading">Memuat…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -3458,6 +3472,7 @@ async function loadDataFromSheets() {
         jenisSapi: row.jenisSapi || '',
         berat: parseInt(row.berat) || 0,
         harga: parseInt(row.harga) || 0,
+        biayaPengolahan: parseInt(row.biayaPengolahan) || 0,
         hasFoto1: !!row.hasFoto1,
         hasFoto2: !!row.hasFoto2,
         hasFoto3: !!row.hasFoto3,
@@ -4367,6 +4382,7 @@ function initSurveyForm() {
     if (!surveyLocationData.latitude && !surveyLocationLoading) {
         captureSurveyLocation();
     }
+    updateSurveyKalkulasi();
 }
 
 // Ambil koordinat GPS perangkat lewat Geolocation API browser, lalu reverse-
@@ -4418,11 +4434,42 @@ function captureSurveyLocation() {
     );
 }
 
-function updateSurveyHargaHint() {
-    const val = parseInt(document.getElementById('surveyHarga').value);
+// Rumus pembagian qurban 1 ekor sapi = 7 bagian/peserta. DIPAKAI BERSAMA oleh
+// form input (live preview), tabel admin, dan kartu anggota - supaya kalau
+// rumus berubah, cukup edit di satu tempat ini saja.
+//   Iuran per peserta   = (Harga / 7) + Biaya Pengolahan
+//   Estimasi Daging     = Berat sapi x 0,5 (karkas) x 0,6 (daging dari karkas)
+//   Hak Mudhohi         = (Estimasi Daging / 3) / 7   -> per 1/7 bagian
+//   Share Warga         = (Estimasi Daging / 3) x 2
+function computeSurveyKalkulasi(berat, harga, biayaPengolahan) {
+    const b = Number(berat) || 0;
+    const h = Number(harga) || 0;
+    const bp = Number(biayaPengolahan) || 0;
+    const iuran = (h / 7) + bp;
+    const estimasiDaging = b * 0.5 * 0.6;
+    const hakMudhohi = (estimasiDaging / 3) / 7;
+    const shareWarga = (estimasiDaging / 3) * 2;
+    return { iuran, estimasiDaging, hakMudhohi, shareWarga };
+}
+
+function formatKg(n) {
+    return (Math.round(n * 10) / 10).toLocaleString('id-ID') + ' kg';
+}
+
+function updateSurveyKalkulasi() {
+    const hargaVal = parseInt(document.getElementById('surveyHarga').value) || 0;
+    const beratVal = parseInt(document.getElementById('surveyBerat').value) || 0;
+    const biayaVal = parseInt(document.getElementById('surveyBiayaPengolahan').value) || 0;
+
     const hint = document.getElementById('surveyHargaHint');
-    hint.innerHTML = val > 0 ? 'Rp ' + val.toLocaleString('id-ID') : '&nbsp;';
+    hint.innerHTML = hargaVal > 0 ? 'Rp ' + hargaVal.toLocaleString('id-ID') : '&nbsp;';
     hint.style.color = 'var(--emerald-2)';
+
+    const k = computeSurveyKalkulasi(beratVal, hargaVal, biayaVal);
+    document.getElementById('surveyKalkIuran').textContent = 'Rp ' + Math.round(k.iuran).toLocaleString('id-ID');
+    document.getElementById('surveyKalkDaging').textContent = formatKg(k.estimasiDaging);
+    document.getElementById('surveyKalkMudhohi').textContent = formatKg(k.hakMudhohi);
+    document.getElementById('surveyKalkWarga').textContent = formatKg(k.shareWarga);
 }
 
 function surveyFotoSlotEmptyHtml(idx) {
@@ -4481,6 +4528,7 @@ async function submitSurveySapi() {
     const jenis = document.getElementById('surveyJenis').value;
     const berat = parseInt(document.getElementById('surveyBerat').value);
     const harga = parseInt(document.getElementById('surveyHarga').value);
+    const biayaPengolahan = parseInt(document.getElementById('surveyBiayaPengolahan').value) || 0;
     const btn = document.getElementById('submitSurveyBtn');
 
     if (!tanggal) { showAlert('Tanggal survey harus diisi', 'error'); return; }
@@ -4507,6 +4555,7 @@ async function submitSurveySapi() {
         jenisSapi: jenis,
         berat: berat,
         harga: harga,
+        biayaPengolahan: biayaPengolahan,
         foto1: selectedSurveyFotos[0] || '',
         foto2: selectedSurveyFotos[1] || '',
         foto3: selectedSurveyFotos[2] || '',
@@ -4532,6 +4581,7 @@ async function submitSurveySapi() {
             jenisSapi: record.jenisSapi,
             berat: record.berat,
             harga: record.harga,
+            biayaPengolahan: record.biayaPengolahan,
             hasFoto1: !!record.foto1,
             hasFoto2: !!record.foto2,
             hasFoto3: !!record.foto3,
@@ -4551,7 +4601,8 @@ function resetSurveyForm() {
     document.getElementById('surveyJenis').value = '';
     document.getElementById('surveyBerat').value = '';
     document.getElementById('surveyHarga').value = '';
-    updateSurveyHargaHint();
+    document.getElementById('surveyBiayaPengolahan').value = '';
+    updateSurveyKalkulasi();
     document.getElementById('surveyFotoError').textContent = '';
     selectedSurveyFotos = [null, null, null, null, null];
     for (let i = 1; i <= 5; i++) {
@@ -4577,7 +4628,7 @@ function loadSurveySapiTable() {
     if (!tbody) return;
 
     if (appData.surveySapi.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada data survey</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="loading">Belum ada data survey</td></tr>';
         return;
     }
 
@@ -4589,6 +4640,7 @@ function loadSurveySapiTable() {
         const fotoCell = fotoCount > 0
             ? `<button class="btn btn-ghost btn-small" onclick="viewSurveyFotos(${s.id})">🖼️ ${fotoCount} foto</button>`
             : '<span style="color:var(--ink-faint);">—</span>';
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         return `
             <tr>
               <td>${s.tanggal || '—'}</td>
@@ -4596,6 +4648,8 @@ function loadSurveySapiTable() {
               <td>${jenisSapiLabel(s.jenisSapi)}</td>
               <td>${s.berat ? s.berat + ' kg' : '—'}</td>
               <td>${s.harga ? 'Rp ' + s.harga.toLocaleString('id-ID') : '—'}</td>
+              <td>${s.biayaPengolahan ? 'Rp ' + s.biayaPengolahan.toLocaleString('id-ID') : '—'}</td>
+              <td>Rp ${Math.round(k.iuran).toLocaleString('id-ID')}</td>
               <td>${lokasiCell}</td>
               <td>${fotoCell}</td>
             </tr>`;
@@ -4694,6 +4748,7 @@ function loadSurveySapiMemberList() {
         const pesertaHtml = peserta.length > 0
             ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.memberName}</span>`).join('')
             : '<span style="color:var(--ink-faint); font-size:12.5px;">Belum ada yang ikut.</span>';
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
 
         return `
             <div class="survey-member-card">
@@ -4707,6 +4762,10 @@ function loadSurveySapiMemberList() {
               <div class="survey-member-meta">
                 <div><span class="label">Berat</span>${s.berat ? s.berat + ' kg' : '—'}</div>
                 <div><span class="label">Harga</span>${s.harga ? 'Rp ' + s.harga.toLocaleString('id-ID') : '—'}</div>
+                <div><span class="label">Iuran per Peserta</span>Rp ${Math.round(k.iuran).toLocaleString('id-ID')}</div>
+                <div><span class="label">Estimasi Daging</span>${formatKg(k.estimasiDaging)}</div>
+                <div><span class="label">Hak Mudhohi</span>${formatKg(k.hakMudhohi)}</div>
+                <div><span class="label">Share Warga</span>${formatKg(k.shareWarga)}</div>
                 <div><span class="label">Lokasi</span>${lokasiCell}</div>
                 <div><span class="label">Foto</span>${fotoCell}</div>
               </div>
