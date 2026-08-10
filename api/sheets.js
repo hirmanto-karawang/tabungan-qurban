@@ -19,7 +19,7 @@
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
@@ -30,7 +30,10 @@
 // lain yang deploy ulang project ini WAJIB set GOOGLE_SHEET_ID di Vercel ke
 // ID spreadsheet mereka sendiri - jangan pakai ID di bawah ini.
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi'];
+// 'SurveyPeserta' menyimpan siapa saja anggota yang klik "Ikut" di sebuah
+// survey sapi (kolom: id, surveyId, memberId, memberName, phone, created_date)
+// - dipakai untuk menampilkan list peserta grup sapi ke sesama anggota.
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
 // Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
