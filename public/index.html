@@ -2887,7 +2887,7 @@
         <div class="card" style="max-width:820px;">
           <h2>Work Order Aktual</h2>
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:0;">
-            Input jumlah AKTUAL saat hari pelaksanaan qurban, per alokasi per sapi. Qty di sini BEBAS (tidak dibatasi kuota rencana) karena di lapangan kadang tidak persis sesuai Work Order awal. Kolom "Qty Rencana (WO)" ditampilkan sebagai pembanding saja.
+            Input jumlah AKTUAL saat hari pelaksanaan qurban, per alokasi per sapi. Qty di sini BEBAS (tidak dibatasi kuota rencana) karena di lapangan kadang tidak persis sesuai Work Order awal. Kolom "Qty Rencana (WO)" ditampilkan sebagai pembanding saja. Baris <strong>Mudhohi</strong> di paling atas khusus: Berat diisi manual (hasil timbang), Qty tetap 7, Selisih = Estimasi Hak Mudhohi − Aktual Penimbangan.
           </p>
         </div>
         <div id="woAktualList"></div>
@@ -5444,6 +5444,11 @@ async function simpanWoQty(surveyId, rencanaId) {
 // WorkOrderAktual sendiri (bukan DistribusiDaging), (2) Qty BEBAS/tidak
 // dibatasi kuota (di lapangan sering tidak persis sesuai rencana), (3) Qty
 // Rencana (WO) ikut ditampilkan sebagai pembanding + kolom Selisih.
+// Baris PALING ATAS selalu "Mudhohi" (baris khusus, TIDAK berasal dari
+// Rencana Distribusi Umum - itu cuma utk porsi Share Warga): Berat diisi
+// manual (hasil timbang aktual per porsi), Qty tetap 7 (1 sapi = 7 mudhohi),
+// Selisih pakai formula khusus = Estimasi Hak Mudhohi (asumsi penuh 7 orang)
+// - Aktual Penimbangan (Berat manual x 7).
 function loadWoAktualList(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -5459,13 +5464,47 @@ function loadWoAktualList(containerId) {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
 
         let totalAktual = 0;
-        let tbodyHtml, tfootHtml;
+
+        // Baris khusus "Mudhohi" - selalu ada, tidak tergantung Rencana
+        // Distribusi Umum. MUDHOHI_QTY_FIX = 7 (1 sapi = 7 bagian mudhohi).
+        const existingMudhohi = appData.workOrderAktual.find(d =>
+            d.status !== 'batal' && d.surveyId === s.id &&
+            (d.alokasi || '').trim().toLowerCase() === 'mudhohi'
+        );
+        const beratMudhohi = existingMudhohi ? existingMudhohi.berat : 0;
+        const totalMudhohiAktual = beratMudhohi * 7;
+        totalAktual += totalMudhohiAktual;
+        const estimasiMudhohiFull = k.hakMudhohi * 7; // = estimasiDaging / 3 (asumsi penuh 7 orang)
+        const selisihMudhohi = estimasiMudhohiFull - totalMudhohiAktual;
+
+        let selisihMudhohiHtml;
+        if (!existingMudhohi) {
+            selisihMudhohiHtml = '<span style="color:var(--ink-faint);">—</span>';
+        } else if (Math.abs(selisihMudhohi) <= 0.05) {
+            selisihMudhohiHtml = `<span style="color:var(--emerald-2); font-weight:600;">Pas</span>`;
+        } else if (selisihMudhohi > 0) {
+            selisihMudhohiHtml = `<span style="color:var(--gold); font-weight:600;">+${formatKg(selisihMudhohi)}</span>`;
+        } else {
+            selisihMudhohiHtml = `<span style="color:var(--brick); font-weight:600;">${formatKg(selisihMudhohi)}</span>`;
+        }
+
+        const mudhohiRowHtml = `
+            <tr style="background:var(--emerald-tint);">
+              <td><strong>Mudhohi</strong></td>
+              <td><input type="number" id="woAktualMudhohiBerat_${s.id}" value="${beratMudhohi || ''}" placeholder="0" min="0" step="0.01" style="width:90px;" oninput="updateWoAktualMudhohiTotal(${s.id})"></td>
+              <td>—</td>
+              <td>7 (tetap)</td>
+              <td id="woAktualMudhohiSelisih_${s.id}">${selisihMudhohiHtml}</td>
+              <td id="woAktualMudhohiTotal_${s.id}"><strong>${formatKg(totalMudhohiAktual)}</strong></td>
+              <td><button class="btn btn-success btn-small" onclick="simpanWoAktualMudhohi(${s.id})" title="Simpan Berat Mudhohi">💾</button></td>
+            </tr>`;
+
+        let restRowsHtml, tfootHtml;
 
         if (rencanaAktif.length === 0) {
-            tbodyHtml = `<tr><td colspan="7" class="loading">Belum ada alokasi di "Rencana Distribusi Daging (Umum)" - tambahkan dulu di tab Survey Sapi.</td></tr>`;
-            tfootHtml = '';
+            restRowsHtml = `<tr><td colspan="7" class="loading">Belum ada alokasi lain di "Rencana Distribusi Daging (Umum)" - tambahkan dulu di tab Survey Sapi.</td></tr>`;
         } else {
-            tbodyHtml = rencanaAktif.map(r => {
+            restRowsHtml = rencanaAktif.map(r => {
                 const rencanaWO = appData.distribusiDaging.find(d =>
                     d.status !== 'batal' && d.surveyId === s.id &&
                     (d.alokasi || '').trim().toLowerCase() === (r.alokasi || '').trim().toLowerCase()
@@ -5503,13 +5542,16 @@ function loadWoAktualList(containerId) {
                       <td><button class="btn btn-success btn-small" onclick="simpanWoAktualQty(${s.id}, ${r.id})" title="Simpan Qty Aktual">💾</button></td>
                     </tr>`;
             }).join('');
-            tfootHtml = `
-                <tr style="background:var(--sand); font-weight:700;">
-                  <td colspan="5">Total Aktual</td>
-                  <td>${totalAktual.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
-                  <td></td>
-                </tr>`;
         }
+
+        tfootHtml = `
+            <tr style="background:var(--sand); font-weight:700;">
+              <td colspan="5">Total Aktual (termasuk Mudhohi)</td>
+              <td>${totalAktual.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
+              <td></td>
+            </tr>`;
+
+        const tbodyHtml = mudhohiRowHtml + restRowsHtml;
 
         return `
             <div class="card" style="max-width:820px; margin-top:20px;">
@@ -5540,6 +5582,90 @@ function updateWoAktualRowTotal(surveyId, rencanaId, beratPerUnit) {
     const qty = parseFloat(input.value) || 0;
     const total = beratPerUnit * qty;
     totalCell.innerHTML = `<strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong>`;
+}
+
+// Update tampilan Total & Selisih baris "Mudhohi" (live, belum tersimpan)
+// tiap kali admin ngetik ulang Berat hasil timbang.
+function updateWoAktualMudhohiTotal(surveyId) {
+    const survey = appData.surveySapi.find(s => s.id === surveyId);
+    if (!survey) return;
+    const input = document.getElementById(`woAktualMudhohiBerat_${surveyId}`);
+    const totalCell = document.getElementById(`woAktualMudhohiTotal_${surveyId}`);
+    if (!input || !totalCell) return;
+
+    const berat = parseFloat(input.value) || 0;
+    const total = berat * 7;
+    totalCell.innerHTML = `<strong>${formatKg(total)}</strong>`;
+
+    const selisihCell = document.getElementById(`woAktualMudhohiSelisih_${surveyId}`);
+    if (selisihCell) {
+        const k = computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan);
+        const estimasi = k.hakMudhohi * 7;
+        const selisih = estimasi - total;
+        let html;
+        if (Math.abs(selisih) <= 0.05) html = `<span style="color:var(--emerald-2); font-weight:600;">Pas</span>`;
+        else if (selisih > 0) html = `<span style="color:var(--gold); font-weight:600;">+${formatKg(selisih)}</span>`;
+        else html = `<span style="color:var(--brick); font-weight:600;">${formatKg(selisih)}</span>`;
+        selisihCell.innerHTML = html;
+    }
+}
+
+// Simpan Berat AKTUAL baris "Mudhohi" (Qty selalu dipaksa 7) ke sheet
+// WorkOrderAktual, dengan nama alokasi tetap "Mudhohi" (dipakai buat
+// mencocokkan baris ini tiap kali render ulang).
+async function simpanWoAktualMudhohi(surveyId) {
+    const input = document.getElementById(`woAktualMudhohiBerat_${surveyId}`);
+    if (!input) return;
+
+    const berat = input.value === '' ? 0 : parseFloat(input.value);
+    if (isNaN(berat) || berat < 0) { showAlert('Berat tidak valid', 'error'); return; }
+
+    const existing = appData.workOrderAktual.find(d =>
+        d.status !== 'batal' && d.surveyId === surveyId &&
+        (d.alokasi || '').trim().toLowerCase() === 'mudhohi'
+    );
+
+    if (existing) {
+        const success = await updateSheetDB('WorkOrderAktual', 'id', existing.id, { berat, qty: 7, alokasi: 'Mudhohi' });
+        if (success) {
+            existing.berat = berat;
+            existing.qty = 7;
+            existing.alokasi = 'Mudhohi';
+            showAlert('Berat Mudhohi disimpan', 'success');
+            loadWoAktualList('woAktualList');
+        } else {
+            showAlert('Gagal menyimpan, coba lagi.', 'error');
+        }
+        return;
+    }
+
+    if (berat <= 0) {
+        showAlert('Berat masih 0, tidak ada yang disimpan', 'info');
+        return;
+    }
+
+    const newId = appData.workOrderAktual.length > 0
+        ? Math.max(...appData.workOrderAktual.map(d => d.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        surveyId: surveyId,
+        alokasi: 'Mudhohi',
+        berat: berat,
+        qty: 7,
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+
+    const success = await appendSheetDB('WorkOrderAktual', record);
+    if (success) {
+        appData.workOrderAktual.push(record);
+        showAlert('Berat Mudhohi disimpan', 'success');
+        loadWoAktualList('woAktualList');
+    } else {
+        showAlert('Gagal menyimpan, coba lagi.', 'error');
+    }
 }
 
 // Simpan Qty AKTUAL 1 baris alokasi utk 1 sapi ke sheet WorkOrderAktual
