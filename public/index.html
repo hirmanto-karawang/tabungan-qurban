@@ -1963,6 +1963,12 @@
 <!-- Excel Export Library dengan styling (warna, font, gambar chart) untuk Laporan -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 
+<!-- QR Code Generator - dipakai buat cetak e-tiket QR di menu Penerima & Tiket -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<!-- QR Code Scanner (kamera) - dipakai buat check-in/scan tiket pas hari pelaksanaan -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
 </head>
 <body>
 
@@ -2161,6 +2167,10 @@
       <button class="tab-btn" id="woAktualTabBtn" onclick="switchTab('woAktual')" style="display:none;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         WO Aktual
+      </button>
+      <button class="tab-btn" id="penerimaTabBtn" onclick="switchTab('penerima')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>
+        Penerima &amp; Tiket
       </button>
       <button class="tab-btn" id="profileTabBtn" onclick="switchTab('profile')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -2893,6 +2903,65 @@
         <div id="woAktualList"></div>
       </div>
 
+      <!-- Tab: Penerima & Tiket (khusus Admin) - daftar penerima BERNAMA per
+           alokasi + e-tiket QR buat dicetak, dan halaman scan buat check-in
+           pas hari pelaksanaan (mencegah 1 tiket dipakai 2x). -->
+      <div id="penerima" class="tab-content">
+        <div class="card" style="max-width:820px;">
+          <h2>Kelola Daftar Penerima</h2>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
+            Isi nama-nama penerima utk tiap alokasi di "Rencana Distribusi Daging (Umum)" (mis. RT 1, Panitia, Sate) - jumlah nama dibatasi otomatis sesuai Qty rencana alokasi tsb. Tiap nama otomatis dapat 1 e-tiket QR unik.
+          </p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Alokasi</label>
+              <select id="penerimaAlokasiSelect" onchange="updatePenerimaKuotaInfo()"></select>
+            </div>
+            <div class="form-group">
+              <label>Nama Penerima</label>
+              <input type="text" id="penerimaNama" placeholder="Nama lengkap">
+            </div>
+            <div class="form-group">
+              <label>No. HP (opsional)</label>
+              <input type="text" id="penerimaNoHp" placeholder="08xxxxxxxxxx">
+            </div>
+          </div>
+          <div id="penerimaKuotaInfo" style="margin-bottom:14px;"></div>
+          <div class="actions" style="margin-bottom:18px;">
+            <button class="btn btn-success btn-small" id="penerimaSubmitBtn" onclick="simpanPenerima()">+ Tambah &amp; Buat Tiket</button>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Alokasi</th><th>Nama</th><th>No. HP</th><th>Kode Tiket</th><th>Status</th><th></th></tr></thead>
+              <tbody id="penerimaListBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:820px; margin-top:20px;">
+          <h2>Scan Tiket (Check-in)</h2>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
+            Arahkan kamera ke QR di e-tiket penerima. Tiket yang sudah pernah di-scan otomatis ditolak (tidak bisa dipakai 2x). Kalau kamera bermasalah, pakai input kode manual di bawah.
+          </p>
+          <div class="actions" style="margin-bottom:14px;">
+            <button class="btn btn-success btn-small" id="scanStartBtn" onclick="startQrScanner()">▶️ Mulai Scan Kamera</button>
+            <button class="btn btn-ghost btn-small" id="scanStopBtn" onclick="stopQrScanner()" style="display:none;">⏹ Stop Scan</button>
+          </div>
+          <div id="qrReaderBox" style="max-width:340px; margin-bottom:16px;"></div>
+          <div id="scanResultBox" style="margin-bottom:18px;"></div>
+          <div class="form-grid" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label>Kode Tiket Manual</label>
+              <input type="text" id="manualKodeTiket" placeholder="Contoh: TQ-AB12CD" style="text-transform:uppercase;">
+            </div>
+          </div>
+          <div class="actions" style="margin-bottom:18px;">
+            <button class="btn btn-ghost btn-small" onclick="cekKodeTiketManual()">Cek &amp; Tandai Diambil</button>
+          </div>
+          <div id="scanLogBox"></div>
+        </div>
+      </div>
+
       <!-- Tab: Profil -->
       <div id="profile" class="tab-content">
 
@@ -3297,7 +3366,8 @@ let appData = {
     surveyPeserta: [],
     distribusiDaging: [],
     rencanaDistribusi: [],
-    workOrderAktual: []
+    workOrderAktual: [],
+    penerimaQR: []
 };
 
 let currentUser = null;
@@ -3480,6 +3550,7 @@ async function loadDataFromSheets() {
     const distribusiDagingRows = bootstrap ? (bootstrap.DistribusiDaging || []) : await fetchSheetDBTable('DistribusiDaging');
     const rencanaDistribusiRows = bootstrap ? (bootstrap.RencanaDistribusi || []) : await fetchSheetDBTable('RencanaDistribusi');
     const workOrderAktualRows = bootstrap ? (bootstrap.WorkOrderAktual || []) : await fetchSheetDBTable('WorkOrderAktual');
+    const penerimaQRRows = bootstrap ? (bootstrap.PenerimaQR || []) : await fetchSheetDBTable('PenerimaQR');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -3660,6 +3731,21 @@ async function loadDataFromSheets() {
         berat: parseFloat(row.berat) || 0,
         qty: parseFloat(row.qty) || 0,
         status: row.status || 'aktif',
+        created_date: row.created_date || ''
+    })).filter(d => d.id);
+
+    // Parse PenerimaQR (daftar penerima BERNAMA per alokasi, buat e-tiket QR
+    // & check-in hari pelaksanaan - lihat komentar SHEET_NAMES di
+    // public/api/sheets.js utk skema kolom lengkap).
+    appData.penerimaQR = penerimaQRRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        alokasi: row.alokasi || '',
+        nama: row.nama || '',
+        noHp: row.noHp || '',
+        kodeTiket: row.kodeTiket || '',
+        status: row.status || 'aktif',
+        diambil: (row.diambil || '').toString().trim().toLowerCase() === 'ya',
+        waktuAmbil: row.waktuAmbil || '',
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
@@ -4015,6 +4101,7 @@ function showApp() {
     const activityLogTabBtn = document.getElementById('activityLogTabBtn');
     const surveySapiTabBtn = document.getElementById('surveySapiTabBtn');
     const woAktualTabBtn = document.getElementById('woAktualTabBtn');
+    const penerimaTabBtn = document.getElementById('penerimaTabBtn');
 
     // Menu untuk Anggota
     const profileTabBtn = document.getElementById('profileTabBtn');
@@ -4030,6 +4117,7 @@ function showApp() {
         activityLogTabBtn.style.display = 'flex';
         surveySapiTabBtn.style.display = 'flex';
         woAktualTabBtn.style.display = 'flex';
+        penerimaTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';  // Admin bisa lihat laporan
 
         // Hide menu anggota
@@ -4053,6 +4141,7 @@ function showApp() {
         activityLogTabBtn.style.display = 'none';
         surveySapiTabBtn.style.display = 'none';
         woAktualTabBtn.style.display = 'none';
+        penerimaTabBtn.style.display = 'none';
 
         // Redirect ke dashboard
         switchTab('dashboard');
@@ -4071,9 +4160,10 @@ function showApp() {
         // Survey Sapi TETAP ditampilkan untuk Anggota, tapi isinya versi
         // read-only + tombol Ikut (lihat surveySapiMemberSection & switchTab()).
         surveySapiTabBtn.style.display = 'flex';
-        // WO Aktual (input hari pelaksanaan) khusus Admin/panitia - Anggota
-        // tidak perlu isi ini.
+        // WO Aktual & Penerima/Tiket (khusus hari pelaksanaan) - khusus
+        // Admin/panitia, Anggota tidak perlu isi ini.
         woAktualTabBtn.style.display = 'none';
+        penerimaTabBtn.style.display = 'none';
     }
 
     updateDashboard();
@@ -4095,11 +4185,20 @@ const TAB_META = {
     activityLog: { title: 'Log Aktivitas Anggota', crumb: 'Admin' },
     surveySapi: { title: 'Survey Sapi', crumb: 'Qurban' },
     woAktual: { title: 'Work Order Aktual', crumb: 'Pelaksanaan' },
+    penerima: { title: 'Penerima & Tiket', crumb: 'Pelaksanaan' },
     history: { title: 'Riwayat', crumb: 'Tabungan' },
     laporan: { title: 'Laporan', crumb: 'Ringkasan' }
 };
 
 async function switchTab(tabName) {
+    // Kalau lagi pindah KELUAR dari tab Penerima & Tiket sementara kamera
+    // scan QR masih nyala, matikan dulu - supaya kamera tidak terus jalan
+    // di background pas admin pindah ke tab lain.
+    const wasPenerimaActive = document.getElementById('penerima')?.classList.contains('active');
+    if (wasPenerimaActive && tabName !== 'penerima' && typeof stopQrScanner === 'function') {
+        stopQrScanner();
+    }
+
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.sidebar-nav .tab-btn').forEach(btn => btn.classList.remove('active'));
 
@@ -4122,7 +4221,7 @@ async function switchTab(tabName) {
     // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
     // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
     // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
-    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'woAktual'];
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'woAktual', 'penerima'];
     if (needsFreshData.includes(tabName)) {
         await ensureDataLoaded();
     }
@@ -4165,6 +4264,10 @@ function runTabDataLoaders(tabName) {
     }
     if (tabName === 'woAktual') {
         loadWoAktualList('woAktualList');
+    }
+    if (tabName === 'penerima') {
+        populatePenerimaAlokasiSelect();
+        loadPenerimaList();
     }
     if (tabName === 'broadcast') {
         populateSapiOptions();
@@ -5743,6 +5846,381 @@ async function simpanWoAktualQty(surveyId, rencanaId) {
         loadWoAktualList('woAktualList');
     } else {
         showAlert('Gagal menyimpan, coba lagi.', 'error');
+    }
+}
+
+// ===== PENERIMA & TIKET QR (daftar penerima BERNAMA per alokasi + e-tiket
+// QR buat check-in hari pelaksanaan) =====
+// Kuota per alokasi dihitung dari Qty di Rencana Distribusi Daging (Umum) -
+// pola sama persis dengan totalWoQtyForAlokasiExcluding() di Work Order,
+// bedanya di sini dihitung per NAMA (1 nama = 1 slot), bukan per sapi.
+function countPenerimaAktifUntukAlokasi(alokasiName) {
+    const nama = (alokasiName || '').trim().toLowerCase();
+    if (!nama) return 0;
+    return appData.penerimaQR.filter(p =>
+        p.status !== 'batal' && (p.alokasi || '').trim().toLowerCase() === nama
+    ).length;
+}
+
+// Kode tiket acak 6 karakter (huruf besar + angka, tanpa karakter ambigu
+// I/O/0/1) diawali "TQ-", dicek dulu supaya tidak tabrakan sama kode yang
+// sudah pernah dipakai (termasuk yang sudah dihapus/batal, biar tiket lama
+// yang sudah tercetak tidak pernah dobel).
+function generateKodeTiket() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let kode;
+    do {
+        let acak = '';
+        for (let i = 0; i < 6; i++) acak += chars.charAt(Math.floor(Math.random() * chars.length));
+        kode = 'TQ-' + acak;
+    } while (appData.penerimaQR.some(p => p.kodeTiket === kode));
+    return kode;
+}
+
+function populatePenerimaAlokasiSelect() {
+    const select = document.getElementById('penerimaAlokasiSelect');
+    if (!select) return;
+
+    const rencanaAktif = appData.rencanaDistribusi.filter(r => r.status !== 'batal');
+    if (rencanaAktif.length === 0) {
+        select.innerHTML = '<option value="">Belum ada alokasi di Rencana Distribusi Daging (Umum)</option>';
+        updatePenerimaKuotaInfo();
+        return;
+    }
+
+    const currentValue = select.value;
+    select.innerHTML = rencanaAktif.map(r => `<option value="${r.alokasi}">${r.alokasi} (kuota ${r.qty.toLocaleString('id-ID')})</option>`).join('');
+    if (currentValue && rencanaAktif.some(r => r.alokasi === currentValue)) select.value = currentValue;
+
+    updatePenerimaKuotaInfo();
+}
+
+function updatePenerimaKuotaInfo() {
+    const select = document.getElementById('penerimaAlokasiSelect');
+    const info = document.getElementById('penerimaKuotaInfo');
+    if (!select || !info) return;
+
+    const alokasi = select.value;
+    if (!alokasi) { info.innerHTML = ''; return; }
+
+    const r = appData.rencanaDistribusi.find(x => x.status !== 'batal' && x.alokasi === alokasi);
+    const kuota = r ? r.qty : 0;
+    const terisi = countPenerimaAktifUntukAlokasi(alokasi);
+    const sisa = kuota - terisi;
+
+    let html;
+    if (sisa <= 0) {
+        html = `<span style="color:var(--brick); font-weight:600;">Kuota "${alokasi}" sudah penuh (${terisi}/${kuota})</span>`;
+    } else {
+        html = `<span style="color:var(--ink-soft);">Kuota "${alokasi}": ${terisi} dari ${kuota} terisi <span style="color:var(--emerald-2); font-weight:600;">(sisa ${sisa})</span></span>`;
+    }
+    info.innerHTML = html;
+}
+
+async function simpanPenerima() {
+    const select = document.getElementById('penerimaAlokasiSelect');
+    const namaInput = document.getElementById('penerimaNama');
+    const noHpInput = document.getElementById('penerimaNoHp');
+    if (!select || !namaInput) return;
+
+    const alokasi = select.value;
+    const nama = namaInput.value.trim();
+    const noHp = (noHpInput.value || '').trim();
+
+    if (!alokasi) { showAlert('Pilih alokasi dulu (tambahkan di Rencana Distribusi Daging Umum kalau belum ada)', 'error'); return; }
+    if (!nama) { showAlert('Nama penerima harus diisi', 'error'); return; }
+
+    const r = appData.rencanaDistribusi.find(x => x.status !== 'batal' && x.alokasi === alokasi);
+    const kuota = r ? r.qty : 0;
+    const terisi = countPenerimaAktifUntukAlokasi(alokasi);
+    if (terisi >= kuota) {
+        showAlert(`Kuota alokasi "${alokasi}" sudah penuh (${terisi}/${kuota}), tidak bisa tambah lagi.`, 'error');
+        return;
+    }
+
+    const newId = appData.penerimaQR.length > 0
+        ? Math.max(...appData.penerimaQR.map(d => d.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        alokasi: alokasi,
+        nama: nama,
+        noHp: noHp,
+        kodeTiket: generateKodeTiket(),
+        status: 'aktif',
+        diambil: 'tidak',
+        waktuAmbil: '',
+        created_date: new Date().toISOString()
+    };
+
+    const success = await appendSheetDB('PenerimaQR', record);
+    if (success) {
+        appData.penerimaQR.push({ ...record, diambil: false });
+        showAlert(`Penerima "${nama}" ditambahkan, tiket ${record.kodeTiket} siap dicetak`, 'success');
+        namaInput.value = '';
+        noHpInput.value = '';
+        updatePenerimaKuotaInfo();
+        loadPenerimaList();
+    } else {
+        showAlert('Gagal menyimpan, coba lagi.', 'error');
+    }
+}
+
+function loadPenerimaList() {
+    const tbody = document.getElementById('penerimaListBody');
+    if (!tbody) return;
+
+    const rows = appData.penerimaQR
+        .filter(p => p.status !== 'batal')
+        .slice()
+        .sort((a, b) => (a.alokasi || '').localeCompare(b.alokasi || '') || (a.id - b.id));
+
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada penerima. Tambahkan lewat form di atas.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rows.map(p => {
+        const statusHtml = p.diambil
+            ? `<span style="color:var(--brick); font-weight:600;">✓ Sudah diambil</span>${p.waktuAmbil ? `<div style="font-size:11px; color:var(--ink-faint);">${new Date(p.waktuAmbil).toLocaleString('id-ID')}</div>` : ''}`
+            : `<span style="color:var(--emerald-2); font-weight:600;">Belum diambil</span>`;
+
+        return `
+            <tr>
+              <td>${p.alokasi || '—'}</td>
+              <td>${p.nama || '—'}</td>
+              <td>${p.noHp || '—'}</td>
+              <td><code>${p.kodeTiket}</code></td>
+              <td>${statusHtml}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-small" onclick="lihatQrPenerima(${p.id})" title="Lihat/Cetak QR">🔳</button>
+                <button class="btn btn-ghost btn-small" onclick="hapusPenerima(${p.id})" title="Hapus">🗑️</button>
+              </td>
+            </tr>`;
+    }).join('');
+}
+
+// Soft-delete (status='batal') - sama pola dengan data lain di app ini.
+async function hapusPenerima(id) {
+    const p = appData.penerimaQR.find(x => x.id === id);
+    if (!p) return;
+    if (!confirm(`Hapus penerima "${p.nama}" (tiket ${p.kodeTiket})? Tiket yang sudah dicetak jadi tidak berlaku.`)) return;
+
+    const success = await updateSheetDB('PenerimaQR', 'id', id, { status: 'batal' });
+    if (success) {
+        p.status = 'batal';
+        showAlert('Penerima dihapus', 'success');
+        updatePenerimaKuotaInfo();
+        loadPenerimaList();
+    } else {
+        showAlert('Gagal menghapus, coba lagi.', 'error');
+    }
+}
+
+// Tampilkan QR (pakai modal previewModal yang sama dengan preview bukti
+// transfer/foto survey - lihat showPreview()/viewSurveyFotos()) + tombol
+// cetak.
+function lihatQrPenerima(id) {
+    const p = appData.penerimaQR.find(x => x.id === id);
+    if (!p) return;
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+
+    const statusHtml = p.diambil
+        ? `<span style="color:var(--brick); font-weight:600;">✓ Sudah diambil${p.waktuAmbil ? ' - ' + new Date(p.waktuAmbil).toLocaleString('id-ID') : ''}</span>`
+        : `<span style="color:var(--emerald-2); font-weight:600;">Belum diambil</span>`;
+
+    title.textContent = `E-Tiket - ${p.nama}`;
+    body.innerHTML = `
+        <div style="text-align:center;">
+          <div id="qrCodeContainer" style="display:inline-block; padding:16px; background:#fff; border:1px solid var(--border); border-radius:12px;"></div>
+          <div style="margin-top:14px; font-family:var(--font-display); font-size:18px; font-weight:700;">${p.nama}</div>
+          <div style="color:var(--ink-soft); font-size:14px;">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
+          <div style="margin-top:6px; font-family:monospace; font-size:16px; letter-spacing:2px; font-weight:700;">${p.kodeTiket}</div>
+          <div style="margin-top:6px;">${statusHtml}</div>
+          <div class="actions" style="justify-content:center; margin-top:18px;">
+            <button class="btn btn-primary btn-small" onclick="cetakTiketPenerima(${p.id})">🖨️ Cetak Tiket</button>
+          </div>
+        </div>`;
+    modal.classList.add('show');
+
+    const qrEl = document.getElementById('qrCodeContainer');
+    qrEl.innerHTML = '';
+    new QRCode(qrEl, {
+        text: p.kodeTiket,
+        width: 200,
+        height: 200,
+        colorDark: '#1E4A3B',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+}
+
+// Buka jendela baru minimalis khusus cetak (bukan print halaman utama) -
+// supaya layout tiket tidak kecampur CSS sidebar/tab lain, sama alasannya
+// dengan kenapa Laporan pakai jsPDF sendiri bukan window.print() langsung.
+function cetakTiketPenerima(id) {
+    const p = appData.penerimaQR.find(x => x.id === id);
+    if (!p) return;
+
+    const qrEl = document.getElementById('qrCodeContainer');
+    const canvas = qrEl ? qrEl.querySelector('canvas') : null;
+    const imgSrc = canvas ? canvas.toDataURL('image/png') : '';
+
+    const w = window.open('', '_blank', 'width=420,height=640');
+    if (!w) { showAlert('Popup diblokir browser, izinkan popup utk cetak tiket.', 'error'); return; }
+
+    w.document.write(`
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Tiket - ${p.nama}</title>
+          <style>
+            body{ font-family: Georgia, 'Times New Roman', serif; text-align:center; padding:28px; }
+            .label{ font-size:13px; color:#888; letter-spacing:1px; }
+            .kode{ font-family: 'Courier New', monospace; font-size:20px; font-weight:700; letter-spacing:3px; margin-top:10px; }
+            .nama{ font-size:22px; font-weight:700; margin-top:16px; }
+            .sub{ color:#555; margin-top:4px; }
+            .masjid{ font-size:12px; color:#888; margin-top:24px; border-top:1px dashed #999; padding-top:12px; }
+          </style>
+        </head>
+        <body>
+          <div class="label">E-TIKET DAGING QURBAN</div>
+          <img src="${imgSrc}" style="width:220px; height:220px; margin-top:12px;">
+          <div class="kode">${p.kodeTiket}</div>
+          <div class="nama">${p.nama}</div>
+          <div class="sub">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
+          <div class="masjid">${APP_CONFIG.mosqueName} - Tabungan Qurban</div>
+          <script>window.onload = function(){ window.print(); };<\/script>
+        </body>
+        </html>`);
+    w.document.close();
+}
+
+// ----- SCAN TIKET (check-in kamera pakai html5-qrcode) -----
+let qrScannerInstance = null;
+let qrScannerRunning = false;
+let lastScannedCode = null;
+let lastScannedAt = 0;
+let scanLog = []; // in-memory saja, cuma feed visual sesi berjalan ini
+
+async function startQrScanner() {
+    const box = document.getElementById('qrReaderBox');
+    if (!box) return;
+
+    if (typeof Html5Qrcode === 'undefined') {
+        showAlert('Library scanner QR gagal dimuat, cek koneksi internet lalu reload halaman.', 'error');
+        return;
+    }
+
+    if (!qrScannerInstance) {
+        box.innerHTML = '<div id="qrReaderInner"></div>';
+        qrScannerInstance = new Html5Qrcode('qrReaderInner');
+    }
+
+    try {
+        await qrScannerInstance.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: 230 },
+            (decodedText) => {
+                // Debounce: kode YANG SAMA yang ke-scan ulang dalam 4 detik
+                // (karena QR masih di depan kamera) diabaikan, supaya tidak
+                // spam proses/alert berkali-kali utk 1x scan yang sama.
+                const now = Date.now();
+                if (decodedText === lastScannedCode && (now - lastScannedAt) < 4000) return;
+                lastScannedCode = decodedText;
+                lastScannedAt = now;
+                tandaiTiketDiambil(decodedText);
+            },
+            () => { /* frame tanpa QR terdeteksi - diabaikan, ini normal & sering terjadi */ }
+        );
+        qrScannerRunning = true;
+        document.getElementById('scanStartBtn').style.display = 'none';
+        document.getElementById('scanStopBtn').style.display = 'inline-flex';
+    } catch (err) {
+        console.error('Gagal mulai scanner:', err);
+        showAlert('Gagal mengakses kamera. Pastikan izin kamera diberikan ke browser ini.', 'error');
+    }
+}
+
+async function stopQrScanner() {
+    if (qrScannerInstance && qrScannerRunning) {
+        try {
+            await qrScannerInstance.stop();
+            qrScannerInstance.clear();
+        } catch (err) {
+            console.log('Scanner sudah berhenti/tidak sempat start:', err);
+        }
+    }
+    qrScannerRunning = false;
+    qrScannerInstance = null;
+    const box = document.getElementById('qrReaderBox');
+    if (box) box.innerHTML = '';
+    const startBtn = document.getElementById('scanStartBtn');
+    const stopBtn = document.getElementById('scanStopBtn');
+    if (startBtn) startBtn.style.display = 'inline-flex';
+    if (stopBtn) stopBtn.style.display = 'none';
+}
+
+function cekKodeTiketManual() {
+    const input = document.getElementById('manualKodeTiket');
+    if (!input) return;
+    const kode = input.value.trim().toUpperCase();
+    if (!kode) { showAlert('Isi kode tiket dulu', 'error'); return; }
+    tandaiTiketDiambil(kode);
+    input.value = '';
+}
+
+// Logika inti check-in - dipakai bareng oleh scan kamera & input manual.
+// Tiket yang statusnya sudah "diambil" TIDAK ditandai ulang (supaya waktu
+// pengambilan aslinya tidak tertimpa) - cuma dikasih peringatan.
+async function tandaiTiketDiambil(kodeMentah) {
+    const kode = (kodeMentah || '').trim().toUpperCase();
+    const p = appData.penerimaQR.find(x => x.status !== 'batal' && x.kodeTiket === kode);
+
+    if (!p) {
+        renderScanResult('error', `❌ Kode tiket <code>${kode}</code> tidak ditemukan / tidak valid.`);
+        return;
+    }
+
+    if (p.diambil) {
+        const waktu = p.waktuAmbil ? new Date(p.waktuAmbil).toLocaleString('id-ID') : '-';
+        renderScanResult('warning', `⚠️ Tiket <strong>${p.nama}</strong> (${p.alokasi}) SUDAH diambil sebelumnya pada ${waktu}.`);
+        return;
+    }
+
+    const waktuAmbil = new Date().toISOString();
+    const success = await updateSheetDB('PenerimaQR', 'id', p.id, { diambil: 'ya', waktuAmbil });
+    if (success) {
+        p.diambil = true;
+        p.waktuAmbil = waktuAmbil;
+        renderScanResult('success', `✓ Check-in berhasil: <strong>${p.nama}</strong> (${p.alokasi})`);
+        loadPenerimaList();
+    } else {
+        renderScanResult('error', `Gagal menyimpan check-in "${p.nama}", coba lagi.`);
+    }
+}
+
+function renderScanResult(type, html) {
+    const box = document.getElementById('scanResultBox');
+    if (box) {
+        const colors = { success: 'var(--emerald-2)', error: 'var(--brick)', warning: 'var(--gold)' };
+        const tints = { success: 'var(--emerald-tint)', error: 'var(--brick-tint)', warning: 'var(--gold-tint)' };
+        box.innerHTML = `<div style="padding:14px 16px; border-radius:var(--radius-md); background:${tints[type]}; border-left:3px solid ${colors[type]}; color:${colors[type]}; font-weight:600;">${html}</div>`;
+    }
+
+    scanLog.unshift({ type, html, time: new Date().toLocaleTimeString('id-ID') });
+    scanLog = scanLog.slice(0, 15);
+
+    const logBox = document.getElementById('scanLogBox');
+    if (logBox) {
+        const colors = { success: 'var(--emerald-2)', error: 'var(--brick)', warning: 'var(--gold)' };
+        logBox.innerHTML = scanLog.length === 0 ? '' : `
+            <div style="font-size:13px; color:var(--ink-faint); margin-bottom:8px;">Riwayat scan sesi ini:</div>
+            ${scanLog.map(entry => `<div style="padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; color:${colors[entry.type]};">${entry.time} - ${entry.html}</div>`).join('')}`;
     }
 }
 
