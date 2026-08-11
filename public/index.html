@@ -4956,13 +4956,16 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
     }
 }
 
-// Total estimasi daging dari SEMUA survey (rumus otomatis) - dipakai buat
-// bandingkan "daging yang tersedia" vs "yang sudah direncanakan" di ringkasan
-// Rencana Distribusi Daging (Umum) di bawah.
-function totalEstimasiDagingSemuaSurvey() {
+// Total Share Warga dari SEMUA survey (rumus otomatis) - dipakai buat
+// bandingkan "share warga yang tersedia" vs "yang sudah direncanakan" di
+// ringkasan Rencana Distribusi Daging (Umum) di bawah. Sengaja pakai Share
+// Warga, BUKAN total Estimasi Daging - karena Rencana Distribusi Umum
+// (Warga/RT/Panitia/dll) cuma bagi porsi Share Warga, bukan porsi Hak
+// Mudhohi (punya masing-masing peserta, tidak masuk daftar distribusi umum).
+function totalShareWargaSemuaSurvey() {
     return appData.surveySapi.reduce((sum, s) => {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
-        return sum + k.estimasiDaging;
+        return sum + k.shareWarga;
     }, 0);
 }
 
@@ -5045,23 +5048,25 @@ function loadRencanaDistribusiGlobal(tbodyId, tfootId, isAdminView) {
         }
     }
 
-    // Balance: Estimasi Daging (dari semua survey) vs Total Rencana Distribusi
-    // (dari tabel di atas). Toleransi 0.05kg buat jaga-jaga pembulatan desimal.
+    // Balance: total Share Warga (dari semua survey) vs Total Rencana
+    // Distribusi (dari tabel di atas). Pakai Share Warga karena Rencana
+    // Distribusi Umum cuma bagi porsi warga - Hak Mudhohi tidak ikut di
+    // sini. Toleransi 0.05kg buat jaga-jaga pembulatan desimal.
     if (summaryEl) {
-        const totalEstimasi = totalEstimasiDagingSemuaSurvey();
-        const selisih = totalEstimasi - totalKeseluruhan;
+        const totalShareWarga = totalShareWargaSemuaSurvey();
+        const selisih = totalShareWarga - totalKeseluruhan;
         let statusHtml;
         if (Math.abs(selisih) <= 0.05) {
-            statusHtml = `<span style="color:var(--emerald-2); font-weight:600;">✓ Pas, Estimasi Daging sudah direncanakan semua</span>`;
+            statusHtml = `<span style="color:var(--emerald-2); font-weight:600;">✓ Pas, Share Warga sudah direncanakan semua</span>`;
         } else if (selisih > 0) {
             statusHtml = `<span style="color:var(--gold); font-weight:600;">Belum dialokasikan: ${formatKg(selisih)}</span>`;
         } else {
-            statusHtml = `<span style="color:var(--brick); font-weight:600;">⚠️ Rencana melebihi Estimasi Daging: ${formatKg(-selisih)}</span>`;
+            statusHtml = `<span style="color:var(--brick); font-weight:600;">⚠️ Rencana melebihi Share Warga: ${formatKg(-selisih)}</span>`;
         }
 
         summaryEl.innerHTML = `
             <div class="rek-box" style="margin-bottom:0;">
-              <div class="rek-row"><span>Estimasi Daging Terkumpul (semua survey)</span><span>${formatKg(totalEstimasi)}</span></div>
+              <div class="rek-row"><span>Total Share Warga (semua survey)</span><span>${formatKg(totalShareWarga)}</span></div>
               <div class="rek-row"><span>Total Rencana Distribusi</span><span>${formatKg(totalKeseluruhan)}</span></div>
               <div class="rek-row"><span>Status</span>${statusHtml}</div>
             </div>`;
