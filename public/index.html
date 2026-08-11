@@ -4643,6 +4643,16 @@ function surveyKode(s) {
 // Harga/7) - dipakai buat batasi jumlah "Ikut" per grup sapi.
 const SURVEY_MAX_PESERTA = 7;
 
+// Tabungan yang "sudah disetor" = total Savings berstatus APPROVED milik
+// anggota tsb - sama definisinya dipakai di Laporan/Verifikasi (savings
+// PENDING belum dihitung karena belum diverifikasi admin). Dipakai bersama
+// oleh resume admin & kartu anggota supaya angkanya selalu konsisten.
+function memberApprovedSavings(memberId) {
+    return appData.savings
+        .filter(sv => sv.memberId === memberId && sv.status === 'APPROVED')
+        .reduce((sum, sv) => sum + sv.amount, 0);
+}
+
 function loadSurveySapiTable() {
     const tbody = document.getElementById('surveySapiTableBody');
     if (!tbody) return;
@@ -4695,12 +4705,6 @@ function loadSurveySapiResume() {
     }
 
     const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
-    // Tabungan yang "sudah disetor" = total Savings berstatus APPROVED milik
-    // anggota tsb - sama definisinya dengan dipakai di Laporan/Verifikasi
-    // (savings PENDING belum dihitung karena belum diverifikasi admin).
-    const totalTabunganMember = (memberId) => appData.savings
-        .filter(sv => sv.memberId === memberId && sv.status === 'APPROVED')
-        .reduce((sum, sv) => sum + sv.amount, 0);
 
     container.innerHTML = appData.surveySapi.map(s => {
         const peserta = activePeserta.filter(p => p.surveyId === s.id);
@@ -4709,7 +4713,7 @@ function loadSurveySapiResume() {
         const iuranPerOrang = Math.round(k.iuran);
 
         const rows = peserta.map(p => {
-            const tabungan = totalTabunganMember(p.memberId);
+            const tabungan = memberApprovedSavings(p.memberId);
             const kurang = Math.max(iuranPerOrang - tabungan, 0);
             const lunas = kurang === 0;
             return `
@@ -4721,7 +4725,7 @@ function loadSurveySapiResume() {
                 </tr>`;
         }).join('');
 
-        const totalTerkumpul = peserta.reduce((sum, p) => sum + totalTabunganMember(p.memberId), 0);
+        const totalTerkumpul = peserta.reduce((sum, p) => sum + memberApprovedSavings(p.memberId), 0);
         const totalKebutuhan = iuranPerOrang * peserta.length;
         const totalKurang = Math.max(totalKebutuhan - totalTerkumpul, 0);
 
@@ -4855,6 +4859,24 @@ function loadSurveySapiMemberList() {
             ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.memberName}</span>`).join('')
             : '<span style="color:var(--ink-faint); font-size:12.5px;">Belum ada yang ikut.</span>';
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        const iuranPerOrang = Math.round(k.iuran);
+
+        // Status iuran PRIBADI (tabungan vs iuran) - hanya ditampilkan ke
+        // pemiliknya sendiri, bukan ke semua anggota, supaya tidak membocorkan
+        // nominal tabungan anggota lain (beda dengan resume admin yang boleh
+        // lihat semua karena memang tugasnya verifikasi).
+        let statusIuranHtml = '';
+        if (sudahIkut && currentUser) {
+            const tabunganSaya = memberApprovedSavings(currentUser.id);
+            const kurangSaya = Math.max(iuranPerOrang - tabunganSaya, 0);
+            const lunasSaya = kurangSaya === 0;
+            statusIuranHtml = `
+              <div class="rek-box" style="margin:14px 0 0;">
+                <div class="rek-row"><span>Tabungan Anda (terverifikasi)</span><span>Rp ${tabunganSaya.toLocaleString('id-ID')}</span></div>
+                <div class="rek-row"><span>Iuran Sapi Ini</span><span>Rp ${iuranPerOrang.toLocaleString('id-ID')}</span></div>
+                <div class="rek-row"><span>Status</span><span style="color:${lunasSaya ? 'var(--emerald-2)' : 'var(--brick)'}; font-weight:600;">${lunasSaya ? '✓ Lunas' : 'Kurang Rp ' + kurangSaya.toLocaleString('id-ID')}</span></div>
+              </div>`;
+        }
 
         return `
             <div class="survey-member-card">
@@ -4868,13 +4890,14 @@ function loadSurveySapiMemberList() {
               <div class="survey-member-meta">
                 <div><span class="label">Berat</span>${s.berat ? s.berat + ' kg' : '—'}</div>
                 <div><span class="label">Harga</span>${s.harga ? 'Rp ' + s.harga.toLocaleString('id-ID') : '—'}</div>
-                <div><span class="label">Iuran per Peserta</span>Rp ${Math.round(k.iuran).toLocaleString('id-ID')}</div>
+                <div><span class="label">Iuran per Peserta</span>Rp ${iuranPerOrang.toLocaleString('id-ID')}</div>
                 <div><span class="label">Estimasi Daging</span>${formatKg(k.estimasiDaging)}</div>
                 <div><span class="label">Hak Mudhohi</span>${formatKg(k.hakMudhohi)}</div>
                 <div><span class="label">Share Warga</span>${formatKg(k.shareWarga)}</div>
                 <div><span class="label">Lokasi</span>${lokasiCell}</div>
                 <div><span class="label">Foto</span>${fotoCell}</div>
               </div>
+              ${statusIuranHtml}
               <div class="survey-participants">
                 <div class="survey-participants-title">Peserta (${peserta.length}/${SURVEY_MAX_PESERTA})</div>
                 ${pesertaHtml}
