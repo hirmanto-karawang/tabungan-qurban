@@ -2962,6 +2962,15 @@
           <div class="actions" style="margin-bottom:18px;">
             <button class="btn btn-ghost btn-small" onclick="cekKodeTiketManual()">Cek &amp; Tandai Diambil</button>
           </div>
+
+          <div style="border-top:1px solid var(--border); padding-top:18px; margin-bottom:18px;">
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Cari Penerima (Nama / No. HP / Alamat / Kode Tiket)</label>
+              <input type="text" id="cariPenerimaInput" placeholder="Ketik minimal 2 huruf…" oninput="cariPenerima()">
+            </div>
+            <div id="cariPenerimaResult"></div>
+          </div>
+
           <div id="scanLogBox"></div>
         </div>
       </div>
@@ -6186,6 +6195,56 @@ function cekKodeTiketManual() {
     input.value = '';
 }
 
+// Cari penerima bebas (nama/no HP/alamat/kode tiket) - buat jaga-jaga pas
+// hari pelaksanaan kalau QR fisiknya hilang/rusak/kamera tidak kebaca, admin
+// masih bisa cari orangnya lalu tandai diambil langsung dari hasil cari,
+// tanpa perlu tahu/ketik kode tiketnya persis.
+function cariPenerima() {
+    const input = document.getElementById('cariPenerimaInput');
+    const resultBox = document.getElementById('cariPenerimaResult');
+    if (!input || !resultBox) return;
+
+    const q = input.value.trim().toLowerCase();
+    if (q.length < 2) {
+        resultBox.innerHTML = q.length === 0 ? '' : '<div style="color:var(--ink-faint); font-size:13px;">Ketik minimal 2 huruf…</div>';
+        return;
+    }
+
+    const hasil = appData.penerimaQR
+        .filter(p => p.status !== 'batal' && (
+            (p.nama || '').toLowerCase().includes(q) ||
+            (p.noHp || '').toLowerCase().includes(q) ||
+            (p.alamat || '').toLowerCase().includes(q) ||
+            (p.kodeTiket || '').toLowerCase().includes(q)
+        ))
+        .slice(0, 20);
+
+    if (hasil.length === 0) {
+        resultBox.innerHTML = '<div style="color:var(--ink-faint); font-size:13px;">Tidak ada penerima yang cocok.</div>';
+        return;
+    }
+
+    resultBox.innerHTML = hasil.map(p => {
+        const statusHtml = p.diambil
+            ? `<span style="color:var(--brick); font-weight:600; font-size:12px;">✓ Sudah diambil${p.waktuAmbil ? ' · ' + new Date(p.waktuAmbil).toLocaleString('id-ID') : ''}</span>`
+            : `<span style="color:var(--emerald-2); font-weight:600; font-size:12px;">Belum diambil</span>`;
+        const aksiHtml = p.diambil
+            ? ''
+            : `<button class="btn btn-success btn-small" onclick="tandaiTiketDiambil('${p.kodeTiket}')">Tandai Diambil</button>`;
+
+        return `
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600;">${p.nama || '—'}</div>
+                <div style="font-size:12px; color:var(--ink-soft);">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}${p.alamat ? ' · ' + p.alamat : ''}</div>
+                <div style="font-size:12px; font-family:monospace; color:var(--ink-faint);">${p.kodeTiket}</div>
+                <div style="margin-top:2px;">${statusHtml}</div>
+              </div>
+              <div>${aksiHtml}</div>
+            </div>`;
+    }).join('');
+}
+
 // Logika inti check-in - dipakai bareng oleh scan kamera & input manual.
 // Tiket yang statusnya sudah "diambil" TIDAK ditandai ulang (supaya waktu
 // pengambilan aslinya tidak tertimpa) - cuma dikasih peringatan.
@@ -6211,6 +6270,7 @@ async function tandaiTiketDiambil(kodeMentah) {
         p.waktuAmbil = waktuAmbil;
         renderScanResult('success', `✓ Check-in berhasil: <strong>${p.nama}</strong> (${p.alokasi})`);
         loadPenerimaList();
+        if (typeof cariPenerima === 'function') cariPenerima();
     } else {
         renderScanResult('error', `Gagal menyimpan check-in "${p.nama}", coba lagi.`);
     }
