@@ -33,10 +33,11 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgE
 // 'SurveyPeserta' menyimpan siapa saja anggota yang klik "Ikut" di sebuah
 // survey sapi (kolom: id, surveyId, memberId, memberName, phone, created_date)
 // - dipakai untuk menampilkan list peserta grup sapi ke sesama anggota.
-// 'DistribusiDaging' menyimpan rencana pembagian daging per alokasi yang
-// diinput manual oleh admin (kolom: id, alokasi, berat, qty, status,
-// created_date) - "status" dipakai sebagai soft-delete ('batal' = disembunyikan,
-// bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
+// 'DistribusiDaging' menyimpan rencana pembagian daging per alokasi per sapi
+// (Work Order), diinput manual oleh admin (kolom: id, surveyId, alokasi,
+// berat, qty, status, created_date) - "surveyId" mengaitkan tiap baris ke 1
+// sapi survey tertentu, "status" dipakai sebagai soft-delete ('batal' =
+// disembunyikan, bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
 const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
