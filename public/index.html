@@ -2768,6 +2768,19 @@
           </p>
           <div id="surveySapiResumeList"></div>
         </div>
+
+        <div class="card" style="max-width:820px; margin-top:20px;">
+          <h3 style="margin-top:0;">Estimasi Distribusi Daging</h3>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
+            Perkiraan pembagian daging tiap sapi buat rencana hari H - berdasarkan rumus yang sama dengan Ringkasan Perhitungan di form survey.
+          </p>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
+              <tbody id="surveySapiDistribusiBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
         </div>
 
         <!-- Anggota: daftar sapi hasil survey (read-only) + tombol Ikut + list
@@ -3987,6 +4000,7 @@ function runTabDataLoaders(tabName) {
             initSurveyForm();
             loadSurveySapiTable();
             loadSurveySapiResume();
+            loadSurveySapiDistribusi();
         } else {
             loadSurveySapiMemberList();
         }
@@ -4757,6 +4771,38 @@ function loadSurveySapiResume() {
                 ${tableOrEmpty}
               </div>
             </div>`;
+    }).join('');
+}
+
+// Estimasi pembagian daging per sapi buat rencana hari H - "Hak Mudhohi" per
+// rumus computeSurveyKalkulasi() adalah per 1/7 bagian; totalnya dikali
+// jumlah peserta yang BENERAN terdaftar (bisa kurang dari 7 kalau grup belum
+// penuh), bukan selalu dikali 7.
+function loadSurveySapiDistribusi() {
+    const tbody = document.getElementById('surveySapiDistribusiBody');
+    if (!tbody) return;
+
+    if (appData.surveySapi.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada data survey</td></tr>';
+        return;
+    }
+
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+
+    tbody.innerHTML = appData.surveySapi.map(s => {
+        const jumlahPeserta = activePeserta.filter(p => p.surveyId === s.id).length;
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        const totalMudhohi = k.hakMudhohi * jumlahPeserta;
+        const pesertaColor = jumlahPeserta >= SURVEY_MAX_PESERTA ? 'var(--emerald-2)' : 'var(--brick)';
+        return `
+            <tr>
+              <td><strong>${surveyKode(s)}</strong></td>
+              <td>${s.berat ? s.berat + ' kg' : '—'}</td>
+              <td>${formatKg(k.estimasiDaging)}</td>
+              <td style="color:${pesertaColor}; font-weight:600;">${jumlahPeserta}/${SURVEY_MAX_PESERTA}</td>
+              <td>${formatKg(totalMudhohi)} <span style="color:var(--ink-faint); font-size:12px;">(${jumlahPeserta} × ${formatKg(k.hakMudhohi)})</span></td>
+              <td>${formatKg(k.shareWarga)}</td>
+            </tr>`;
     }).join('');
 }
 
