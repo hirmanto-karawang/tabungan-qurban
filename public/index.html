@@ -2925,6 +2925,10 @@
               <label>No. HP (opsional)</label>
               <input type="text" id="penerimaNoHp" placeholder="08xxxxxxxxxx">
             </div>
+            <div class="form-group">
+              <label>Alamat (opsional)</label>
+              <input type="text" id="penerimaAlamat" placeholder="Contoh: RT 01/RW 02">
+            </div>
           </div>
           <div id="penerimaKuotaInfo" style="margin-bottom:14px;"></div>
           <div class="actions" style="margin-bottom:18px;">
@@ -2932,8 +2936,8 @@
           </div>
           <div class="table-container">
             <table>
-              <thead><tr><th>Alokasi</th><th>Nama</th><th>No. HP</th><th>Kode Tiket</th><th>Status</th><th></th></tr></thead>
-              <tbody id="penerimaListBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+              <thead><tr><th>Alokasi</th><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Kode Tiket</th><th>Status</th><th></th></tr></thead>
+              <tbody id="penerimaListBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -3742,6 +3746,7 @@ async function loadDataFromSheets() {
         alokasi: row.alokasi || '',
         nama: row.nama || '',
         noHp: row.noHp || '',
+        alamat: row.alamat || '',
         kodeTiket: row.kodeTiket || '',
         status: row.status || 'aktif',
         diambil: (row.diambil || '').toString().trim().toLowerCase() === 'ya',
@@ -5921,11 +5926,13 @@ async function simpanPenerima() {
     const select = document.getElementById('penerimaAlokasiSelect');
     const namaInput = document.getElementById('penerimaNama');
     const noHpInput = document.getElementById('penerimaNoHp');
+    const alamatInput = document.getElementById('penerimaAlamat');
     if (!select || !namaInput) return;
 
     const alokasi = select.value;
     const nama = namaInput.value.trim();
     const noHp = (noHpInput.value || '').trim();
+    const alamat = (alamatInput.value || '').trim();
 
     if (!alokasi) { showAlert('Pilih alokasi dulu (tambahkan di Rencana Distribusi Daging Umum kalau belum ada)', 'error'); return; }
     if (!nama) { showAlert('Nama penerima harus diisi', 'error'); return; }
@@ -5947,6 +5954,7 @@ async function simpanPenerima() {
         alokasi: alokasi,
         nama: nama,
         noHp: noHp,
+        alamat: alamat,
         kodeTiket: generateKodeTiket(),
         status: 'aktif',
         diambil: 'tidak',
@@ -5960,6 +5968,7 @@ async function simpanPenerima() {
         showAlert(`Penerima "${nama}" ditambahkan, tiket ${record.kodeTiket} siap dicetak`, 'success');
         namaInput.value = '';
         noHpInput.value = '';
+        alamatInput.value = '';
         updatePenerimaKuotaInfo();
         loadPenerimaList();
     } else {
@@ -5977,7 +5986,7 @@ function loadPenerimaList() {
         .sort((a, b) => (a.alokasi || '').localeCompare(b.alokasi || '') || (a.id - b.id));
 
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada penerima. Tambahkan lewat form di atas.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada penerima. Tambahkan lewat form di atas.</td></tr>';
         return;
     }
 
@@ -5991,6 +6000,7 @@ function loadPenerimaList() {
               <td>${p.alokasi || '—'}</td>
               <td>${p.nama || '—'}</td>
               <td>${p.noHp || '—'}</td>
+              <td>${p.alamat || '—'}</td>
               <td><code>${p.kodeTiket}</code></td>
               <td>${statusHtml}</td>
               <td style="white-space:nowrap;">
@@ -6039,6 +6049,7 @@ function lihatQrPenerima(id) {
           <div id="qrCodeContainer" style="display:inline-block; padding:16px; background:#fff; border:1px solid var(--border); border-radius:12px;"></div>
           <div style="margin-top:14px; font-family:var(--font-display); font-size:18px; font-weight:700;">${p.nama}</div>
           <div style="color:var(--ink-soft); font-size:14px;">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
+          ${p.alamat ? `<div style="color:var(--ink-faint); font-size:13px;">${p.alamat}</div>` : ''}
           <div style="margin-top:6px; font-family:monospace; font-size:16px; letter-spacing:2px; font-weight:700;">${p.kodeTiket}</div>
           <div style="margin-top:6px;">${statusHtml}</div>
           <div class="actions" style="justify-content:center; margin-top:18px;">
@@ -6093,6 +6104,7 @@ function cetakTiketPenerima(id) {
           <div class="kode">${p.kodeTiket}</div>
           <div class="nama">${p.nama}</div>
           <div class="sub">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
+          ${p.alamat ? `<div class="sub">${p.alamat}</div>` : ''}
           <div class="masjid">${APP_CONFIG.mosqueName} - Tabungan Qurban</div>
           <script>window.onload = function(){ window.print(); };<\/script>
         </body>

@@ -49,8 +49,8 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgE
 // TIDAK dibatasi kuota seperti di Work Order rencana.
 // 'PenerimaQR' menyimpan daftar penerima daging BERNAMA per alokasi (bukan
 // cuma angka qty) - dipakai buat cetak e-tiket QR & check-in pas hari
-// pelaksanaan (kolom: id, alokasi, nama, noHp, kodeTiket, status, diambil
-// ('ya'/'tidak'), waktuAmbil, created_date). "kodeTiket" itu kode unik acak
+// pelaksanaan (kolom: id, alokasi, nama, noHp, alamat, kodeTiket, status,
+// diambil ('ya'/'tidak'), waktuAmbil, created_date). "kodeTiket" itu kode unik acak
 // yang di-encode ke QR; "diambil" ditandai otomatis begitu tiket di-scan
 // (atau dicek manual) supaya 1 tiket cuma bisa dipakai 1x.
 // Keduanya pakai "status" sebagai soft-delete ('batal' = disembunyikan,

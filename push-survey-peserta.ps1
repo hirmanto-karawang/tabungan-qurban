@@ -13,7 +13,7 @@ Write-Host "Cek syntax JS dulu..." -ForegroundColor Cyan
 node -e "const fs=require('fs');const html=fs.readFileSync('public/index.html','utf8');const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);let ok=true;scripts.forEach((s,i)=>{try{new Function(s);}catch(e){ok=false;console.log('Script',i,'ERROR:',e.message);}});console.log(ok?'OK, semua script valid':'ADA ERROR DI ATAS');"
 
 git add -A
-git commit -m "Fitur: tab baru Penerima & Tiket - daftar penerima bernama, e-tiket QR, scan check-in"
+git commit -m "Fitur: tambah field Alamat di Penerima & Tiket"
 git push
 
 # Sinkronkan balik ke dhafinul-dev supaya branch R&D tidak ketinggalan.
