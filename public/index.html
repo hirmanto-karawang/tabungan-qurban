@@ -5476,6 +5476,10 @@ function loadWoAktualList(containerId) {
         totalAktual += totalMudhohiAktual;
         const estimasiMudhohiFull = k.hakMudhohi * 7; // = estimasiDaging / 3 (asumsi penuh 7 orang)
         const selisihMudhohi = estimasiMudhohiFull - totalMudhohiAktual;
+        // Performa = Berat Aktual / Berat Hitungan (acuan) x 100% - seberapa
+        // dekat hasil timbang aktual dengan hasil hitungan/estimasi.
+        const performaMudhohi = k.hakMudhohi > 0 ? (beratMudhohi / k.hakMudhohi * 100) : null;
+        const performaMudhohiText = performaMudhohi === null ? '—' : (Math.round(performaMudhohi * 10) / 10).toLocaleString('id-ID') + '%';
 
         let selisihMudhohiHtml;
         if (!existingMudhohi) {
@@ -5494,6 +5498,7 @@ function loadWoAktualList(containerId) {
               <td>
                 <input type="number" id="woAktualMudhohiBerat_${s.id}" value="${beratMudhohi || ''}" placeholder="${k.hakMudhohi.toFixed(2)}" min="0" step="0.01" style="width:90px;" oninput="updateWoAktualMudhohiTotal(${s.id})">
                 <div style="font-size:11px; color:var(--ink-faint); margin-top:2px;">acuan ${formatKg(k.hakMudhohi)}</div>
+                <div id="woAktualMudhohiPerforma_${s.id}" style="font-size:11px; color:var(--ink-faint); margin-top:2px;">performa ${performaMudhohiText}</div>
               </td>
               <td>—</td>
               <td>7 (tetap)</td>
@@ -5601,9 +5606,10 @@ function updateWoAktualMudhohiTotal(surveyId) {
     const total = berat * 7;
     totalCell.innerHTML = `<strong>${formatKg(total)}</strong>`;
 
+    const k = computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan);
+
     const selisihCell = document.getElementById(`woAktualMudhohiSelisih_${surveyId}`);
     if (selisihCell) {
-        const k = computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan);
         const estimasi = k.hakMudhohi * 7;
         const selisih = estimasi - total;
         let html;
@@ -5611,6 +5617,14 @@ function updateWoAktualMudhohiTotal(surveyId) {
         else if (selisih > 0) html = `<span style="color:var(--gold); font-weight:600;">+${formatKg(selisih)}</span>`;
         else html = `<span style="color:var(--brick); font-weight:600;">${formatKg(selisih)}</span>`;
         selisihCell.innerHTML = html;
+    }
+
+    // Performa = Berat Aktual / Berat Hitungan (acuan) x 100%.
+    const performaCell = document.getElementById(`woAktualMudhohiPerforma_${surveyId}`);
+    if (performaCell) {
+        const performa = k.hakMudhohi > 0 ? (berat / k.hakMudhohi * 100) : null;
+        const performaText = performa === null ? '—' : (Math.round(performa * 10) / 10).toLocaleString('id-ID') + '%';
+        performaCell.textContent = `performa ${performaText}`;
     }
 }
 
