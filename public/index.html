@@ -2788,6 +2788,7 @@
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
             Rencana pembagian daging per alokasi (mis. Mudhohi, Sate, Warga, Kupon, Panitia) - isi Berat per unit &amp; Qty, Total dihitung otomatis.
           </p>
+          <div id="surveySapiRencanaSummary" style="margin-bottom:18px;"></div>
           <div class="form-grid">
             <div class="form-group">
               <label>Alokasi</label>
@@ -2803,7 +2804,8 @@
             </div>
           </div>
           <div class="actions" style="margin-bottom:18px;">
-            <button class="btn btn-success btn-small" onclick="tambahDistribusiAlokasi()">+ Tambah Alokasi</button>
+            <button class="btn btn-success btn-small" id="distribusiSubmitBtn" onclick="simpanDistribusiAlokasi()">+ Tambah Alokasi</button>
+            <button class="btn btn-ghost btn-small" id="distribusiCancelBtn" onclick="batalEditDistribusiAlokasi()" style="display:none;">Batal Edit</button>
           </div>
           <div class="table-container">
             <table>
@@ -2845,6 +2847,7 @@
             <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
               Rencana pembagian daging per alokasi (mis. Mudhohi, Sate, Warga, Kupon, Panitia) yang disusun admin.
             </p>
+            <div id="surveySapiRencanaSummaryMember" style="margin-bottom:18px;"></div>
             <div class="table-container">
               <table>
                 <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th></tr></thead>
@@ -4917,6 +4920,20 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
     }
 }
 
+// Total estimasi daging dari SEMUA survey (rumus otomatis) - dipakai buat
+// bandingkan "daging yang tersedia" vs "yang sudah direncanakan" di ringkasan
+// Rencana Distribusi Daging.
+function totalEstimasiDagingSemuaSurvey() {
+    return appData.surveySapi.reduce((sum, s) => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        return sum + k.estimasiDaging;
+    }, 0);
+}
+
+// id baris yang sedang diedit di form Alokasi. null berarti mode "Tambah
+// baru". Cuma dipakai di sisi Admin - tabel Anggota selalu read-only.
+let editingDistribusiId = null;
+
 // Rencana distribusi daging - BEDA dari loadSurveySapiDistribusi() (hasil
 // rumus otomatis dari data survey), ini murni tabel yang diisi manual oleh
 // admin (kolom Alokasi bebas: Mudhohi, Sate, Warga, Kupon Biru, Panitia,
@@ -4926,45 +4943,71 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
 function loadSurveySapiRencana(tbodyId, tfootId, isAdminView) {
     const tbody = document.getElementById(tbodyId || 'surveySapiRencanaBody');
     const tfoot = document.getElementById(tfootId || 'surveySapiRencanaFoot');
+    const summaryEl = document.getElementById(isAdminView ? 'surveySapiRencanaSummary' : 'surveySapiRencanaSummaryMember');
     if (!tbody) return;
 
     const rows = appData.distribusiDaging.filter(d => d.status !== 'batal');
     const colspan = isAdminView ? 5 : 4;
 
+    let totalKeseluruhan = 0;
+
     if (rows.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${colspan}" class="loading">Belum ada rencana distribusi. ${isAdminView ? 'Tambahkan lewat form di atas.' : ''}</td></tr>`;
         if (tfoot) tfoot.innerHTML = '';
-        return;
+    } else {
+        tbody.innerHTML = rows.map(d => {
+            const total = d.berat * d.qty;
+            totalKeseluruhan += total;
+            const aksiCell = isAdminView
+                ? `<td style="white-space:nowrap;">
+                     <button class="btn btn-ghost btn-small" onclick="editDistribusiAlokasi(${d.id})" title="Edit">✏️</button>
+                     <button class="btn btn-ghost btn-small" onclick="hapusDistribusiAlokasi(${d.id})" title="Hapus">🗑️</button>
+                   </td>`
+                : '';
+            return `
+                <tr>
+                  <td>${d.alokasi || '—'}</td>
+                  <td>${d.berat.toLocaleString('id-ID')} kg</td>
+                  <td>${d.qty.toLocaleString('id-ID')}</td>
+                  <td><strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
+                  ${aksiCell}
+                </tr>`;
+        }).join('');
+
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr style="background:var(--sand); font-weight:700;">
+                  <td colspan="3">Total</td>
+                  <td>${totalKeseluruhan.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
+                  ${isAdminView ? '<td></td>' : ''}
+                </tr>`;
+        }
     }
 
-    let totalKeseluruhan = 0;
-    tbody.innerHTML = rows.map(d => {
-        const total = d.berat * d.qty;
-        totalKeseluruhan += total;
-        const hapusCell = isAdminView
-            ? `<td><button class="btn btn-ghost btn-small" onclick="hapusDistribusiAlokasi(${d.id})" title="Hapus">🗑️</button></td>`
-            : '';
-        return `
-            <tr>
-              <td>${d.alokasi || '—'}</td>
-              <td>${d.berat.toLocaleString('id-ID')} kg</td>
-              <td>${d.qty.toLocaleString('id-ID')}</td>
-              <td><strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
-              ${hapusCell}
-            </tr>`;
-    }).join('');
-
-    if (tfoot) {
-        tfoot.innerHTML = `
-            <tr style="background:var(--sand); font-weight:700;">
-              <td colspan="3">Total</td>
-              <td>${totalKeseluruhan.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
-              ${isAdminView ? '<td></td>' : ''}
-            </tr>`;
+    // Ringkasan: daging yang tersedia (estimasi dari semua survey) vs yang
+    // sudah dialokasikan di tabel ini. Toleransi 0.05kg buat jaga-jaga
+    // pembulatan desimal, bukan selisih beneran.
+    if (summaryEl) {
+        const totalEstimasi = totalEstimasiDagingSemuaSurvey();
+        const selisih = totalEstimasi - totalKeseluruhan;
+        let statusHtml;
+        if (Math.abs(selisih) <= 0.05) {
+            statusHtml = `<span style="color:var(--emerald-2); font-weight:600;">✓ Pas, semua daging sudah teralokasikan</span>`;
+        } else if (selisih > 0) {
+            statusHtml = `<span style="color:var(--gold); font-weight:600;">Belum dialokasikan: ${formatKg(selisih)}</span>`;
+        } else {
+            statusHtml = `<span style="color:var(--brick); font-weight:600;">⚠️ Rencana melebihi estimasi daging: ${formatKg(-selisih)}</span>`;
+        }
+        summaryEl.innerHTML = `
+            <div class="rek-box" style="margin-bottom:0;">
+              <div class="rek-row"><span>Estimasi Daging Terkumpul</span><span>${formatKg(totalEstimasi)}</span></div>
+              <div class="rek-row"><span>Total Rencana Distribusi</span><span>${formatKg(totalKeseluruhan)}</span></div>
+              <div class="rek-row"><span>Status</span>${statusHtml}</div>
+            </div>`;
     }
 }
 
-async function tambahDistribusiAlokasi() {
+async function simpanDistribusiAlokasi() {
     const alokasi = document.getElementById('distribusiAlokasi').value.trim();
     const berat = parseFloat(document.getElementById('distribusiBerat').value);
     const qty = parseFloat(document.getElementById('distribusiQty').value);
@@ -4973,6 +5016,22 @@ async function tambahDistribusiAlokasi() {
     if (!berat || berat <= 0) { showAlert('Berat per unit harus diisi', 'error'); return; }
     if (!qty || qty <= 0) { showAlert('Qty harus diisi', 'error'); return; }
 
+    if (editingDistribusiId) {
+        // Mode edit: update baris yang sudah ada.
+        const success = await updateSheetDB('DistribusiDaging', 'id', editingDistribusiId, { alokasi, berat, qty });
+        if (success) {
+            const item = appData.distribusiDaging.find(d => d.id === editingDistribusiId);
+            if (item) { item.alokasi = alokasi; item.berat = berat; item.qty = qty; }
+            showAlert('Alokasi berhasil diperbarui', 'success');
+            batalEditDistribusiAlokasi();
+            loadSurveySapiRencana('surveySapiRencanaBody', 'surveySapiRencanaFoot', true);
+        } else {
+            showAlert('Gagal menyimpan perubahan, coba lagi.', 'error');
+        }
+        return;
+    }
+
+    // Mode tambah baru.
     const newId = appData.distribusiDaging.length > 0
         ? Math.max(...appData.distribusiDaging.map(d => d.id)) + 1
         : 1;
@@ -4997,6 +5056,37 @@ async function tambahDistribusiAlokasi() {
     }
 }
 
+// Isi form dengan nilai baris yang mau diedit, ganti tombol jadi mode "Simpan
+// Perubahan" + tampilkan "Batal Edit".
+function editDistribusiAlokasi(id) {
+    const item = appData.distribusiDaging.find(d => d.id === id);
+    if (!item) return;
+
+    editingDistribusiId = id;
+    document.getElementById('distribusiAlokasi').value = item.alokasi;
+    document.getElementById('distribusiBerat').value = item.berat;
+    document.getElementById('distribusiQty').value = item.qty;
+
+    const btn = document.getElementById('distribusiSubmitBtn');
+    if (btn) btn.textContent = '💾 Simpan Perubahan';
+    const cancelBtn = document.getElementById('distribusiCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+    document.getElementById('distribusiAlokasi').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function batalEditDistribusiAlokasi() {
+    editingDistribusiId = null;
+    document.getElementById('distribusiAlokasi').value = '';
+    document.getElementById('distribusiBerat').value = '';
+    document.getElementById('distribusiQty').value = '';
+
+    const btn = document.getElementById('distribusiSubmitBtn');
+    if (btn) btn.textContent = '+ Tambah Alokasi';
+    const cancelBtn = document.getElementById('distribusiCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
 // Soft-delete (status='batal') - bukan dihapus dari sheet, sama pola dengan
 // SurveyPeserta, supaya tetap ada jejaknya.
 async function hapusDistribusiAlokasi(id) {
@@ -5008,6 +5098,7 @@ async function hapusDistribusiAlokasi(id) {
     if (success) {
         item.status = 'batal';
         showAlert('Alokasi dihapus', 'success');
+        if (editingDistribusiId === id) batalEditDistribusiAlokasi();
         loadSurveySapiRencana('surveySapiRencanaBody', 'surveySapiRencanaFoot', true);
     } else {
         showAlert('Gagal menghapus alokasi, coba lagi.', 'error');
