@@ -13,7 +13,7 @@ Write-Host "Cek syntax JS dulu..." -ForegroundColor Cyan
 node -e "const fs=require('fs');const html=fs.readFileSync('public/index.html','utf8');const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);let ok=true;scripts.forEach((s,i)=>{try{new Function(s);}catch(e){ok=false;console.log('Script',i,'ERROR:',e.message);}});console.log(ok?'OK, semua script valid':'ADA ERROR DI ATAS');"
 
 git add -A
-git commit -m "Fitur: menu cari penerima bebas (nama/HP/alamat/kode tiket) di Scan Tiket"
+git commit -m "Fitur: check-in otomatis tangkap lokasi GPS + insert foto bukti pengambilan"
 git push
 
 # Sinkronkan balik ke dhafinul-dev supaya branch R&D tidak ketinggalan.

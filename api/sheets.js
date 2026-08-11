@@ -50,9 +50,14 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgE
 // 'PenerimaQR' menyimpan daftar penerima daging BERNAMA per alokasi (bukan
 // cuma angka qty) - dipakai buat cetak e-tiket QR & check-in pas hari
 // pelaksanaan (kolom: id, alokasi, nama, noHp, alamat, kodeTiket, status,
-// diambil ('ya'/'tidak'), waktuAmbil, created_date). "kodeTiket" itu kode unik acak
-// yang di-encode ke QR; "diambil" ditandai otomatis begitu tiket di-scan
-// (atau dicek manual) supaya 1 tiket cuma bisa dipakai 1x.
+// diambil ('ya'/'tidak'), waktuAmbil, lokasiLat, lokasiLng, fotoAmbil,
+// created_date). "kodeTiket" itu kode unik acak yang di-encode ke QR;
+// "diambil" ditandai otomatis begitu tiket di-scan (atau dicek manual)
+// supaya 1 tiket cuma bisa dipakai 1x. "lokasiLat"/"lokasiLng" & "fotoAmbil"
+// ditangkap otomatis pas admin konfirmasi pengambilan (GPS browser + foto
+// opsional) - bukti buat pelaporan/transparansi. "fotoAmbil" (base64)
+// SENGAJA dibuang dari list/bootstrap biasa (lihat stripPenerimaFoto di
+// bawah), sama alasannya dengan foto SurveySapi.
 // Keduanya pakai "status" sebagai soft-delete ('batal' = disembunyikan,
 // bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
 const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'WorkOrderAktual', 'PenerimaQR'];
@@ -71,6 +76,12 @@ function stripSurveyFotos(row) {
     stripped[col] = '';
   });
   return stripped;
+}
+
+// Sama pola dengan stripSurveyFotos, tapi utk 1 kolom foto di PenerimaQR
+// ("fotoAmbil" - foto bukti saat penerima ambil daging).
+function stripPenerimaFoto(row) {
+  return { ...row, hasFotoAmbil: !!row.fotoAmbil, fotoAmbil: '' };
 }
 
 // ----- Cache access token di memori (bertahan selama instance function masih "warm") -----
@@ -172,6 +183,9 @@ async function readSheet(sheetName, accessToken) {
   if (sheetName === 'SurveySapi') {
     rows = rows.map(stripSurveyFotos);
   }
+  if (sheetName === 'PenerimaQR') {
+    rows = rows.map(stripPenerimaFoto);
+  }
   return rows;
 }
 
@@ -191,6 +205,9 @@ async function readAllSheetsBatch(accessToken) {
       }
       if (name === 'SurveySapi') {
         rows = rows.map(stripSurveyFotos);
+      }
+      if (name === 'PenerimaQR') {
+        rows = rows.map(stripPenerimaFoto);
       }
       result[name] = rows;
     });
@@ -327,6 +344,11 @@ export default async function handler(req, res) {
         const columnName = SURVEY_FOTO_COLUMNS.includes(col) ? col : 'foto1';
         const fileData = await getFileData('SurveySapi', getFile, accessToken, columnName);
         return res.status(200).json({ id: getFile, col: columnName, fileData });
+      }
+
+      if (sheet === 'PenerimaQR' && getFile) {
+        const fileData = await getFileData('PenerimaQR', getFile, accessToken, 'fotoAmbil');
+        return res.status(200).json({ id: getFile, fileData });
       }
 
       if (bootstrap) {

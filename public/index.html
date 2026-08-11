@@ -3760,6 +3760,9 @@ async function loadDataFromSheets() {
         status: row.status || 'aktif',
         diambil: (row.diambil || '').toString().trim().toLowerCase() === 'ya',
         waktuAmbil: row.waktuAmbil || '',
+        lokasiLat: (row.lokasiLat !== undefined && row.lokasiLat !== '') ? parseFloat(row.lokasiLat) : null,
+        lokasiLng: (row.lokasiLng !== undefined && row.lokasiLng !== '') ? parseFloat(row.lokasiLng) : null,
+        hasFotoAmbil: !!row.hasFotoAmbil,
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
@@ -5973,7 +5976,7 @@ async function simpanPenerima() {
 
     const success = await appendSheetDB('PenerimaQR', record);
     if (success) {
-        appData.penerimaQR.push({ ...record, diambil: false });
+        appData.penerimaQR.push({ ...record, diambil: false, lokasiLat: null, lokasiLng: null, hasFotoAmbil: false });
         showAlert(`Penerima "${nama}" ditambahkan, tiket ${record.kodeTiket} siap dicetak`, 'success');
         namaInput.value = '';
         noHpInput.value = '';
@@ -6052,6 +6055,20 @@ function lihatQrPenerima(id) {
         ? `<span style="color:var(--brick); font-weight:600;">✓ Sudah diambil${p.waktuAmbil ? ' - ' + new Date(p.waktuAmbil).toLocaleString('id-ID') : ''}</span>`
         : `<span style="color:var(--emerald-2); font-weight:600;">Belum diambil</span>`;
 
+    // Bukti pengambilan (lokasi GPS + foto) - cuma ada kalau tiket sudah
+    // diambil DAN sempat ditangkap otomatis saat konfirmasi (lihat
+    // bukaKonfirmasiPengambilan/konfirmasiPengambilan).
+    const buktiHtml = p.diambil ? `
+        <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border); text-align:left;">
+          <div style="font-size:13px; color:var(--ink-faint); margin-bottom:8px;">Bukti Pengambilan</div>
+          ${(p.lokasiLat && p.lokasiLng)
+              ? `<div><a href="https://www.google.com/maps?q=${p.lokasiLat},${p.lokasiLng}" target="_blank" rel="noopener">📍 Lihat Lokasi di Google Maps</a></div>`
+              : `<div style="color:var(--ink-faint); font-size:13px;">📍 Lokasi tidak tercatat</div>`}
+          ${p.hasFotoAmbil
+              ? `<div style="margin-top:10px;"><button class="btn btn-ghost btn-small" id="btnLihatFoto_${p.id}" onclick="lihatFotoPengambilan(${p.id})">📷 Lihat Foto Pengambilan</button><div id="fotoPengambilanPreview_${p.id}" style="margin-top:10px;"></div></div>`
+              : `<div style="color:var(--ink-faint); font-size:13px; margin-top:6px;">📷 Tidak ada foto</div>`}
+        </div>` : '';
+
     title.textContent = `E-Tiket - ${p.nama}`;
     body.innerHTML = `
         <div style="text-align:center;">
@@ -6064,6 +6081,7 @@ function lihatQrPenerima(id) {
           <div class="actions" style="justify-content:center; margin-top:18px;">
             <button class="btn btn-primary btn-small" onclick="cetakTiketPenerima(${p.id})">🖨️ Cetak Tiket</button>
           </div>
+          ${buktiHtml}
         </div>`;
     modal.classList.add('show');
 
@@ -6119,6 +6137,40 @@ function cetakTiketPenerima(id) {
         </body>
         </html>`);
     w.document.close();
+}
+
+// Ambil foto bukti pengambilan (base64) on-demand dari server - sama pola
+// dengan fetchSurveyFotoData()/fetchSavingFileData (base64 sengaja tidak
+// ikut di load data biasa, lihat stripPenerimaFoto di public/api/sheets.js).
+async function fetchPenerimaFotoData(id) {
+    try {
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=PenerimaQR&getFile=${id}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return data.fileData || '';
+    } catch (error) {
+        console.error('Error fetching foto pengambilan:', error);
+        return '';
+    }
+}
+
+async function lihatFotoPengambilan(id) {
+    const previewEl = document.getElementById(`fotoPengambilanPreview_${id}`);
+    const btnEl = document.getElementById(`btnLihatFoto_${id}`);
+    if (!previewEl) return;
+
+    previewEl.innerHTML = '<p style="color:var(--ink-faint); font-size:13px;">⏳ Memuat foto…</p>';
+    if (btnEl) btnEl.disabled = true;
+
+    const fotoData = await fetchPenerimaFotoData(id);
+    if (btnEl) btnEl.disabled = false;
+
+    if (!fotoData) {
+        previewEl.innerHTML = '<p style="color:var(--brick); font-size:13px;">Gagal memuat foto.</p>';
+        return;
+    }
+    previewEl.innerHTML = `<img src="${fotoData}" class="preview-image" alt="Foto bukti pengambilan" style="max-width:260px; border-radius:8px;">`;
 }
 
 // ----- SCAN TIKET (check-in kamera pakai html5-qrcode) -----
@@ -6245,9 +6297,12 @@ function cariPenerima() {
     }).join('');
 }
 
-// Logika inti check-in - dipakai bareng oleh scan kamera & input manual.
-// Tiket yang statusnya sudah "diambil" TIDAK ditandai ulang (supaya waktu
-// pengambilan aslinya tidak tertimpa) - cuma dikasih peringatan.
+// Logika inti check-in - dipakai bareng oleh scan kamera, input manual, &
+// hasil "Cari Penerima". Tiket yang statusnya sudah "diambil" TIDAK ditandai
+// ulang (supaya waktu pengambilan aslinya tidak tertimpa) - cuma dikasih
+// peringatan. Kalau valid & belum diambil, BUKA panel konfirmasi dulu (lihat
+// bukaKonfirmasiPengambilan) - bukan langsung ditandai - supaya sempat
+// menangkap lokasi GPS & (opsional) foto bukti sebelum benar-benar disimpan.
 async function tandaiTiketDiambil(kodeMentah) {
     const kode = (kodeMentah || '').trim().toUpperCase();
     const p = appData.penerimaQR.find(x => x.status !== 'batal' && x.kodeTiket === kode);
@@ -6263,16 +6318,151 @@ async function tandaiTiketDiambil(kodeMentah) {
         return;
     }
 
+    bukaKonfirmasiPengambilan(p.id);
+}
+
+// ----- KONFIRMASI PENGAMBILAN (lokasi GPS otomatis + foto opsional) -----
+// Bukti buat pelaporan/transparansi: begitu tiket valid ke-scan/ditemukan,
+// aplikasi otomatis minta lokasi GPS browser (non-blocking - admin tetap
+// bisa lanjut konfirmasi walau lokasi gagal/ditolak) dan kasih opsi
+// lampirkan foto (dikompres otomatis, sama seperti upload bukti transfer -
+// lihat compressImage()) SEBELUM benar-benar menandai tiket "diambil".
+let pendingPengambilanId = null;
+let pendingLokasiPengambilan = null;
+let pendingFotoPengambilanData = null;
+
+function bukaKonfirmasiPengambilan(id) {
+    if (pendingPengambilanId === id) return; // sudah lagi dikonfirmasi, jangan reset progress yang ada
+
+    const p = appData.penerimaQR.find(x => x.id === id);
+    if (!p) return;
+
+    pendingPengambilanId = id;
+    pendingLokasiPengambilan = null;
+    pendingFotoPengambilanData = null;
+
+    // Jeda scanner kamera sementara supaya QR yang sama tidak terus-menerus
+    // memicu ulang panel ini selama masih di depan kamera.
+    if (qrScannerInstance && qrScannerRunning) {
+        try { qrScannerInstance.pause(true); } catch (e) { /* abaikan */ }
+    }
+
+    const box = document.getElementById('scanResultBox');
+    if (!box) return;
+    box.innerHTML = `
+        <div style="padding:16px; border-radius:var(--radius-md); background:var(--emerald-tint); border:1px solid var(--border);">
+          <div style="font-weight:700; font-size:16px;">${p.nama}</div>
+          <div style="color:var(--ink-soft); font-size:13px; margin-bottom:10px;">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}${p.alamat ? ' · ' + p.alamat : ''}</div>
+          <div id="konfirmasiLokasiStatus" style="font-size:13px; margin-bottom:12px; color:var(--ink-faint);">📍 Mengambil lokasi…</div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Foto Bukti Pengambilan (opsional, disarankan)</label>
+            <input type="file" accept="image/*" capture="environment" id="fotoPengambilanInput" onchange="pilihFotoPengambilan(event)">
+          </div>
+          <div id="fotoPengambilanPreviewBox" style="margin-bottom:12px;"></div>
+          <div class="actions">
+            <button class="btn btn-success btn-small" onclick="konfirmasiPengambilan()">✓ Konfirmasi Pengambilan</button>
+            <button class="btn btn-ghost btn-small" onclick="batalKonfirmasiPengambilan()">Batal</button>
+          </div>
+        </div>`;
+
+    mintaLokasiUntukPengambilan();
+}
+
+// Non-blocking: kalau gagal/ditolak, admin tetap bisa lanjut konfirmasi
+// tanpa lokasi - jangan sampai fitur ini malah menghambat proses pembagian.
+function mintaLokasiUntukPengambilan() {
+    const statusEl = document.getElementById('konfirmasiLokasiStatus');
+    if (!navigator.geolocation) {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--ink-faint);">📍 Perangkat/browser tidak mendukung lokasi</span>';
+        return;
+    }
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            pendingLokasiPengambilan = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            if (statusEl) statusEl.innerHTML = `<span style="color:var(--emerald-2); font-weight:600;">📍 Lokasi tertangkap</span> <a href="https://www.google.com/maps?q=${pendingLokasiPengambilan.lat},${pendingLokasiPengambilan.lng}" target="_blank" rel="noopener" style="margin-left:6px;">(lihat di peta)</a>`;
+        },
+        () => {
+            if (statusEl) statusEl.innerHTML = '<span style="color:var(--gold);">⚠️ Lokasi tidak tersedia (izin ditolak/GPS mati) - tetap bisa lanjut konfirmasi tanpa lokasi</span>';
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+}
+
+function pilihFotoPengambilan(event) {
+    const file = event.target.files[0];
+    const previewBox = document.getElementById('fotoPengambilanPreviewBox');
+    pendingFotoPengambilanData = null;
+    if (previewBox) previewBox.innerHTML = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        showAlert('File harus berupa foto (JPG/PNG)', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        // Kompresi adaptif sama persis dengan upload bukti transfer, supaya
+        // tidak melebihi batas 50.000 karakter/sel Google Sheets.
+        compressImage(e.target.result, function (compressed) {
+            pendingFotoPengambilanData = compressed;
+            if (previewBox) previewBox.innerHTML = `<img src="${compressed}" style="max-width:160px; border-radius:8px; border:1px solid var(--border);">`;
+        }, function () {
+            pendingFotoPengambilanData = null;
+            showAlert('Foto terlalu detail buat disimpan, coba foto lain.', 'error');
+            event.target.value = '';
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
+async function konfirmasiPengambilan() {
+    const id = pendingPengambilanId;
+    const p = appData.penerimaQR.find(x => x.id === id);
+    if (!p) { batalKonfirmasiPengambilan(); return; }
+
     const waktuAmbil = new Date().toISOString();
-    const success = await updateSheetDB('PenerimaQR', 'id', p.id, { diambil: 'ya', waktuAmbil });
+    const updates = { diambil: 'ya', waktuAmbil };
+    if (pendingLokasiPengambilan) {
+        updates.lokasiLat = pendingLokasiPengambilan.lat;
+        updates.lokasiLng = pendingLokasiPengambilan.lng;
+    }
+    if (pendingFotoPengambilanData) {
+        updates.fotoAmbil = pendingFotoPengambilanData;
+    }
+
+    const success = await updateSheetDB('PenerimaQR', 'id', p.id, updates);
     if (success) {
         p.diambil = true;
         p.waktuAmbil = waktuAmbil;
-        renderScanResult('success', `✓ Check-in berhasil: <strong>${p.nama}</strong> (${p.alokasi})`);
+        if (pendingLokasiPengambilan) { p.lokasiLat = pendingLokasiPengambilan.lat; p.lokasiLng = pendingLokasiPengambilan.lng; }
+        if (pendingFotoPengambilanData) p.hasFotoAmbil = true;
+
+        const keterangan = `${pendingLokasiPengambilan ? ' · lokasi tercatat' : ''}${pendingFotoPengambilanData ? ' · foto tersimpan' : ''}`;
+        renderScanResult('success', `✓ Check-in berhasil: <strong>${p.nama}</strong> (${p.alokasi})${keterangan}`);
         loadPenerimaList();
         if (typeof cariPenerima === 'function') cariPenerima();
     } else {
-        renderScanResult('error', `Gagal menyimpan check-in "${p.nama}", coba lagi.`);
+        showAlert('Gagal menyimpan check-in, coba lagi.', 'error');
+    }
+
+    lepasKonfirmasiPengambilan();
+}
+
+function batalKonfirmasiPengambilan() {
+    lepasKonfirmasiPengambilan();
+    const box = document.getElementById('scanResultBox');
+    if (box) box.innerHTML = '';
+}
+
+// Bersihkan state pending + lanjutkan scanner kamera kalau sempat dijeda.
+function lepasKonfirmasiPengambilan() {
+    pendingPengambilanId = null;
+    pendingLokasiPengambilan = null;
+    pendingFotoPengambilanData = null;
+    if (qrScannerInstance && qrScannerRunning) {
+        try { qrScannerInstance.resume(); } catch (e) { /* abaikan */ }
     }
 }
 
