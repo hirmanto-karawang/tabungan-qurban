@@ -4695,30 +4695,62 @@ function loadSurveySapiResume() {
     }
 
     const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    // Tabungan yang "sudah disetor" = total Savings berstatus APPROVED milik
+    // anggota tsb - sama definisinya dengan dipakai di Laporan/Verifikasi
+    // (savings PENDING belum dihitung karena belum diverifikasi admin).
+    const totalTabunganMember = (memberId) => appData.savings
+        .filter(sv => sv.memberId === memberId && sv.status === 'APPROVED')
+        .reduce((sum, sv) => sum + sv.amount, 0);
 
     container.innerHTML = appData.surveySapi.map(s => {
         const peserta = activePeserta.filter(p => p.surveyId === s.id);
         const penuh = peserta.length >= SURVEY_MAX_PESERTA;
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
-        const totalTerkumpul = Math.round(k.iuran) * peserta.length;
-        const pesertaHtml = peserta.length > 0
-            ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.memberName}</span>`).join('')
-            : '<span style="color:var(--ink-faint); font-size:12.5px;">Belum ada yang ikut.</span>';
+        const iuranPerOrang = Math.round(k.iuran);
+
+        const rows = peserta.map(p => {
+            const tabungan = totalTabunganMember(p.memberId);
+            const kurang = Math.max(iuranPerOrang - tabungan, 0);
+            const lunas = kurang === 0;
+            return `
+                <tr>
+                  <td>${p.memberName}</td>
+                  <td>Rp ${tabungan.toLocaleString('id-ID')}</td>
+                  <td>Rp ${iuranPerOrang.toLocaleString('id-ID')}</td>
+                  <td style="color:${lunas ? 'var(--emerald-2)' : 'var(--brick)'}; font-weight:600;">${lunas ? '✓ Lunas' : 'Rp ' + kurang.toLocaleString('id-ID')}</td>
+                </tr>`;
+        }).join('');
+
+        const totalTerkumpul = peserta.reduce((sum, p) => sum + totalTabunganMember(p.memberId), 0);
+        const totalKebutuhan = iuranPerOrang * peserta.length;
+        const totalKurang = Math.max(totalKebutuhan - totalTerkumpul, 0);
+
+        const tableOrEmpty = peserta.length > 0
+            ? `<div class="table-container" style="margin-top:10px;">
+                 <table>
+                   <thead><tr><th>Nama</th><th>Tabungan Disetor</th><th>Iuran</th><th>Kekurangan</th></tr></thead>
+                   <tbody>${rows}</tbody>
+                 </table>
+               </div>`
+            : '<p style="color:var(--ink-faint); font-size:12.5px; margin-top:10px;">Belum ada yang ikut.</p>';
 
         return `
             <div class="survey-member-card">
               <div class="survey-member-card-head">
                 <div>
                   <div class="survey-member-card-title">${surveyKode(s)} · ${s.supplier || '—'} · ${jenisSapiLabel(s.jenisSapi)}</div>
-                  <div class="survey-member-card-sub">Survey ${s.tanggal || '—'} · Iuran Rp ${Math.round(k.iuran).toLocaleString('id-ID')}/peserta</div>
+                  <div class="survey-member-card-sub">Survey ${s.tanggal || '—'} · Iuran Rp ${iuranPerOrang.toLocaleString('id-ID')}/peserta</div>
                 </div>
                 <span class="survey-participant-chip" style="background:${penuh ? 'var(--gold-tint)' : 'var(--emerald-tint)'}; color:${penuh ? 'var(--gold)' : 'var(--emerald-2)'};">
                   ${penuh ? '✓ Penuh' : ''} ${peserta.length}/${SURVEY_MAX_PESERTA} peserta
                 </span>
               </div>
               <div class="survey-participants" style="border-top:none; margin-top:12px; padding-top:0;">
-                <div class="survey-participants-title">Total iuran terkumpul (estimasi): Rp ${totalTerkumpul.toLocaleString('id-ID')}</div>
-                ${pesertaHtml}
+                <div class="survey-participants-title">
+                  Tabungan terkumpul Rp ${totalTerkumpul.toLocaleString('id-ID')} dari kebutuhan Rp ${totalKebutuhan.toLocaleString('id-ID')}
+                  ${totalKurang > 0 ? ` · Kurang Rp ${totalKurang.toLocaleString('id-ID')}` : ' · ✓ Lunas semua'}
+                </div>
+                ${tableOrEmpty}
               </div>
             </div>`;
     }).join('');
