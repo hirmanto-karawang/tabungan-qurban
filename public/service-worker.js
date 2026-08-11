@@ -1,10 +1,13 @@
 /**
  * SERVICE WORKER - OFFLINE CAPABILITY & CACHING
- * Versi: 1.0.0
+ * Versi: 1.1.0
  * Handle offline mode dan sync data ke Google Sheets
  */
 
-const CACHE_VERSION = 'tabungan-qurban-v1';
+// NAIKKAN angka di belakang string ini (v2, v3, dst) SETIAP kali ada
+// perubahan besar - itu memicu activate() membuang cache lama, jadi user
+// yang sudah pernah buka app tidak nyangkut di versi lama selamanya.
+const CACHE_VERSION = 'tabungan-qurban-v2';
 const CACHE_ASSETS = [
     '/',
     '/index.html',
@@ -22,7 +25,7 @@ self.addEventListener('install', (event) => {
     console.log('[SW] Installing Service Worker...');
     
     event.waitUntil(
-        caches.open(CACHE_ASSETS)
+        caches.open(CACHE_VERSION)
             .then((cache) => {
                 console.log('[SW] Caching assets');
                 return cache.addAll(CACHE_ASSETS);
@@ -49,20 +52,51 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// ===== FETCH - Network First Strategy untuk API =====
+// ===== FETCH =====
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
-    
+
     // API calls - Network first, fallback to IndexedDB
     if (url.pathname.includes('/api/') || url.hostname.includes('script.google.com')) {
         event.respondWith(networkFirstStrategy(request));
+        return;
     }
-    // Assets - Cache first
-    else {
-        event.respondWith(cacheFirstStrategy(request));
+
+    // App shell (index.html / navigasi) - SELALU coba jaringan dulu dan
+    // update cache-nya. Cache cuma dipakai sbg fallback pas offline, BUKAN
+    // sumber utama - sebelumnya index.html pakai cache-first, akibatnya
+    // browser/PWA yang sudah pernah buka app selalu menampilkan versi LAMA
+    // walau sudah ada deploy baru, sampai semua tab ditutup total.
+    if (request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html')) {
+        event.respondWith(networkFirstShellStrategy(request));
+        return;
     }
+
+    // Aset statis lain (manifest, css, offline.html, dst) - cache-first
+    // tetap aman karena jarang berubah.
+    event.respondWith(cacheFirstStrategy(request));
 });
+
+// Khusus app shell (index.html/navigasi) - beda dari networkFirstStrategy
+// (yang dipakai buat API, ada logika IndexedDB/sync khusus API). Di sini
+// simpel: fetch terbaru dari jaringan, update cache, fallback ke cache atau
+// offline.html cuma kalau jaringan benar-benar gagal.
+async function networkFirstShellStrategy(request) {
+    try {
+        const response = await fetch(request);
+        if (response && response.ok) {
+            const cache = await caches.open(CACHE_VERSION);
+            cache.put(request, response.clone());
+        }
+        return response;
+    } catch (error) {
+        console.log('[SW] Network gagal utk app shell, fallback ke cache:', error);
+        const cached = await caches.match(request);
+        if (cached) return cached;
+        return caches.match('/offline.html');
+    }
+}
 
 async function networkFirstStrategy(request) {
     try {
@@ -112,7 +146,7 @@ async function cacheFirstStrategy(request) {
     
     try {
         const response = await fetch(request);
-        const cache = await caches.open(CACHE_ASSETS);
+        const cache = await caches.open(CACHE_VERSION);
         cache.put(request.url, response.clone());
         return response;
     } catch (error) {
