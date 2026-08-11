@@ -2819,7 +2819,7 @@
         <div style="max-width:820px; margin-top:20px;">
           <h3 style="margin:0 0 4px;">Work Order Sapi</h3>
           <p style="color:var(--ink-soft); font-size:14px; margin-top:0; margin-bottom:16px;">
-            Satu Work Order per sapi hasil survey - lengkap dengan rincian daging &amp; daftar penerima (mis. Mudhohi, RT, Panitia, Kupon). Berat per unit × Qty = Total, dihitung otomatis.
+            Satu Work Order per sapi hasil survey - lengkap dengan rincian daging &amp; daftar penerima (mis. Mudhohi, RT, Panitia, Kupon). Berat per unit × Qty = Total, dihitung otomatis. Qty per alokasi dibatasi otomatis (lintas semua sapi) supaya tidak melebihi Qty di Rencana Distribusi Daging (Umum).
           </p>
           <div id="workOrderListAdmin"></div>
         </div>
@@ -5214,12 +5214,31 @@ function loadWorkOrderList(containerId, isAdminView) {
                 const total = r.berat * qty;
                 totalAlokasi += total;
 
-                const qtyCell = isAdminView
-                    ? `<td><input type="number" id="woQty_${s.id}_${r.id}" value="${qty || ''}" placeholder="0" min="0" step="1" style="width:90px;" oninput="updateWoRowTotal(${s.id}, ${r.id}, ${r.berat})"></td>`
-                    : `<td>${qty.toLocaleString('id-ID')}</td>`;
-                const aksiCell = isAdminView
-                    ? `<td><button class="btn btn-success btn-small" onclick="simpanWoQty(${s.id}, ${r.id})" title="Simpan Qty">💾</button></td>`
-                    : '';
+                // Batasi Qty per baris supaya total Qty lintas SEMUA sapi utk
+                // alokasi ini tidak melebihi Qty yang direncanakan di Rencana
+                // Distribusi Daging (Umum). maxForRow = sisa kuota alokasi ini
+                // TERMASUK yang sudah dipakai sapi ini sendiri (existing).
+                const usedByOthers = totalWoQtyForAlokasiExcluding(r.alokasi, s.id);
+                const maxForRow = r.qty - usedByOthers;
+                const sisaDisplay = Math.max(maxForRow, 0);
+                const kuotaPenuh = maxForRow <= 0 && qty <= 0;
+
+                let qtyCell, aksiCell;
+                if (isAdminView) {
+                    if (kuotaPenuh) {
+                        qtyCell = `<td><input type="number" value="0" disabled style="width:90px;" title="Kuota alokasi ini sudah penuh di sapi lain"></td>`;
+                        aksiCell = `<td><span style="color:var(--brick); font-size:12px; font-weight:600;">Kuota penuh</span></td>`;
+                    } else {
+                        qtyCell = `<td>
+                              <input type="number" id="woQty_${s.id}_${r.id}" value="${qty || ''}" placeholder="0" min="0" max="${maxForRow}" step="1" style="width:90px;" oninput="updateWoRowTotal(${s.id}, ${r.id}, ${r.berat})">
+                              <div style="font-size:11px; color:var(--ink-faint); margin-top:2px;">maks ${sisaDisplay.toLocaleString('id-ID')}</div>
+                            </td>`;
+                        aksiCell = `<td><button class="btn btn-success btn-small" onclick="simpanWoQty(${s.id}, ${r.id})" title="Simpan Qty">💾</button></td>`;
+                    }
+                } else {
+                    qtyCell = `<td>${qty.toLocaleString('id-ID')}</td>`;
+                    aksiCell = '';
+                }
 
                 return `
                     <tr>
@@ -5277,6 +5296,19 @@ function loadWorkOrderList(containerId, isAdminView) {
     }).join('');
 }
 
+// Total Qty (bukan berat) yang sudah dipakai sapi LAIN (di luar
+// excludeSurveyId) utk 1 nama alokasi - dipakai buat hitung sisa kuota
+// maksimal yang boleh diisi di sapi ini, supaya total Qty lintas semua
+// Work Order tidak melebihi Qty yang direncanakan di Rencana Distribusi
+// Daging (Umum). Ini yang mencegah over-kuantitas di 1 item alokasi.
+function totalWoQtyForAlokasiExcluding(alokasiName, excludeSurveyId) {
+    const nama = (alokasiName || '').trim().toLowerCase();
+    if (!nama) return 0;
+    return appData.distribusiDaging
+        .filter(d => d.status !== 'batal' && d.surveyId !== excludeSurveyId && (d.alokasi || '').trim().toLowerCase() === nama)
+        .reduce((sum, d) => sum + d.qty, 0);
+}
+
 // Update tampilan "Total" 1 baris (live, belum tersimpan) tiap kali admin
 // ngetik ulang Qty - supaya kelihatan hasilnya sebelum klik simpan.
 function updateWoRowTotal(surveyId, rencanaId, beratPerUnit) {
@@ -5301,6 +5333,16 @@ async function simpanWoQty(surveyId, rencanaId) {
 
     const qty = input.value === '' ? 0 : parseFloat(input.value);
     if (isNaN(qty) || qty < 0) { showAlert('Qty tidak valid', 'error'); return; }
+
+    // Cegah over-kuantitas: total Qty lintas semua sapi utk alokasi ini
+    // tidak boleh melebihi Qty yang direncanakan di Rencana Distribusi
+    // Daging (Umum).
+    const usedByOthers = totalWoQtyForAlokasiExcluding(r.alokasi, surveyId);
+    const maxForRow = r.qty - usedByOthers;
+    if (qty > maxForRow) {
+        showAlert(`Kuantitas "${r.alokasi}" melebihi rencana. Sisa maksimal yang bisa diisi: ${Math.max(maxForRow, 0).toLocaleString('id-ID')}`, 'error');
+        return;
+    }
 
     const existing = appData.distribusiDaging.find(d =>
         d.status !== 'batal' && d.surveyId === surveyId &&
