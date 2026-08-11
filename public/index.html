@@ -2778,6 +2778,7 @@
             <table>
               <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
               <tbody id="surveySapiDistribusiBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+              <tfoot id="surveySapiDistribusiFoot"></tfoot>
             </table>
           </div>
         </div>
@@ -2792,6 +2793,20 @@
               Daftar sapi calon qurban hasil survey admin. Klik <strong>Ikut</strong> kalau Anda ingin bergabung di grup sapi ini.
             </p>
             <div id="surveySapiMemberList"></div>
+          </div>
+
+          <div class="card" style="max-width:820px; margin-top:20px;">
+            <h3 style="margin-top:0;">Estimasi Distribusi Daging</h3>
+            <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
+              Perkiraan pembagian daging tiap sapi hasil survey.
+            </p>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
+                <tbody id="surveySapiDistribusiBodyMember"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+                <tfoot id="surveySapiDistribusiFootMember"></tfoot>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -4003,6 +4018,7 @@ function runTabDataLoaders(tabName) {
             loadSurveySapiDistribusi();
         } else {
             loadSurveySapiMemberList();
+            loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
         }
     }
     if (tabName === 'broadcast') {
@@ -4778,22 +4794,37 @@ function loadSurveySapiResume() {
 // rumus computeSurveyKalkulasi() adalah per 1/7 bagian; totalnya dikali
 // jumlah peserta yang BENERAN terdaftar (bisa kurang dari 7 kalau grup belum
 // penuh), bukan selalu dikali 7.
-function loadSurveySapiDistribusi() {
-    const tbody = document.getElementById('surveySapiDistribusiBody');
+// tbodyId/tfootId dibuat parameterisasi supaya fungsi yang sama bisa dipakai
+// ulang buat render ke tabel versi Admin DAN versi Anggota (tabel beda DOM id,
+// datanya sama - tidak ada info sensitif di tabel ini, aman dilihat anggota).
+function loadSurveySapiDistribusi(tbodyId, tfootId) {
+    const tbody = document.getElementById(tbodyId || 'surveySapiDistribusiBody');
+    const tfoot = document.getElementById(tfootId || 'surveySapiDistribusiFoot');
     if (!tbody) return;
 
     if (appData.surveySapi.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada data survey</td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
         return;
     }
 
     const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+
+    // Dikumpulkan sekalian buat baris total di bawah tabel.
+    let totalBerat = 0, totalDaging = 0, totalPeserta = 0, totalShareWarga = 0, sumHakMudhohi = 0;
 
     tbody.innerHTML = appData.surveySapi.map(s => {
         const jumlahPeserta = activePeserta.filter(p => p.surveyId === s.id).length;
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         const totalMudhohi = k.hakMudhohi * jumlahPeserta;
         const pesertaColor = jumlahPeserta >= SURVEY_MAX_PESERTA ? 'var(--emerald-2)' : 'var(--brick)';
+
+        totalBerat += s.berat || 0;
+        totalDaging += k.estimasiDaging;
+        totalPeserta += jumlahPeserta;
+        totalShareWarga += k.shareWarga;
+        sumHakMudhohi += k.hakMudhohi;
+
         return `
             <tr>
               <td><strong>${surveyKode(s)}</strong></td>
@@ -4804,6 +4835,24 @@ function loadSurveySapiDistribusi() {
               <td>${formatKg(k.shareWarga)}</td>
             </tr>`;
     }).join('');
+
+    if (tfoot) {
+        const jumlahSurvey = appData.surveySapi.length;
+        // Semua kolom dijumlahkan (total riil buat rencana logistik), KECUALI
+        // Hak Mudhohi - itu rata-rata per 1/7 bagian antar sapi (rumus rata-
+        // rata sesuai permintaan), bukan dijumlah, karena bukan angka
+        // kumulatif yang dibagikan tapi patokan "kira-kira dapat berapa".
+        const rataMudhohi = jumlahSurvey > 0 ? sumHakMudhohi / jumlahSurvey : 0;
+        tfoot.innerHTML = `
+            <tr style="background:var(--sand); font-weight:700;">
+              <td>Total (${jumlahSurvey} sapi)</td>
+              <td>${totalBerat.toLocaleString('id-ID')} kg</td>
+              <td>${formatKg(totalDaging)}</td>
+              <td>${totalPeserta} peserta</td>
+              <td>Rata-rata ${formatKg(rataMudhohi)}</td>
+              <td>${formatKg(totalShareWarga)}</td>
+            </tr>`;
+    }
 }
 
 // Ambil isi 1 foto (base64) on-demand dari server - lihat komentar
@@ -4970,6 +5019,7 @@ async function joinSurveySapi(surveyId) {
     if (jumlahDiSurveyIni >= SURVEY_MAX_PESERTA) {
         showAlert(`Grup sapi ini sudah penuh (maksimal ${SURVEY_MAX_PESERTA} peserta).`, 'error');
         loadSurveySapiMemberList();
+        loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
         return;
     }
 
@@ -4992,6 +5042,7 @@ async function joinSurveySapi(surveyId) {
         appData.surveyPeserta.push(record);
         showAlert('Berhasil ikut grup sapi ini', 'success');
         loadSurveySapiMemberList();
+        loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
     }
 }
 
@@ -5044,6 +5095,7 @@ async function switchSurveySapi(newSurveyId) {
         showAlert('Grup lama sudah dibatalkan tapi gagal daftar ke grup baru. Coba klik Ikut lagi.', 'error');
     }
     loadSurveySapiMemberList();
+    loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
 }
 
 // ===== VERIFY =====
