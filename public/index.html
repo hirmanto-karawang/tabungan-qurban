@@ -2788,6 +2788,7 @@
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
             Hitungan kasar/awal, TIDAK terikat 1 sapi tertentu - dipakai buat estimasi cepat sebelum dirinci per sapi di Work Order. Tandai kolom <strong>WO</strong> kalau alokasi ini sudah dipindahkan ke Work Order.
           </p>
+          <div id="rencanaDistribusiSummary" style="margin-bottom:18px;"></div>
           <div class="form-grid">
             <div class="form-group">
               <label>Alokasi</label>
@@ -2854,6 +2855,7 @@
             <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
               Hitungan kasar/awal yang disusun admin, tidak terikat 1 sapi tertentu. Kolom <strong>WO</strong> menandakan alokasi ini sudah dipindahkan ke Work Order per sapi atau belum.
             </p>
+            <div id="rencanaDistribusiSummaryMember" style="margin-bottom:18px;"></div>
             <div class="table-container">
               <table>
                 <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th><th>WO</th></tr></thead>
@@ -4956,7 +4958,14 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
 
 // Total estimasi daging dari SEMUA survey (rumus otomatis) - dipakai buat
 // bandingkan "daging yang tersedia" vs "yang sudah direncanakan" di ringkasan
-// Rencana Distribusi Daging.
+// Rencana Distribusi Daging (Umum) di bawah.
+function totalEstimasiDagingSemuaSurvey() {
+    return appData.surveySapi.reduce((sum, s) => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        return sum + k.estimasiDaging;
+    }, 0);
+}
+
 // ===== RENCANA DISTRIBUSI DAGING (UMUM) - hitungan kasar, TIDAK terikat 1
 // sapi tertentu. Beda dari Work Order (per-sapi, detail lapangan): ini buat
 // estimasi awal cepat. Kolom "wo" jadi penanda manual "sudah dipindahkan ke
@@ -4968,49 +4977,73 @@ function loadRencanaDistribusiGlobal(tbodyId, tfootId, isAdminView) {
     const tfoot = document.getElementById(tfootId || 'rencanaDistribusiFoot');
     if (!tbody) return;
 
+    const summaryEl = document.getElementById(isAdminView ? 'rencanaDistribusiSummary' : 'rencanaDistribusiSummaryMember');
+
     const rows = appData.rencanaDistribusi.filter(d => d.status !== 'batal');
     const colspan = isAdminView ? 6 : 5;
+
+    let totalKeseluruhan = 0;
 
     if (rows.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${colspan}" class="loading">Belum ada rencana distribusi.${isAdminView ? ' Tambahkan lewat form di atas.' : ''}</td></tr>`;
         if (tfoot) tfoot.innerHTML = '';
-        return;
+    } else {
+        tbody.innerHTML = rows.map(d => {
+            const total = d.berat * d.qty;
+            totalKeseluruhan += total;
+
+            const woCell = isAdminView
+                ? `<td><button class="btn btn-small ${d.wo ? 'btn-success' : 'btn-ghost'}" onclick="toggleRencanaWO(${d.id})" title="Klik untuk ubah status WO">${d.wo ? '✓ Sudah WO' : 'Belum WO'}</button></td>`
+                : `<td>${d.wo ? '<span style="color:var(--emerald-2); font-weight:600;">✓ Sudah WO</span>' : '<span style="color:var(--ink-faint);">Belum WO</span>'}</td>`;
+            const aksiCell = isAdminView
+                ? `<td style="white-space:nowrap;">
+                     <button class="btn btn-ghost btn-small" onclick="editRencanaAlokasi(${d.id})" title="Edit">✏️</button>
+                     <button class="btn btn-ghost btn-small" onclick="hapusRencanaAlokasi(${d.id})" title="Hapus">🗑️</button>
+                   </td>`
+                : '';
+
+            return `
+                <tr>
+                  <td>${d.alokasi || '—'}</td>
+                  <td>${d.berat.toLocaleString('id-ID')} kg</td>
+                  <td>${d.qty.toLocaleString('id-ID')}</td>
+                  <td><strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
+                  ${woCell}
+                  ${aksiCell}
+                </tr>`;
+        }).join('');
+
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr style="background:var(--sand); font-weight:700;">
+                  <td colspan="3">Total</td>
+                  <td>${totalKeseluruhan.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
+                  <td></td>
+                  ${isAdminView ? '<td></td>' : ''}
+                </tr>`;
+        }
     }
 
-    let totalKeseluruhan = 0;
-    tbody.innerHTML = rows.map(d => {
-        const total = d.berat * d.qty;
-        totalKeseluruhan += total;
+    // Balance: Estimasi Daging (dari semua survey) vs Total Rencana Distribusi
+    // (dari tabel di atas). Toleransi 0.05kg buat jaga-jaga pembulatan desimal.
+    if (summaryEl) {
+        const totalEstimasi = totalEstimasiDagingSemuaSurvey();
+        const selisih = totalEstimasi - totalKeseluruhan;
+        let statusHtml;
+        if (Math.abs(selisih) <= 0.05) {
+            statusHtml = `<span style="color:var(--emerald-2); font-weight:600;">✓ Pas, Estimasi Daging sudah direncanakan semua</span>`;
+        } else if (selisih > 0) {
+            statusHtml = `<span style="color:var(--gold); font-weight:600;">Belum dialokasikan: ${formatKg(selisih)}</span>`;
+        } else {
+            statusHtml = `<span style="color:var(--brick); font-weight:600;">⚠️ Rencana melebihi Estimasi Daging: ${formatKg(-selisih)}</span>`;
+        }
 
-        const woCell = isAdminView
-            ? `<td><button class="btn btn-small ${d.wo ? 'btn-success' : 'btn-ghost'}" onclick="toggleRencanaWO(${d.id})" title="Klik untuk ubah status WO">${d.wo ? '✓ Sudah WO' : 'Belum WO'}</button></td>`
-            : `<td>${d.wo ? '<span style="color:var(--emerald-2); font-weight:600;">✓ Sudah WO</span>' : '<span style="color:var(--ink-faint);">Belum WO</span>'}</td>`;
-        const aksiCell = isAdminView
-            ? `<td style="white-space:nowrap;">
-                 <button class="btn btn-ghost btn-small" onclick="editRencanaAlokasi(${d.id})" title="Edit">✏️</button>
-                 <button class="btn btn-ghost btn-small" onclick="hapusRencanaAlokasi(${d.id})" title="Hapus">🗑️</button>
-               </td>`
-            : '';
-
-        return `
-            <tr>
-              <td>${d.alokasi || '—'}</td>
-              <td>${d.berat.toLocaleString('id-ID')} kg</td>
-              <td>${d.qty.toLocaleString('id-ID')}</td>
-              <td><strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
-              ${woCell}
-              ${aksiCell}
-            </tr>`;
-    }).join('');
-
-    if (tfoot) {
-        tfoot.innerHTML = `
-            <tr style="background:var(--sand); font-weight:700;">
-              <td colspan="3">Total</td>
-              <td>${totalKeseluruhan.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
-              <td></td>
-              ${isAdminView ? '<td></td>' : ''}
-            </tr>`;
+        summaryEl.innerHTML = `
+            <div class="rek-box" style="margin-bottom:0;">
+              <div class="rek-row"><span>Estimasi Daging Terkumpul (semua survey)</span><span>${formatKg(totalEstimasi)}</span></div>
+              <div class="rek-row"><span>Total Rencana Distribusi</span><span>${formatKg(totalKeseluruhan)}</span></div>
+              <div class="rek-row"><span>Status</span>${statusHtml}</div>
+            </div>`;
     }
 }
 
