@@ -19,7 +19,7 @@
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
@@ -34,11 +34,17 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgE
 // survey sapi (kolom: id, surveyId, memberId, memberName, phone, created_date)
 // - dipakai untuk menampilkan list peserta grup sapi ke sesama anggota.
 // 'DistribusiDaging' menyimpan rencana pembagian daging per alokasi per sapi
-// (Work Order), diinput manual oleh admin (kolom: id, surveyId, alokasi,
-// berat, qty, status, created_date) - "surveyId" mengaitkan tiap baris ke 1
-// sapi survey tertentu, "status" dipakai sebagai soft-delete ('batal' =
-// disembunyikan, bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging'];
+// (Work Order - detail pelaksanaan lapangan), diinput manual oleh admin
+// (kolom: id, surveyId, alokasi, berat, qty, status, created_date) -
+// "surveyId" mengaitkan tiap baris ke 1 sapi survey tertentu.
+// 'RencanaDistribusi' adalah versi GLOBAL/kasar (tidak terikat 1 sapi
+// tertentu) buat estimasi awal sebelum dirinci ke Work Order per sapi
+// (kolom: id, alokasi, berat, qty, wo, status, created_date) - "wo" ('ya'/
+// 'tidak') menandakan baris ini sudah dipindahkan/dimasukkan ke Work Order
+// atau belum.
+// Keduanya pakai "status" sebagai soft-delete ('batal' = disembunyikan,
+// bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
 // Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
