@@ -13,7 +13,7 @@ Write-Host "Cek syntax JS dulu..." -ForegroundColor Cyan
 node -e "const fs=require('fs');const html=fs.readFileSync('public/index.html','utf8');const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);let ok=true;scripts.forEach((s,i)=>{try{new Function(s);}catch(e){ok=false;console.log('Script',i,'ERROR:',e.message);}});console.log(ok?'OK, semua script valid':'ADA ERROR DI ATAS');"
 
 git add -A
-git commit -m "Fitur: Balance box Estimasi Daging vs Total Rencana Distribusi di Rencana Distribusi Daging (Umum)"
+git commit -m "Fitur: kolom WO otomatis (dari Work Order) + kolom B/L di Rencana Distribusi Daging (Umum)"
 git push
 
 # Sinkronkan balik ke dhafinul-dev supaya branch R&D tidak ketinggalan.
