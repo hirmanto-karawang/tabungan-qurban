@@ -5742,7 +5742,18 @@ function loadWoAktualList(containerId) {
 // perlu buka kartu per sapi satu-satu. Baris Mudhohi diberi nomor urut
 // mengikuti jumlah sapi (Mudhohi #1, #2, #3, ...) karena tiap sapi punya
 // hasil timbang mudhohi sendiri-sendiri; baris alokasi lain (RT 1, Panitia,
-// dst) dijumlahkan (Qty & Total) dari SEMUA sapi karena nama alokasinya sama.
+// dst) dijumlahkan Aktual-nya dari SEMUA sapi karena nama alokasinya sama.
+// Ada kolom Plan/Aktual/Balance (konsisten dgn konvensi B/L di tabel Rencana
+// Distribusi Umum: Balance = Plan - Aktual) supaya beda-nya langsung kelihatan.
+function woAktualBalanceHtml(balance, hasData) {
+    if (!hasData) return '<span style="color:var(--ink-faint);">—</span>';
+    let color;
+    if (Math.abs(balance) <= 0.05) color = 'var(--emerald-2)';
+    else if (balance > 0) color = 'var(--gold)';
+    else color = 'var(--brick)';
+    return `<span style="color:${color}; font-weight:600;">${formatKg(balance)}</span>`;
+}
+
 function renderWoAktualResume(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -5753,7 +5764,8 @@ function renderWoAktualResume(containerId) {
     }
 
     const rencanaAktif = appData.rencanaDistribusi.filter(r => r.status !== 'batal');
-    let grandTotal = 0;
+    let grandPlan = 0;
+    let grandAktual = 0;
 
     const mudhohiRowsHtml = appData.surveySapi.map((s, idx) => {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
@@ -5763,29 +5775,17 @@ function renderWoAktualResume(containerId) {
         );
         const beratMudhohi = existingMudhohi ? existingMudhohi.berat : 0;
         const totalMudhohiAktual = beratMudhohi * 7;
-        grandTotal += totalMudhohiAktual;
         const estimasiMudhohiFull = k.hakMudhohi * 7;
-        const selisihMudhohi = estimasiMudhohiFull - totalMudhohiAktual;
-        const performaMudhohi = k.hakMudhohi > 0 ? (beratMudhohi / k.hakMudhohi * 100) : null;
-
-        let ketHtml;
-        if (!existingMudhohi) {
-            ketHtml = '<span style="color:var(--ink-faint);">Belum ditimbang</span>';
-        } else {
-            const performaText = performaMudhohi === null ? '—' : (Math.round(performaMudhohi * 10) / 10).toLocaleString('id-ID') + '%';
-            const pas = Math.abs(selisihMudhohi) <= 0.05;
-            const selisihColor = pas ? 'var(--emerald-2)' : (selisihMudhohi > 0 ? 'var(--gold)' : 'var(--brick)');
-            const selisihText = pas ? 'Pas' : (selisihMudhohi > 0 ? '+' + formatKg(selisihMudhohi) : formatKg(selisihMudhohi));
-            ketHtml = `Performa ${performaText} · Selisih <span style="color:${selisihColor}; font-weight:600;">${selisihText}</span>`;
-        }
+        const balance = estimasiMudhohiFull - totalMudhohiAktual;
+        grandPlan += estimasiMudhohiFull;
+        grandAktual += totalMudhohiAktual;
 
         return `
             <tr style="background:var(--emerald-tint);">
               <td><strong>Mudhohi #${idx + 1}</strong><div style="font-size:11px; color:var(--ink-faint);">${surveyKode(s)} · ${s.supplier || '—'}</div></td>
-              <td>${beratMudhohi ? formatKg(beratMudhohi) : '—'}</td>
-              <td>7</td>
-              <td><strong>${formatKg(totalMudhohiAktual)}</strong></td>
-              <td>${ketHtml}</td>
+              <td>${formatKg(estimasiMudhohiFull)}<div style="font-size:11px; color:var(--ink-faint);">7 orang</div></td>
+              <td>${existingMudhohi ? formatKg(totalMudhohiAktual) : '<span style="color:var(--ink-faint);">Belum ditimbang</span>'}</td>
+              <td>${woAktualBalanceHtml(balance, !!existingMudhohi)}</td>
             </tr>`;
     }).join('');
 
@@ -5794,53 +5794,47 @@ function renderWoAktualResume(containerId) {
         alokasiRowsHtml = rencanaAktif.map(r => {
             const namaLower = (r.alokasi || '').trim().toLowerCase();
             let totalQtyAktual = 0;
-            let totalQtyRencana = 0;
+            let adaAktual = false;
             appData.surveySapi.forEach(s => {
                 const existingAktual = appData.workOrderAktual.find(d =>
                     d.status !== 'batal' && d.surveyId === s.id &&
                     (d.alokasi || '').trim().toLowerCase() === namaLower
                 );
+                if (existingAktual) adaAktual = true;
                 totalQtyAktual += existingAktual ? existingAktual.qty : 0;
-                const rencanaWO = appData.distribusiDaging.find(d =>
-                    d.status !== 'batal' && d.surveyId === s.id &&
-                    (d.alokasi || '').trim().toLowerCase() === namaLower
-                );
-                totalQtyRencana += rencanaWO ? rencanaWO.qty : 0;
             });
-            const totalBerat = r.berat * totalQtyAktual;
-            grandTotal += totalBerat;
-            const selisih = totalQtyAktual - totalQtyRencana;
-            let ketHtml;
-            if (selisih === 0) {
-                ketHtml = `<span style="color:var(--emerald-2); font-weight:600;">Pas dgn rencana</span>`;
-            } else if (selisih > 0) {
-                ketHtml = `<span style="color:var(--gold); font-weight:600;">+${selisih.toLocaleString('id-ID')} dari rencana</span>`;
-            } else {
-                ketHtml = `<span style="color:var(--brick); font-weight:600;">${selisih.toLocaleString('id-ID')} dari rencana</span>`;
-            }
+            const planTotal = r.berat * r.qty;
+            const aktualTotal = r.berat * totalQtyAktual;
+            const balance = planTotal - aktualTotal;
+            grandPlan += planTotal;
+            grandAktual += aktualTotal;
+
             return `
                 <tr>
-                  <td>${r.alokasi || '—'}</td>
-                  <td>${r.berat.toLocaleString('id-ID')} kg</td>
-                  <td>${totalQtyAktual.toLocaleString('id-ID')}</td>
-                  <td><strong>${totalBerat.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
-                  <td>${ketHtml}</td>
+                  <td>${r.alokasi || '—'}<div style="font-size:11px; color:var(--ink-faint);">${r.berat.toLocaleString('id-ID')} kg/unit</div></td>
+                  <td>${formatKg(planTotal)}<div style="font-size:11px; color:var(--ink-faint);">qty ${r.qty.toLocaleString('id-ID')}</div></td>
+                  <td>${adaAktual ? formatKg(aktualTotal) : '<span style="color:var(--ink-faint);">Belum diisi</span>'}<div style="font-size:11px; color:var(--ink-faint);">${adaAktual ? 'qty ' + totalQtyAktual.toLocaleString('id-ID') : ''}</div></td>
+                  <td>${woAktualBalanceHtml(balance, adaAktual)}</td>
                 </tr>`;
         }).join('');
     }
 
+    const grandBalance = grandPlan - grandAktual;
+
     container.innerHTML = `
         <div class="card" style="max-width:820px; margin-top:20px;">
           <h3 style="margin-top:0;">Resume Work Order Aktual</h3>
-          <p style="color:var(--ink-soft); font-size:13px; margin-top:-8px;">Ringkasan seluruh sapi (${appData.surveySapi.length} sapi) dalam satu tabel. Baris Mudhohi bernomor per sapi; baris alokasi lain dijumlahkan dari semua sapi.</p>
+          <p style="color:var(--ink-soft); font-size:13px; margin-top:-8px;">Ringkasan seluruh sapi (${appData.surveySapi.length} sapi) dalam satu tabel. Baris Mudhohi bernomor per sapi; baris alokasi lain dijumlahkan dari semua sapi. Balance = Plan − Aktual.</p>
           <div class="table-container">
             <table>
-              <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total Aktual</th><th>Keterangan</th></tr></thead>
+              <thead><tr><th>Alokasi</th><th>Plan</th><th>Aktual</th><th>Balance</th></tr></thead>
               <tbody>${mudhohiRowsHtml}${alokasiRowsHtml}</tbody>
               <tfoot>
                 <tr style="background:var(--sand); font-weight:700;">
-                  <td colspan="3">Total Aktual Keseluruhan</td>
-                  <td colspan="2">${grandTotal.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
+                  <td>Total</td>
+                  <td>${formatKg(grandPlan)}</td>
+                  <td>${formatKg(grandAktual)}</td>
+                  <td>${woAktualBalanceHtml(grandBalance, true)}</td>
                 </tr>
               </tfoot>
             </table>
