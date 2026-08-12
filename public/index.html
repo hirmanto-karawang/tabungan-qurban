@@ -2164,6 +2164,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4.5-3-7-6.2-7-9.5A7 7 0 0112 4a7 7 0 017 7.5c0 3.3-2.5 6.5-7 9.5z"/><circle cx="12" cy="11" r="2.3"/></svg>
         Survey Sapi
       </button>
+      <button class="tab-btn" id="distribusiDagingTabBtn" onclick="switchTab('distribusiDaging')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/></svg>
+        Distribusi Daging
+      </button>
       <button class="tab-btn" id="woAktualTabBtn" onclick="switchTab('woAktual')" style="display:none;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         WO Aktual
@@ -2782,8 +2786,28 @@
           </p>
           <div id="surveySapiResumeList"></div>
         </div>
+        </div>
 
-        <div class="card" style="max-width:820px; margin-top:20px;">
+        <!-- Anggota: daftar sapi hasil survey (read-only) + tombol Ikut + list
+             peserta per grup sapi. -->
+        <div id="surveySapiMemberSection" style="display:none;">
+          <div class="card" style="max-width:820px;">
+            <h2>Survey Sapi</h2>
+            <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:22px;">
+              Daftar sapi calon qurban hasil survey admin. Klik <strong>Ikut</strong> kalau Anda ingin bergabung di grup sapi ini.
+            </p>
+            <div id="surveySapiMemberList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Distribusi Daging - estimasi pembagian daging, Rencana
+           Distribusi (Umum), dan Work Order per sapi. Dipisah dari tab
+           Survey Sapi (yang isinya cuma data hasil survey sapi) supaya tidak
+           terlalu panjang - dulunya semua ini jadi 1 tab bareng Survey Sapi. -->
+      <div id="distribusiDaging" class="tab-content">
+        <div id="distribusiDagingAdminSection">
+        <div class="card" style="max-width:820px;">
           <h3 style="margin-top:0;">Estimasi Distribusi Daging</h3>
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
             Perkiraan pembagian daging tiap sapi buat rencana hari H - berdasarkan rumus yang sama dengan Ringkasan Perhitungan di form survey.
@@ -2839,18 +2863,8 @@
         </div>
         </div>
 
-        <!-- Anggota: daftar sapi hasil survey (read-only) + tombol Ikut + list
-             peserta per grup sapi. -->
-        <div id="surveySapiMemberSection" style="display:none;">
+        <div id="distribusiDagingMemberSection" style="display:none;">
           <div class="card" style="max-width:820px;">
-            <h2>Survey Sapi</h2>
-            <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:22px;">
-              Daftar sapi calon qurban hasil survey admin. Klik <strong>Ikut</strong> kalau Anda ingin bergabung di grup sapi ini.
-            </p>
-            <div id="surveySapiMemberList"></div>
-          </div>
-
-          <div class="card" style="max-width:820px; margin-top:20px;">
             <h3 style="margin-top:0;">Estimasi Distribusi Daging</h3>
             <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
               Perkiraan pembagian daging tiap sapi hasil survey.
@@ -4117,6 +4131,7 @@ function showApp() {
     const approvalTabBtn = document.getElementById('approvalTabBtn');
     const activityLogTabBtn = document.getElementById('activityLogTabBtn');
     const surveySapiTabBtn = document.getElementById('surveySapiTabBtn');
+    const distribusiDagingTabBtn = document.getElementById('distribusiDagingTabBtn');
     const woAktualTabBtn = document.getElementById('woAktualTabBtn');
     const penerimaTabBtn = document.getElementById('penerimaTabBtn');
 
@@ -4133,6 +4148,7 @@ function showApp() {
         approvalTabBtn.style.display = 'flex';
         activityLogTabBtn.style.display = 'flex';
         surveySapiTabBtn.style.display = 'flex';
+        distribusiDagingTabBtn.style.display = 'flex';
         woAktualTabBtn.style.display = 'flex';
         penerimaTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';  // Admin bisa lihat laporan
@@ -4157,6 +4173,7 @@ function showApp() {
         approvalTabBtn.style.display = 'none';
         activityLogTabBtn.style.display = 'none';
         surveySapiTabBtn.style.display = 'none';
+        distribusiDagingTabBtn.style.display = 'none';
         woAktualTabBtn.style.display = 'none';
         penerimaTabBtn.style.display = 'none';
 
@@ -4177,6 +4194,7 @@ function showApp() {
         // Survey Sapi TETAP ditampilkan untuk Anggota, tapi isinya versi
         // read-only + tombol Ikut (lihat surveySapiMemberSection & switchTab()).
         surveySapiTabBtn.style.display = 'flex';
+        distribusiDagingTabBtn.style.display = 'flex';
         // WO Aktual & Penerima/Tiket (khusus hari pelaksanaan) - khusus
         // Admin/panitia, Anggota tidak perlu isi ini.
         woAktualTabBtn.style.display = 'none';
@@ -4201,6 +4219,7 @@ const TAB_META = {
     approval: { title: 'Approval Anggota Baru', crumb: 'Admin' },
     activityLog: { title: 'Log Aktivitas Anggota', crumb: 'Admin' },
     surveySapi: { title: 'Survey Sapi', crumb: 'Qurban' },
+    distribusiDaging: { title: 'Distribusi Daging', crumb: 'Qurban' },
     woAktual: { title: 'Work Order Aktual', crumb: 'Pelaksanaan' },
     penerima: { title: 'Penerima & Tiket', crumb: 'Pelaksanaan' },
     history: { title: 'Riwayat', crumb: 'Tabungan' },
@@ -4238,7 +4257,7 @@ async function switchTab(tabName) {
     // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
     // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
     // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
-    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'woAktual', 'penerima'];
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima'];
     if (needsFreshData.includes(tabName)) {
         await ensureDataLoaded();
     }
@@ -4269,11 +4288,24 @@ function runTabDataLoaders(tabName) {
             initSurveyForm();
             loadSurveySapiTable();
             loadSurveySapiResume();
+        } else {
+            loadSurveySapiMemberList();
+        }
+    }
+    if (tabName === 'distribusiDaging') {
+        // Estimasi Distribusi Daging, Rencana Distribusi Daging (Umum), dan
+        // Work Order Sapi - dulu bagian dari tab Survey Sapi, sekarang tab
+        // sendiri supaya tidak terlalu panjang. Sama-sama admin/anggota.
+        const isAdminView = currentUser && currentUser.role === 'admin';
+        const adminSection = document.getElementById('distribusiDagingAdminSection');
+        const memberSection = document.getElementById('distribusiDagingMemberSection');
+        if (adminSection) adminSection.style.display = isAdminView ? '' : 'none';
+        if (memberSection) memberSection.style.display = isAdminView ? 'none' : '';
+        if (isAdminView) {
             loadSurveySapiDistribusi();
             loadRencanaDistribusiGlobal('rencanaDistribusiBody', 'rencanaDistribusiFoot', true);
             loadWorkOrderList('workOrderListAdmin', true);
         } else {
-            loadSurveySapiMemberList();
             loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
             loadRencanaDistribusiGlobal('rencanaDistribusiBodyMember', 'rencanaDistribusiFootMember', false);
             loadWorkOrderList('workOrderListMember', false);
