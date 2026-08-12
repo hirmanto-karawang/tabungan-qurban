@@ -2176,6 +2176,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>
         Penerima &amp; Tiket
       </button>
+      <button class="tab-btn" id="keuanganTabBtn" onclick="switchTab('keuangan')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 6v0M18 6v0M6 18v0M18 18v0"/></svg>
+        Keuangan
+      </button>
       <button class="tab-btn" id="profileTabBtn" onclick="switchTab('profile')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Profil
@@ -2990,6 +2994,108 @@
         </div>
       </div>
 
+      <!-- Tab: Keuangan (khusus Admin) - arus kas qurban: Pos Budget (target
+           anggaran per kategori pemasukan/pengeluaran) + catatan transaksi
+           harian per Pos, dengan ringkasan kas & peringatan kalau pengeluaran
+           sudah lewat anggaran (pola Balance/B-L sama dgn Distribusi Daging). -->
+      <div id="keuangan" class="tab-content">
+        <div class="card" style="max-width:820px;">
+          <h2>Ringkasan Kas</h2>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:16px;">
+            Total pemasukan &amp; pengeluaran dari semua Pos Budget yang aktif.
+          </p>
+          <div id="keuanganRingkasan" class="survey-member-meta"></div>
+        </div>
+
+        <div class="card" style="max-width:820px; margin-top:20px;">
+          <h2>Pos Budget</h2>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
+            Buat pos anggaran per item (mis. "Pembelian Sapi", "Konsumsi Panitia", "Iuran Tabungan"). Tiap pos punya jenis <strong>Pemasukan</strong> atau <strong>Pengeluaran</strong> - Realisasi dihitung otomatis dari Transaksi Harian, Balance = Anggaran − Realisasi.
+          </p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nama Pos</label>
+              <input type="text" id="posBudgetNama" placeholder="Contoh: Pembelian Sapi">
+            </div>
+            <div class="form-group">
+              <label>Jenis</label>
+              <select id="posBudgetJenis">
+                <option value="pengeluaran">Pengeluaran</option>
+                <option value="pemasukan">Pemasukan</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Jumlah Anggaran (Rp)</label>
+              <input type="number" id="posBudgetJumlah" placeholder="0" min="0" step="1000">
+            </div>
+            <div class="form-group">
+              <label>Keterangan (opsional)</label>
+              <input type="text" id="posBudgetKeterangan" placeholder="Catatan singkat">
+            </div>
+          </div>
+          <input type="hidden" id="posBudgetEditId" value="">
+          <div class="actions" style="margin-bottom:18px;">
+            <button class="btn btn-success btn-small" id="posBudgetSubmitBtn" onclick="simpanPosBudget()">+ Tambah Pos</button>
+            <button class="btn btn-ghost btn-small" id="posBudgetCancelBtn" onclick="batalEditPosBudget()" style="display:none;">Batal Edit</button>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Pos</th><th>Jenis</th><th>Anggaran</th><th>Realisasi</th><th>Balance</th><th></th></tr></thead>
+              <tbody id="posBudgetListBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:820px; margin-top:20px;">
+          <h2>Catat Transaksi Harian</h2>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
+            Pilih Pos Budget dulu (jenis Pemasukan/Pengeluaran ikut Pos-nya). Foto nota/struk opsional, buat pertanggungjawaban.
+          </p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Pos Budget</label>
+              <select id="transaksiPosSelect"></select>
+            </div>
+            <div class="form-group">
+              <label>Tanggal</label>
+              <input type="date" id="transaksiTanggal">
+            </div>
+            <div class="form-group">
+              <label>Jumlah (Rp)</label>
+              <input type="number" id="transaksiJumlah" placeholder="0" min="0" step="1000">
+            </div>
+            <div class="form-group">
+              <label>Keterangan (opsional)</label>
+              <input type="text" id="transaksiKeterangan" placeholder="Catatan singkat">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label>Foto Bukti/Nota (opsional)</label>
+            <input type="file" accept="image/*" capture="environment" onchange="pilihBuktiTransaksi(event)">
+            <div id="buktiTransaksiPreviewBox" style="margin-top:8px;"></div>
+          </div>
+          <div class="actions" style="margin-bottom:18px;">
+            <button class="btn btn-success btn-small" onclick="simpanTransaksiKeuangan()">+ Simpan Transaksi</button>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:820px; margin-top:20px;">
+          <h2>Riwayat Transaksi</h2>
+          <div class="form-grid" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label>Filter Pos</label>
+              <select id="riwayatTransaksiFilter" onchange="loadTransaksiKeuanganList()"></select>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Tanggal</th><th>Pos</th><th>Jenis</th><th>Jumlah</th><th>Keterangan</th><th></th></tr></thead>
+              <tbody id="transaksiKeuanganListBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- Tab: Profil -->
       <div id="profile" class="tab-content">
 
@@ -3395,7 +3501,9 @@ let appData = {
     distribusiDaging: [],
     rencanaDistribusi: [],
     workOrderAktual: [],
-    penerimaQR: []
+    penerimaQR: [],
+    posBudget: [],
+    transaksiKeuangan: []
 };
 
 let currentUser = null;
@@ -3579,6 +3687,8 @@ async function loadDataFromSheets() {
     const rencanaDistribusiRows = bootstrap ? (bootstrap.RencanaDistribusi || []) : await fetchSheetDBTable('RencanaDistribusi');
     const workOrderAktualRows = bootstrap ? (bootstrap.WorkOrderAktual || []) : await fetchSheetDBTable('WorkOrderAktual');
     const penerimaQRRows = bootstrap ? (bootstrap.PenerimaQR || []) : await fetchSheetDBTable('PenerimaQR');
+    const posBudgetRows = bootstrap ? (bootstrap.PosBudget || []) : await fetchSheetDBTable('PosBudget');
+    const transaksiKeuanganRows = bootstrap ? (bootstrap.TransaksiKeuangan || []) : await fetchSheetDBTable('TransaksiKeuangan');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -3778,6 +3888,34 @@ async function loadDataFromSheets() {
         lokasiLat: (row.lokasiLat !== undefined && row.lokasiLat !== '') ? parseFloat(row.lokasiLat) : null,
         lokasiLng: (row.lokasiLng !== undefined && row.lokasiLng !== '') ? parseFloat(row.lokasiLng) : null,
         hasFotoAmbil: !!row.hasFotoAmbil,
+        created_date: row.created_date || ''
+    })).filter(d => d.id);
+
+    // Parse PosBudget (pos anggaran modul Keuangan - tiap pos punya jenis
+    // 'pemasukan' atau 'pengeluaran' supaya Anggaran vs Realisasi konsisten
+    // maknanya per pos, lihat renderKeuanganPos()).
+    appData.posBudget = posBudgetRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        nama: row.nama || '',
+        jenisPos: (row.jenisPos || '').toString().trim().toLowerCase() === 'pemasukan' ? 'pemasukan' : 'pengeluaran',
+        jumlahAnggaran: parseInt(row.jumlahAnggaran) || 0,
+        keterangan: row.keterangan || '',
+        status: row.status || 'aktif',
+        created_date: row.created_date || ''
+    })).filter(d => d.id);
+
+    // Parse TransaksiKeuangan (catatan arus kas harian per Pos Budget - kolom
+    // "bukti" (base64 foto nota, opsional) SENGAJA tidak dikirim di load
+    // biasa, sama pola dgn PenerimaQR.fotoAmbil - server balikin flag
+    // hasBukti, isi foto diambil on-demand lewat fetchBuktiTransaksiData().
+    appData.transaksiKeuangan = transaksiKeuanganRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        posId: parseInt(row.posId) || 0,
+        tanggal: row.tanggal || '',
+        jumlah: parseInt(row.jumlah) || 0,
+        keterangan: row.keterangan || '',
+        hasBukti: !!row.hasBukti,
+        status: row.status || 'aktif',
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
@@ -4135,6 +4273,7 @@ function showApp() {
     const distribusiDagingTabBtn = document.getElementById('distribusiDagingTabBtn');
     const woAktualTabBtn = document.getElementById('woAktualTabBtn');
     const penerimaTabBtn = document.getElementById('penerimaTabBtn');
+    const keuanganTabBtn = document.getElementById('keuanganTabBtn');
 
     // Menu untuk Anggota
     const profileTabBtn = document.getElementById('profileTabBtn');
@@ -4152,6 +4291,7 @@ function showApp() {
         distribusiDagingTabBtn.style.display = 'flex';
         woAktualTabBtn.style.display = 'flex';
         penerimaTabBtn.style.display = 'flex';
+        keuanganTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';  // Admin bisa lihat laporan
 
         // Hide menu anggota
@@ -4177,6 +4317,7 @@ function showApp() {
         distribusiDagingTabBtn.style.display = 'none';
         woAktualTabBtn.style.display = 'none';
         penerimaTabBtn.style.display = 'none';
+        keuanganTabBtn.style.display = 'none';
 
         // Redirect ke dashboard
         switchTab('dashboard');
@@ -4200,6 +4341,7 @@ function showApp() {
         // Admin/panitia, Anggota tidak perlu isi ini.
         woAktualTabBtn.style.display = 'none';
         penerimaTabBtn.style.display = 'none';
+        keuanganTabBtn.style.display = 'none';
     }
 
     updateDashboard();
@@ -4223,6 +4365,7 @@ const TAB_META = {
     distribusiDaging: { title: 'Distribusi Daging', crumb: 'Qurban' },
     woAktual: { title: 'Work Order Aktual', crumb: 'Pelaksanaan' },
     penerima: { title: 'Penerima & Tiket', crumb: 'Pelaksanaan' },
+    keuangan: { title: 'Keuangan', crumb: 'Keuangan' },
     history: { title: 'Riwayat', crumb: 'Tabungan' },
     laporan: { title: 'Laporan', crumb: 'Ringkasan' }
 };
@@ -4258,7 +4401,7 @@ async function switchTab(tabName) {
     // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
     // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
     // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
-    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima'];
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima', 'keuangan'];
     if (needsFreshData.includes(tabName)) {
         await ensureDataLoaded();
     }
@@ -4319,6 +4462,13 @@ function runTabDataLoaders(tabName) {
     if (tabName === 'penerima') {
         populatePenerimaAlokasiSelect();
         loadPenerimaList();
+    }
+    if (tabName === 'keuangan') {
+        const tanggalInput = document.getElementById('transaksiTanggal');
+        if (tanggalInput && !tanggalInput.value) tanggalInput.value = new Date().toISOString().slice(0, 10);
+        populateKeuanganPosSelect();
+        loadPosBudgetList();
+        loadTransaksiKeuanganList();
     }
     if (tabName === 'broadcast') {
         populateSapiOptions();
@@ -6690,6 +6840,402 @@ async function viewSurveyFotos(surveyId) {
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px;">
           ${imgs.map(src => `<img src="${src}" class="preview-image" alt="Foto survey sapi" style="max-height:none;">`).join('')}
         </div>`;
+}
+
+// ===== KEUANGAN (Pos Budget + arus kas harian) - modul admin-only, terpisah
+// dari Tabungan (Savings). Pos Budget = kategori anggaran dengan jenis tetap
+// 'pemasukan' atau 'pengeluaran'; Transaksi Harian dicatat per Pos, jenisnya
+// otomatis ikut Pos yang dipilih (tidak ada input jenis terpisah, supaya
+// datanya selalu konsisten). Realisasi & Balance selalu dihitung ulang dari
+// TransaksiKeuangan aktif, sama pola dengan WO/B-L di Distribusi Daging. =====
+let editingPosBudgetId = null;
+let pendingBuktiTransaksiData = null;
+
+function hitungRealisasiPos(posId) {
+    return appData.transaksiKeuangan
+        .filter(t => t.status !== 'batal' && t.posId === posId)
+        .reduce((sum, t) => sum + t.jumlah, 0);
+}
+
+// Pos 'pengeluaran': balance = Anggaran - Realisasi -> negatif berarti LEWAT
+// anggaran (bahaya, merah). Pos 'pemasukan': balance = Target - Realisasi ->
+// negatif berarti realisasi SUDAH melebihi target (bagus, hijau) - kebalikan
+// warnanya sengaja, karena "lebih dari target" itu kabar baik utk pemasukan.
+function posBalanceColor(jenisPos, balance) {
+    if (jenisPos === 'pengeluaran') {
+        return balance >= 0 ? 'var(--emerald-2)' : 'var(--brick)';
+    }
+    return balance <= 0 ? 'var(--emerald-2)' : 'var(--gold)';
+}
+
+function renderKeuanganRingkasan() {
+    const container = document.getElementById('keuanganRingkasan');
+    if (!container) return;
+
+    const posAktif = appData.posBudget.filter(p => p.status !== 'batal');
+    let totalAnggaranMasuk = 0, totalAnggaranKeluar = 0, totalRealisasiMasuk = 0, totalRealisasiKeluar = 0;
+    posAktif.forEach(pos => {
+        const realisasi = hitungRealisasiPos(pos.id);
+        if (pos.jenisPos === 'pemasukan') {
+            totalAnggaranMasuk += pos.jumlahAnggaran;
+            totalRealisasiMasuk += realisasi;
+        } else {
+            totalAnggaranKeluar += pos.jumlahAnggaran;
+            totalRealisasiKeluar += realisasi;
+        }
+    });
+    const saldoKas = totalRealisasiMasuk - totalRealisasiKeluar;
+    const saldoColor = saldoKas >= 0 ? 'var(--emerald-2)' : 'var(--brick)';
+
+    container.innerHTML = `
+        <div><span class="label">Total Pemasukan</span>Rp ${totalRealisasiMasuk.toLocaleString('id-ID')} <span style="color:var(--ink-faint); font-size:12px;">(target Rp ${totalAnggaranMasuk.toLocaleString('id-ID')})</span></div>
+        <div><span class="label">Total Pengeluaran</span>Rp ${totalRealisasiKeluar.toLocaleString('id-ID')} <span style="color:var(--ink-faint); font-size:12px;">(anggaran Rp ${totalAnggaranKeluar.toLocaleString('id-ID')})</span></div>
+        <div><span class="label">Saldo Kas</span><strong style="color:${saldoColor};">Rp ${saldoKas.toLocaleString('id-ID')}</strong></div>`;
+}
+
+function loadPosBudgetList() {
+    const tbody = document.getElementById('posBudgetListBody');
+    if (!tbody) return;
+
+    const rows = appData.posBudget.filter(p => p.status !== 'batal');
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada Pos Budget. Tambahkan lewat form di atas.</td></tr>';
+    } else {
+        tbody.innerHTML = rows.map(pos => {
+            const realisasi = hitungRealisasiPos(pos.id);
+            const balance = pos.jumlahAnggaran - realisasi;
+            const color = posBalanceColor(pos.jenisPos, balance);
+            const jenisLabel = pos.jenisPos === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
+            const jenisColor = pos.jenisPos === 'pemasukan' ? 'var(--emerald-2)' : 'var(--ink-soft)';
+            let warningHtml = '';
+            if (pos.jenisPos === 'pengeluaran' && balance < 0) {
+                warningHtml = '<div style="color:var(--brick); font-size:11px; font-weight:600;">⚠️ Lewat anggaran</div>';
+            } else if (pos.jenisPos === 'pemasukan' && balance <= 0) {
+                warningHtml = '<div style="color:var(--emerald-2); font-size:11px; font-weight:600;">✓ Target tercapai</div>';
+            }
+
+            return `
+                <tr>
+                  <td>${pos.nama}${pos.keterangan ? `<div style="font-size:11px; color:var(--ink-faint);">${pos.keterangan}</div>` : ''}</td>
+                  <td><span style="color:${jenisColor}; font-weight:600;">${jenisLabel}</span></td>
+                  <td>Rp ${pos.jumlahAnggaran.toLocaleString('id-ID')}</td>
+                  <td>Rp ${realisasi.toLocaleString('id-ID')}</td>
+                  <td><span style="color:${color}; font-weight:600;">Rp ${balance.toLocaleString('id-ID')}</span>${warningHtml}</td>
+                  <td style="white-space:nowrap;">
+                    <button class="btn btn-ghost btn-small" onclick="editPosBudget(${pos.id})" title="Edit">✏️</button>
+                    <button class="btn btn-ghost btn-small" onclick="hapusPosBudget(${pos.id})" title="Hapus">🗑️</button>
+                  </td>
+                </tr>`;
+        }).join('');
+    }
+
+    renderKeuanganRingkasan();
+}
+
+// Isi dropdown Pos di form Transaksi & filter Riwayat - dipanggil ulang tiap
+// kali Pos Budget berubah (tambah/edit/hapus) supaya selalu sinkron.
+function populateKeuanganPosSelect() {
+    const posAktif = appData.posBudget.filter(p => p.status !== 'batal');
+    const selectTransaksi = document.getElementById('transaksiPosSelect');
+    const selectFilter = document.getElementById('riwayatTransaksiFilter');
+
+    const optionsHtml = posAktif.length === 0
+        ? '<option value="">Belum ada Pos Budget</option>'
+        : posAktif.map(p => `<option value="${p.id}">${p.nama} (${p.jenisPos === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran'})</option>`).join('');
+
+    if (selectTransaksi) {
+        const prevValue = selectTransaksi.value;
+        selectTransaksi.innerHTML = optionsHtml;
+        if (posAktif.some(p => String(p.id) === prevValue)) selectTransaksi.value = prevValue;
+    }
+    if (selectFilter) {
+        const prevValue = selectFilter.value;
+        selectFilter.innerHTML = '<option value="">Semua Pos</option>' + optionsHtml;
+        if (prevValue) selectFilter.value = prevValue;
+    }
+}
+
+async function simpanPosBudget() {
+    const nama = document.getElementById('posBudgetNama').value.trim();
+    const jenisPos = document.getElementById('posBudgetJenis').value === 'pemasukan' ? 'pemasukan' : 'pengeluaran';
+    const jumlahAnggaran = parseInt(document.getElementById('posBudgetJumlah').value) || 0;
+    const keterangan = document.getElementById('posBudgetKeterangan').value.trim();
+
+    if (!nama) { showAlert('Nama Pos harus diisi', 'error'); return; }
+    if (jumlahAnggaran <= 0) { showAlert('Jumlah Anggaran harus diisi', 'error'); return; }
+
+    if (editingPosBudgetId) {
+        const success = await updateSheetDB('PosBudget', 'id', editingPosBudgetId, { nama, jenisPos, jumlahAnggaran, keterangan });
+        if (success) {
+            const item = appData.posBudget.find(p => p.id === editingPosBudgetId);
+            if (item) { item.nama = nama; item.jenisPos = jenisPos; item.jumlahAnggaran = jumlahAnggaran; item.keterangan = keterangan; }
+            showAlert('Pos Budget diperbarui', 'success');
+            batalEditPosBudget();
+            loadPosBudgetList();
+            populateKeuanganPosSelect();
+        } else {
+            showAlert('Gagal menyimpan perubahan, coba lagi.', 'error');
+        }
+        return;
+    }
+
+    const newId = appData.posBudget.length > 0
+        ? Math.max(...appData.posBudget.map(p => p.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        nama,
+        jenisPos,
+        jumlahAnggaran,
+        keterangan,
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+
+    const success = await appendSheetDB('PosBudget', record);
+    if (success) {
+        appData.posBudget.push(record);
+        showAlert('Pos Budget ditambahkan', 'success');
+        document.getElementById('posBudgetNama').value = '';
+        document.getElementById('posBudgetJumlah').value = '';
+        document.getElementById('posBudgetKeterangan').value = '';
+        document.getElementById('posBudgetJenis').value = 'pengeluaran';
+        loadPosBudgetList();
+        populateKeuanganPosSelect();
+    } else {
+        showAlert('Gagal menyimpan Pos Budget, coba lagi.', 'error');
+    }
+}
+
+function editPosBudget(id) {
+    const item = appData.posBudget.find(p => p.id === id);
+    if (!item) return;
+
+    editingPosBudgetId = id;
+    document.getElementById('posBudgetNama').value = item.nama;
+    document.getElementById('posBudgetJenis').value = item.jenisPos;
+    document.getElementById('posBudgetJumlah').value = item.jumlahAnggaran;
+    document.getElementById('posBudgetKeterangan').value = item.keterangan;
+    document.getElementById('posBudgetEditId').value = id;
+
+    const btn = document.getElementById('posBudgetSubmitBtn');
+    if (btn) btn.textContent = '💾 Simpan Perubahan';
+    const cancelBtn = document.getElementById('posBudgetCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+    document.getElementById('posBudgetNama').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function batalEditPosBudget() {
+    editingPosBudgetId = null;
+    document.getElementById('posBudgetNama').value = '';
+    document.getElementById('posBudgetJenis').value = 'pengeluaran';
+    document.getElementById('posBudgetJumlah').value = '';
+    document.getElementById('posBudgetKeterangan').value = '';
+    document.getElementById('posBudgetEditId').value = '';
+
+    const btn = document.getElementById('posBudgetSubmitBtn');
+    if (btn) btn.textContent = '+ Tambah Pos';
+    const cancelBtn = document.getElementById('posBudgetCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+// Soft-delete (status='batal') - transaksi yang sudah tercatat di pos ini
+// TIDAK ikut terhapus (tetap ada di sheet buat jejak audit), cuma pos-nya
+// saja yang disembunyikan dari daftar/dropdown.
+async function hapusPosBudget(id) {
+    const item = appData.posBudget.find(p => p.id === id);
+    if (!item) return;
+    if (!confirm(`Hapus Pos Budget "${item.nama}"? Transaksi yang sudah tercatat di pos ini tetap tersimpan, tapi pos-nya tidak akan muncul lagi di daftar.`)) return;
+
+    const success = await updateSheetDB('PosBudget', 'id', id, { status: 'batal' });
+    if (success) {
+        item.status = 'batal';
+        showAlert('Pos Budget dihapus', 'success');
+        if (editingPosBudgetId === id) batalEditPosBudget();
+        loadPosBudgetList();
+        populateKeuanganPosSelect();
+        loadTransaksiKeuanganList();
+    } else {
+        showAlert('Gagal menghapus Pos Budget, coba lagi.', 'error');
+    }
+}
+
+// Foto bukti/nota (opsional) - kompresi adaptif sama persis dgn upload bukti
+// transfer/foto pengambilan Penerima QR, supaya tidak lewat batas 50.000
+// karakter/sel Google Sheets.
+function pilihBuktiTransaksi(event) {
+    const file = event.target.files[0];
+    const previewBox = document.getElementById('buktiTransaksiPreviewBox');
+    pendingBuktiTransaksiData = null;
+    if (previewBox) previewBox.innerHTML = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        showAlert('File harus berupa foto (JPG/PNG)', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        compressImage(e.target.result, function (compressed) {
+            pendingBuktiTransaksiData = compressed;
+            if (previewBox) previewBox.innerHTML = `<img src="${compressed}" style="max-width:160px; border-radius:8px; border:1px solid var(--border);">`;
+        }, function () {
+            pendingBuktiTransaksiData = null;
+            showAlert('Foto terlalu detail buat disimpan, coba foto lain.', 'error');
+            event.target.value = '';
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
+async function simpanTransaksiKeuangan() {
+    const posId = parseInt(document.getElementById('transaksiPosSelect').value) || 0;
+    const tanggal = document.getElementById('transaksiTanggal').value || new Date().toISOString().slice(0, 10);
+    const jumlah = parseInt(document.getElementById('transaksiJumlah').value) || 0;
+    const keterangan = document.getElementById('transaksiKeterangan').value.trim();
+
+    const pos = appData.posBudget.find(p => p.id === posId && p.status !== 'batal');
+    if (!pos) { showAlert('Pilih Pos Budget dulu', 'error'); return; }
+    if (jumlah <= 0) { showAlert('Jumlah harus diisi', 'error'); return; }
+
+    const newId = appData.transaksiKeuangan.length > 0
+        ? Math.max(...appData.transaksiKeuangan.map(t => t.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        posId: posId,
+        tanggal: tanggal,
+        jumlah: jumlah,
+        keterangan: keterangan,
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+    if (pendingBuktiTransaksiData) record.bukti = pendingBuktiTransaksiData;
+
+    const success = await appendSheetDB('TransaksiKeuangan', record);
+    if (success) {
+        appData.transaksiKeuangan.push({
+            id: newId, posId, tanggal, jumlah, keterangan,
+            hasBukti: !!pendingBuktiTransaksiData,
+            status: 'aktif',
+            created_date: record.created_date
+        });
+        showAlert(`Transaksi "${pos.nama}" tersimpan`, 'success');
+        document.getElementById('transaksiJumlah').value = '';
+        document.getElementById('transaksiKeterangan').value = '';
+        pendingBuktiTransaksiData = null;
+        const fileInput = document.querySelector('#keuangan input[type="file"]');
+        if (fileInput) fileInput.value = '';
+        const previewBox = document.getElementById('buktiTransaksiPreviewBox');
+        if (previewBox) previewBox.innerHTML = '';
+        loadPosBudgetList();
+        loadTransaksiKeuanganList();
+    } else {
+        showAlert('Gagal menyimpan transaksi, coba lagi.', 'error');
+    }
+}
+
+function loadTransaksiKeuanganList() {
+    const tbody = document.getElementById('transaksiKeuanganListBody');
+    if (!tbody) return;
+
+    const filterPosId = parseInt(document.getElementById('riwayatTransaksiFilter')?.value) || 0;
+
+    let rows = appData.transaksiKeuangan.filter(t => t.status !== 'batal');
+    if (filterPosId) rows = rows.filter(t => t.posId === filterPosId);
+
+    rows = rows.slice().sort((a, b) => {
+        if (a.tanggal !== b.tanggal) return (b.tanggal || '').localeCompare(a.tanggal || '');
+        return b.id - a.id;
+    });
+
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada transaksi.</td></tr>';
+    } else {
+        tbody.innerHTML = rows.map(t => {
+            const pos = appData.posBudget.find(p => p.id === t.posId);
+            const posNama = pos ? pos.nama : '(pos dihapus)';
+            const jenisPos = pos ? pos.jenisPos : 'pengeluaran';
+            const jenisLabel = jenisPos === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
+            const jenisColor = jenisPos === 'pemasukan' ? 'var(--emerald-2)' : 'var(--ink-soft)';
+            const tanggalFmt = t.tanggal ? new Date(t.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+            return `
+                <tr>
+                  <td>${tanggalFmt}</td>
+                  <td>${posNama}</td>
+                  <td><span style="color:${jenisColor}; font-weight:600;">${jenisLabel}</span></td>
+                  <td>Rp ${t.jumlah.toLocaleString('id-ID')}</td>
+                  <td>${t.keterangan || '—'}</td>
+                  <td style="white-space:nowrap;">
+                    ${t.hasBukti ? `<button class="btn btn-ghost btn-small" onclick="lihatBuktiTransaksi(${t.id})" title="Lihat Bukti">📷</button>` : ''}
+                    <button class="btn btn-ghost btn-small" onclick="hapusTransaksiKeuangan(${t.id})" title="Hapus">🗑️</button>
+                  </td>
+                </tr>`;
+        }).join('');
+    }
+
+    renderKeuanganRingkasan();
+}
+
+async function hapusTransaksiKeuangan(id) {
+    const item = appData.transaksiKeuangan.find(t => t.id === id);
+    if (!item) return;
+    if (!confirm(`Hapus transaksi sebesar Rp ${item.jumlah.toLocaleString('id-ID')} ini?`)) return;
+
+    const success = await updateSheetDB('TransaksiKeuangan', 'id', id, { status: 'batal' });
+    if (success) {
+        item.status = 'batal';
+        showAlert('Transaksi dihapus', 'success');
+        loadPosBudgetList();
+        loadTransaksiKeuanganList();
+    } else {
+        showAlert('Gagal menghapus transaksi, coba lagi.', 'error');
+    }
+}
+
+// Ambil foto bukti transaksi (base64) on-demand dari server - sama pola
+// dengan fetchPenerimaFotoData()/fetchSurveyFotoData (base64 sengaja tidak
+// ikut di load data biasa, lihat stripBuktiTransaksi di public/api/sheets.js).
+async function fetchBuktiTransaksiData(id) {
+    try {
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=TransaksiKeuangan&getFile=${id}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return data.fileData || '';
+    } catch (error) {
+        console.error('Error fetching bukti transaksi:', error);
+        return '';
+    }
+}
+
+// Reuse modal "previewModal" yang sama dengan preview bukti transfer/QR
+// tiket - lihat showPreview()/lihatQrPenerima().
+async function lihatBuktiTransaksi(id) {
+    const t = appData.transaksiKeuangan.find(x => x.id === id);
+    if (!t) return;
+    const pos = appData.posBudget.find(p => p.id === t.posId);
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+
+    title.textContent = `Bukti Transaksi - ${pos ? pos.nama : ''} (Rp ${t.jumlah.toLocaleString('id-ID')})`;
+    body.innerHTML = '<p style="color:var(--ink-faint); font-size:13px;">⏳ Memuat foto…</p>';
+    modal.classList.add('show');
+
+    const fotoData = await fetchBuktiTransaksiData(id);
+    if (!fotoData) {
+        body.innerHTML = '<p style="color:var(--brick); font-size:13px;">Gagal memuat foto.</p>';
+        return;
+    }
+    body.innerHTML = `<div style="text-align:center;"><img src="${fotoData}" class="preview-image" alt="Bukti transaksi" style="max-width:100%; border-radius:8px;"></div>`;
 }
 
 // ===== SURVEY SAPI - TAMPILAN ANGGOTA (read-only + tombol Ikut) =====
