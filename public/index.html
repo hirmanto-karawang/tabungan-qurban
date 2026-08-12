@@ -2914,6 +2914,7 @@
             Input jumlah AKTUAL saat hari pelaksanaan qurban, per alokasi per sapi. Qty di sini BEBAS (tidak dibatasi kuota rencana) karena di lapangan kadang tidak persis sesuai Work Order awal. Kolom "Qty Rencana (WO)" ditampilkan sebagai pembanding saja. Baris <strong>Mudhohi</strong> di paling atas khusus: Berat diisi manual (hasil timbang), Qty tetap 7, Selisih = Estimasi Hak Mudhohi − Aktual Penimbangan.
           </p>
         </div>
+        <div id="woAktualResume"></div>
         <div id="woAktualList"></div>
       </div>
 
@@ -4313,6 +4314,7 @@ function runTabDataLoaders(tabName) {
     }
     if (tabName === 'woAktual') {
         loadWoAktualList('woAktualList');
+            renderWoAktualResume('woAktualResume');
     }
     if (tabName === 'penerima') {
         populatePenerimaAlokasiSelect();
@@ -5736,6 +5738,116 @@ function loadWoAktualList(containerId) {
 
 // Update tampilan "Total Aktual" 1 baris (live, belum tersimpan) tiap kali
 // admin ngetik ulang Qty Aktual.
+// Resume/ringkasan Work Order Aktual - digabung 1 tabel supaya admin tidak
+// perlu buka kartu per sapi satu-satu. Baris Mudhohi diberi nomor urut
+// mengikuti jumlah sapi (Mudhohi #1, #2, #3, ...) karena tiap sapi punya
+// hasil timbang mudhohi sendiri-sendiri; baris alokasi lain (RT 1, Panitia,
+// dst) dijumlahkan (Qty & Total) dari SEMUA sapi karena nama alokasinya sama.
+function renderWoAktualResume(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (appData.surveySapi.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const rencanaAktif = appData.rencanaDistribusi.filter(r => r.status !== 'batal');
+    let grandTotal = 0;
+
+    const mudhohiRowsHtml = appData.surveySapi.map((s, idx) => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        const existingMudhohi = appData.workOrderAktual.find(d =>
+            d.status !== 'batal' && d.surveyId === s.id &&
+            (d.alokasi || '').trim().toLowerCase() === 'mudhohi'
+        );
+        const beratMudhohi = existingMudhohi ? existingMudhohi.berat : 0;
+        const totalMudhohiAktual = beratMudhohi * 7;
+        grandTotal += totalMudhohiAktual;
+        const estimasiMudhohiFull = k.hakMudhohi * 7;
+        const selisihMudhohi = estimasiMudhohiFull - totalMudhohiAktual;
+        const performaMudhohi = k.hakMudhohi > 0 ? (beratMudhohi / k.hakMudhohi * 100) : null;
+
+        let ketHtml;
+        if (!existingMudhohi) {
+            ketHtml = '<span style="color:var(--ink-faint);">Belum ditimbang</span>';
+        } else {
+            const performaText = performaMudhohi === null ? '—' : (Math.round(performaMudhohi * 10) / 10).toLocaleString('id-ID') + '%';
+            const pas = Math.abs(selisihMudhohi) <= 0.05;
+            const selisihColor = pas ? 'var(--emerald-2)' : (selisihMudhohi > 0 ? 'var(--gold)' : 'var(--brick)');
+            const selisihText = pas ? 'Pas' : (selisihMudhohi > 0 ? '+' + formatKg(selisihMudhohi) : formatKg(selisihMudhohi));
+            ketHtml = `Performa ${performaText} · Selisih <span style="color:${selisihColor}; font-weight:600;">${selisihText}</span>`;
+        }
+
+        return `
+            <tr style="background:var(--emerald-tint);">
+              <td><strong>Mudhohi #${idx + 1}</strong><div style="font-size:11px; color:var(--ink-faint);">${surveyKode(s)} · ${s.supplier || '—'}</div></td>
+              <td>${beratMudhohi ? formatKg(beratMudhohi) : '—'}</td>
+              <td>7</td>
+              <td><strong>${formatKg(totalMudhohiAktual)}</strong></td>
+              <td>${ketHtml}</td>
+            </tr>`;
+    }).join('');
+
+    let alokasiRowsHtml = '';
+    if (rencanaAktif.length > 0) {
+        alokasiRowsHtml = rencanaAktif.map(r => {
+            const namaLower = (r.alokasi || '').trim().toLowerCase();
+            let totalQtyAktual = 0;
+            let totalQtyRencana = 0;
+            appData.surveySapi.forEach(s => {
+                const existingAktual = appData.workOrderAktual.find(d =>
+                    d.status !== 'batal' && d.surveyId === s.id &&
+                    (d.alokasi || '').trim().toLowerCase() === namaLower
+                );
+                totalQtyAktual += existingAktual ? existingAktual.qty : 0;
+                const rencanaWO = appData.distribusiDaging.find(d =>
+                    d.status !== 'batal' && d.surveyId === s.id &&
+                    (d.alokasi || '').trim().toLowerCase() === namaLower
+                );
+                totalQtyRencana += rencanaWO ? rencanaWO.qty : 0;
+            });
+            const totalBerat = r.berat * totalQtyAktual;
+            grandTotal += totalBerat;
+            const selisih = totalQtyAktual - totalQtyRencana;
+            let ketHtml;
+            if (selisih === 0) {
+                ketHtml = `<span style="color:var(--emerald-2); font-weight:600;">Pas dgn rencana</span>`;
+            } else if (selisih > 0) {
+                ketHtml = `<span style="color:var(--gold); font-weight:600;">+${selisih.toLocaleString('id-ID')} dari rencana</span>`;
+            } else {
+                ketHtml = `<span style="color:var(--brick); font-weight:600;">${selisih.toLocaleString('id-ID')} dari rencana</span>`;
+            }
+            return `
+                <tr>
+                  <td>${r.alokasi || '—'}</td>
+                  <td>${r.berat.toLocaleString('id-ID')} kg</td>
+                  <td>${totalQtyAktual.toLocaleString('id-ID')}</td>
+                  <td><strong>${totalBerat.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
+                  <td>${ketHtml}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    container.innerHTML = `
+        <div class="card" style="max-width:820px; margin-top:20px;">
+          <h3 style="margin-top:0;">Resume Work Order Aktual</h3>
+          <p style="color:var(--ink-soft); font-size:13px; margin-top:-8px;">Ringkasan seluruh sapi (${appData.surveySapi.length} sapi) dalam satu tabel. Baris Mudhohi bernomor per sapi; baris alokasi lain dijumlahkan dari semua sapi.</p>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total Aktual</th><th>Keterangan</th></tr></thead>
+              <tbody>${mudhohiRowsHtml}${alokasiRowsHtml}</tbody>
+              <tfoot>
+                <tr style="background:var(--sand); font-weight:700;">
+                  <td colspan="3">Total Aktual Keseluruhan</td>
+                  <td colspan="2">${grandTotal.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>`;
+}
+
 function updateWoAktualRowTotal(surveyId, rencanaId, beratPerUnit) {
     const input = document.getElementById(`woAktualQty_${surveyId}_${rencanaId}`);
     const totalCell = document.getElementById(`woAktualRowTotal_${surveyId}_${rencanaId}`);
@@ -5803,6 +5915,7 @@ async function simpanWoAktualMudhohi(surveyId) {
             existing.alokasi = 'Mudhohi';
             showAlert('Berat Mudhohi disimpan', 'success');
             loadWoAktualList('woAktualList');
+            renderWoAktualResume('woAktualResume');
         } else {
             showAlert('Gagal menyimpan, coba lagi.', 'error');
         }
@@ -5833,6 +5946,7 @@ async function simpanWoAktualMudhohi(surveyId) {
         appData.workOrderAktual.push(record);
         showAlert('Berat Mudhohi disimpan', 'success');
         loadWoAktualList('woAktualList');
+            renderWoAktualResume('woAktualResume');
     } else {
         showAlert('Gagal menyimpan, coba lagi.', 'error');
     }
@@ -5863,6 +5977,7 @@ async function simpanWoAktualQty(surveyId, rencanaId) {
             existing.alokasi = r.alokasi;
             showAlert(`Qty Aktual "${r.alokasi}" disimpan`, 'success');
             loadWoAktualList('woAktualList');
+            renderWoAktualResume('woAktualResume');
         } else {
             showAlert('Gagal menyimpan, coba lagi.', 'error');
         }
@@ -5893,6 +6008,7 @@ async function simpanWoAktualQty(surveyId, rencanaId) {
         appData.workOrderAktual.push(record);
         showAlert(`Qty Aktual "${r.alokasi}" disimpan`, 'success');
         loadWoAktualList('woAktualList');
+            renderWoAktualResume('woAktualResume');
     } else {
         showAlert('Gagal menyimpan, coba lagi.', 'error');
     }
