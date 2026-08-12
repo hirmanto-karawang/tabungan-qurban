@@ -3004,7 +3004,11 @@
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:16px;">
             Total pemasukan &amp; pengeluaran dari semua Pos Budget yang aktif.
           </p>
-          <div id="keuanganRingkasan" class="survey-member-meta"></div>
+          <div id="keuanganRingkasan" class="report-sapi-detail"></div>
+          <div style="margin-top:20px; position:relative; height:220px;">
+            <canvas id="keuanganChart"></canvas>
+          </div>
+          <div id="keuanganChartEmpty" style="display:none; color:var(--ink-faint); font-size:13px; text-align:center; padding:20px 0;">Grafik tren muncul kalau transaksi sudah ada di minimal 2 tanggal berbeda.</div>
         </div>
 
         <div class="card" style="max-width:820px; margin-top:20px;">
@@ -3081,6 +3085,9 @@
 
         <div class="card" style="max-width:820px; margin-top:20px;">
           <h2>Riwayat Transaksi</h2>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:14px;">
+            Diurutkan kronologis (tanggal lama ke baru) dan ada kolom <strong>Saldo</strong> gaya buku kas - saldo kas keseluruhan setelah tiap transaksi, lintas Pos. Filter di bawah cuma mempersempit baris yang ditampilkan, saldo tetap dihitung dari semua transaksi.
+          </p>
           <div class="form-grid" style="margin-bottom:10px;">
             <div class="form-group">
               <label>Filter Pos</label>
@@ -3089,8 +3096,8 @@
           </div>
           <div class="table-container">
             <table>
-              <thead><tr><th>Tanggal</th><th>Pos</th><th>Jenis</th><th>Jumlah</th><th>Keterangan</th><th></th></tr></thead>
-              <tbody id="transaksiKeuanganListBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+              <thead><tr><th>Tanggal</th><th>Pos</th><th>Jenis</th><th>Jumlah</th><th>Saldo</th><th>Keterangan</th><th></th></tr></thead>
+              <tbody id="transaksiKeuanganListBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -6901,10 +6908,94 @@ function renderKeuanganRingkasan() {
     const saldoKas = totalRealisasiMasuk - totalRealisasiKeluar;
     const saldoColor = saldoKas >= 0 ? 'var(--emerald-2)' : 'var(--brick)';
 
+    // Pakai kelas kartu ".report-sapi-stat" yang sudah ada (dipakai di kartu
+    // statistik Laporan) - biar sekilas lihat langsung ngerti tanpa baca
+    // angka kecil, dgn ikon panah + warna hijau/merah yang konsisten.
     container.innerHTML = `
-        <div><span class="label">Total Pemasukan</span>Rp ${totalRealisasiMasuk.toLocaleString('id-ID')} <span style="color:var(--ink-faint); font-size:12px;">(target Rp ${totalAnggaranMasuk.toLocaleString('id-ID')})</span></div>
-        <div><span class="label">Total Pengeluaran</span>Rp ${totalRealisasiKeluar.toLocaleString('id-ID')} <span style="color:var(--ink-faint); font-size:12px;">(anggaran Rp ${totalAnggaranKeluar.toLocaleString('id-ID')})</span></div>
-        <div><span class="label">Saldo Kas</span><strong style="color:${saldoColor};">Rp ${saldoKas.toLocaleString('id-ID')}</strong></div>`;
+        <div class="report-sapi-stat">
+          <div class="report-sapi-stat-label">↑ Total Pemasukan</div>
+          <div class="report-sapi-stat-value" style="color:var(--emerald-2);">Rp ${totalRealisasiMasuk.toLocaleString('id-ID')}</div>
+          <div style="font-size:11px; color:var(--ink-faint); margin-top:4px;">target Rp ${totalAnggaranMasuk.toLocaleString('id-ID')}</div>
+        </div>
+        <div class="report-sapi-stat">
+          <div class="report-sapi-stat-label">↓ Total Pengeluaran</div>
+          <div class="report-sapi-stat-value" style="color:var(--brick);">Rp ${totalRealisasiKeluar.toLocaleString('id-ID')}</div>
+          <div style="font-size:11px; color:var(--ink-faint); margin-top:4px;">anggaran Rp ${totalAnggaranKeluar.toLocaleString('id-ID')}</div>
+        </div>
+        <div class="report-sapi-stat">
+          <div class="report-sapi-stat-label">Saldo Kas</div>
+          <div class="report-sapi-stat-value" style="color:${saldoColor};">Rp ${saldoKas.toLocaleString('id-ID')}</div>
+        </div>`;
+
+    renderKeuanganChart();
+}
+
+// Grafik tren Pemasukan vs Pengeluaran per tanggal (Chart.js, sama library
+// yg sudah dipakai di Laporan) - butuh minimal 2 tanggal berbeda supaya
+// grafiknya bermakna, kalau belum cukup data tampilkan pesan saja.
+let keuanganChart = null;
+
+function renderKeuanganChart() {
+    const canvas = document.getElementById('keuanganChart');
+    const emptyBox = document.getElementById('keuanganChartEmpty');
+    if (!canvas) return;
+
+    const aktif = appData.transaksiKeuangan.filter(t => t.status !== 'batal');
+    const byTanggal = {};
+    aktif.forEach(t => {
+        const pos = appData.posBudget.find(p => p.id === t.posId);
+        const jenisPos = pos ? pos.jenisPos : 'pengeluaran';
+        const key = t.tanggal || '—';
+        if (!byTanggal[key]) byTanggal[key] = { masuk: 0, keluar: 0 };
+        if (jenisPos === 'pemasukan') byTanggal[key].masuk += t.jumlah;
+        else byTanggal[key].keluar += t.jumlah;
+    });
+
+    const tanggalList = Object.keys(byTanggal).sort();
+
+    if (tanggalList.length < 2) {
+        canvas.style.display = 'none';
+        if (emptyBox) emptyBox.style.display = 'block';
+        if (keuanganChart) { keuanganChart.destroy(); keuanganChart = null; }
+        return;
+    }
+
+    canvas.style.display = 'block';
+    if (emptyBox) emptyBox.style.display = 'none';
+
+    const labels = tanggalList.map(t => new Date(t).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }));
+    const dataMasuk = tanggalList.map(t => byTanggal[t].masuk);
+    const dataKeluar = tanggalList.map(t => byTanggal[t].keluar);
+
+    const ctx = canvas.getContext('2d');
+    if (keuanganChart) keuanganChart.destroy();
+
+    keuanganChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Pemasukan', data: dataMasuk, backgroundColor: REPORT_COLORS.emerald2, borderRadius: 4 },
+                { label: 'Pengeluaran', data: dataKeluar, backgroundColor: REPORT_COLORS.brick, borderRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: Rp ${ctx.parsed.y.toLocaleString('id-ID')}` } }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: REPORT_COLORS.border, drawBorder: false },
+                    ticks: { callback: v => `${(v / 1000).toLocaleString('id-ID')}rb` }
+                }
+            }
+        }
+    });
 }
 
 function loadPosBudgetList() {
@@ -7160,16 +7251,28 @@ function loadTransaksiKeuanganList() {
 
     const filterPosId = parseInt(document.getElementById('riwayatTransaksiFilter')?.value) || 0;
 
-    let rows = appData.transaksiKeuangan.filter(t => t.status !== 'batal');
-    if (filterPosId) rows = rows.filter(t => t.posId === filterPosId);
-
-    rows = rows.slice().sort((a, b) => {
-        if (a.tanggal !== b.tanggal) return (b.tanggal || '').localeCompare(a.tanggal || '');
-        return b.id - a.id;
+    // Saldo Berjalan (gaya buku kas) SELALU dihitung dari SEMUA transaksi
+    // aktif lintas Pos, diurutkan kronologis tanggal lama -> baru - supaya
+    // angka saldo yg tampil = saldo kas KESELURUHAN pada saat transaksi itu
+    // terjadi, walau tabelnya sedang difilter ke 1 Pos saja.
+    const semuaAktif = appData.transaksiKeuangan.filter(t => t.status !== 'batal');
+    const kronologis = semuaAktif.slice().sort((a, b) => {
+        if (a.tanggal !== b.tanggal) return (a.tanggal || '').localeCompare(b.tanggal || '');
+        return a.id - b.id;
+    });
+    const saldoMap = {};
+    let saldoBerjalan = 0;
+    kronologis.forEach(t => {
+        const pos = appData.posBudget.find(p => p.id === t.posId);
+        const jenisPos = pos ? pos.jenisPos : 'pengeluaran';
+        saldoBerjalan += jenisPos === 'pemasukan' ? t.jumlah : -t.jumlah;
+        saldoMap[t.id] = saldoBerjalan;
     });
 
+    const rows = filterPosId ? kronologis.filter(t => t.posId === filterPosId) : kronologis;
+
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada transaksi.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada transaksi.</td></tr>';
     } else {
         tbody.innerHTML = rows.map(t => {
             const pos = appData.posBudget.find(p => p.id === t.posId);
@@ -7178,6 +7281,8 @@ function loadTransaksiKeuanganList() {
             const jenisLabel = jenisPos === 'pemasukan' ? 'Pemasukan' : 'Pengeluaran';
             const jenisColor = jenisPos === 'pemasukan' ? 'var(--emerald-2)' : 'var(--ink-soft)';
             const tanggalFmt = t.tanggal ? new Date(t.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+            const saldo = saldoMap[t.id] || 0;
+            const saldoColor = saldo >= 0 ? 'var(--emerald-2)' : 'var(--brick)';
 
             return `
                 <tr>
@@ -7185,6 +7290,7 @@ function loadTransaksiKeuanganList() {
                   <td>${posNama}</td>
                   <td><span style="color:${jenisColor}; font-weight:600;">${jenisLabel}</span></td>
                   <td>Rp ${t.jumlah.toLocaleString('id-ID')}</td>
+                  <td><strong style="color:${saldoColor};">Rp ${saldo.toLocaleString('id-ID')}</strong></td>
                   <td>${t.keterangan || '—'}</td>
                   <td style="white-space:nowrap;">
                     ${t.hasBukti ? `<button class="btn btn-ghost btn-small" onclick="lihatBuktiTransaksi(${t.id})" title="Lihat Bukti">📷</button>` : ''}
