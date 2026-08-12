@@ -3026,7 +3026,7 @@
             </div>
             <div class="form-group">
               <label>Jumlah Anggaran (Rp)</label>
-              <input type="number" id="posBudgetJumlah" placeholder="0" min="0" step="1000">
+              <input type="text" inputmode="numeric" id="posBudgetJumlah" placeholder="0" oninput="formatRupiahInput(this)">
             </div>
             <div class="form-group">
               <label>Keterangan (opsional)</label>
@@ -3062,7 +3062,7 @@
             </div>
             <div class="form-group">
               <label>Jumlah (Rp)</label>
-              <input type="number" id="transaksiJumlah" placeholder="0" min="0" step="1000">
+              <input type="text" inputmode="numeric" id="transaksiJumlah" placeholder="0" oninput="formatRupiahInput(this)">
             </div>
             <div class="form-group">
               <label>Keterangan (opsional)</label>
@@ -6851,6 +6851,20 @@ async function viewSurveyFotos(surveyId) {
 let editingPosBudgetId = null;
 let pendingBuktiTransaksiData = null;
 
+// Format tampilan angka Rupiah pakai titik ribuan LIVE saat mengetik (mis.
+// "1000000" -> "1.000.000") supaya admin tidak ragu-ragu hitung nol - input
+// field-nya sengaja type="text" (bukan number) karena browser tidak izinkan
+// karakter titik di input number. Angka asli (tanpa titik) diambil balik
+// lewat parseRupiahInput() saat form disimpan.
+function formatRupiahInput(el) {
+    const digitsOnly = el.value.replace(/\D/g, '');
+    el.value = digitsOnly ? parseInt(digitsOnly, 10).toLocaleString('id-ID') : '';
+}
+
+function parseRupiahInput(value) {
+    return parseInt(String(value || '').replace(/\D/g, ''), 10) || 0;
+}
+
 function hitungRealisasiPos(posId) {
     return appData.transaksiKeuangan
         .filter(t => t.status !== 'batal' && t.posId === posId)
@@ -6958,7 +6972,7 @@ function populateKeuanganPosSelect() {
 async function simpanPosBudget() {
     const nama = document.getElementById('posBudgetNama').value.trim();
     const jenisPos = document.getElementById('posBudgetJenis').value === 'pemasukan' ? 'pemasukan' : 'pengeluaran';
-    const jumlahAnggaran = parseInt(document.getElementById('posBudgetJumlah').value) || 0;
+    const jumlahAnggaran = parseRupiahInput(document.getElementById('posBudgetJumlah').value);
     const keterangan = document.getElementById('posBudgetKeterangan').value.trim();
 
     if (!nama) { showAlert('Nama Pos harus diisi', 'error'); return; }
@@ -7015,7 +7029,7 @@ function editPosBudget(id) {
     editingPosBudgetId = id;
     document.getElementById('posBudgetNama').value = item.nama;
     document.getElementById('posBudgetJenis').value = item.jenisPos;
-    document.getElementById('posBudgetJumlah').value = item.jumlahAnggaran;
+    document.getElementById('posBudgetJumlah').value = item.jumlahAnggaran.toLocaleString('id-ID');
     document.getElementById('posBudgetKeterangan').value = item.keterangan;
     document.getElementById('posBudgetEditId').value = id;
 
@@ -7095,7 +7109,7 @@ function pilihBuktiTransaksi(event) {
 async function simpanTransaksiKeuangan() {
     const posId = parseInt(document.getElementById('transaksiPosSelect').value) || 0;
     const tanggal = document.getElementById('transaksiTanggal').value || new Date().toISOString().slice(0, 10);
-    const jumlah = parseInt(document.getElementById('transaksiJumlah').value) || 0;
+    const jumlah = parseRupiahInput(document.getElementById('transaksiJumlah').value);
     const keterangan = document.getElementById('transaksiKeterangan').value.trim();
 
     const pos = appData.posBudget.find(p => p.id === posId && p.status !== 'batal');
