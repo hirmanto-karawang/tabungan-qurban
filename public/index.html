@@ -2809,100 +2809,177 @@
            Distribusi (Umum), dan Work Order per sapi. Dipisah dari tab
            Survey Sapi (yang isinya cuma data hasil survey sapi) supaya tidak
            terlalu panjang - dulunya semua ini jadi 1 tab bareng Survey Sapi. -->
+      <!-- Tampilan dibuat mengikuti pola tab Laporan (hero card + pill-tabs)
+           supaya enak dibaca - satu kartu besar utk ringkasan total, sisanya
+           dipecah jadi sub-tab (Estimasi/Rencana/Work Order) daripada 3 kartu
+           panjang ditumpuk. Angka hero DIHITUNG ULANG oleh renderDistribusiHero()
+           tiap kali tab ini dibuka (lihat runTabDataLoaders). -->
       <div id="distribusiDaging" class="tab-content">
         <div id="distribusiDagingAdminSection">
-        <div class="card" style="max-width:820px;">
-          <h3 style="margin-top:0;">Estimasi Distribusi Daging</h3>
-          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
-            Perkiraan pembagian daging tiap sapi buat rencana hari H - berdasarkan rumus yang sama dengan Ringkasan Perhitungan di form survey.
-          </p>
-          <div class="table-container">
-            <table>
-              <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
-              <tbody id="surveySapiDistribusiBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
-              <tfoot id="surveySapiDistribusiFoot"></tfoot>
-            </table>
+          <div class="report-hero">
+            <div class="report-hero-label">🥩 Total Estimasi Daging</div>
+            <div class="report-hero-total" id="distribusiHeroTotal">0 kg</div>
+            <div class="report-hero-stats">
+              <div class="report-hero-stat">
+                <div class="report-hero-stat-label">Share Warga</div>
+                <div class="report-hero-stat-value" id="distribusiHeroShareWarga">0 kg</div>
+              </div>
+              <div class="report-hero-stat">
+                <div class="report-hero-stat-label">Rencana Distribusi</div>
+                <div class="report-hero-stat-value" id="distribusiHeroRencana">0 kg</div>
+              </div>
+              <div class="report-hero-stat">
+                <div class="report-hero-stat-label">🐄 Jumlah Sapi</div>
+                <div class="report-hero-stat-value" id="distribusiHeroJumlahSapi">0</div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="card" style="max-width:820px; margin-top:20px;">
-          <h3 style="margin-top:0;">Rencana Distribusi Daging (Umum)</h3>
-          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
-            Hitungan kasar/awal, TIDAK terikat 1 sapi tertentu - dipakai buat estimasi cepat sebelum dirinci per sapi di Work Order. Kolom <strong>WO</strong> otomatis terisi dari total berat yang sudah dimasukkan di Work Order per sapi (dicocokkan dari nama Alokasi), dan <strong>B/L</strong> (Balance) = Rencana - WO.
-          </p>
-          <div id="rencanaDistribusiSummary" style="margin-bottom:18px;"></div>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Alokasi</label>
-              <input type="text" id="rencanaAlokasi" placeholder="Contoh: Warga, Kupon Biru, Panitia">
+          <div class="card report-card">
+            <div class="report-tabs">
+              <button class="report-tab-btn active" onclick="switchDistribusiTab('estimasi', this, 'admin')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h1a1 1 0 011 1v14M11 19V9a1 1 0 011-1h1a1 1 0 011 1v10M18 19v-6a1 1 0 011-1h1a1 1 0 011 1v6"/></svg>
+                <span>Estimasi Distribusi</span>
+              </button>
+              <button class="report-tab-btn" onclick="switchDistribusiTab('rencana', this, 'admin')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+                <span>Rencana (Umum)</span>
+              </button>
+              <button class="report-tab-btn" onclick="switchDistribusiTab('workOrder', this, 'admin')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                <span>Work Order Sapi</span>
+              </button>
             </div>
-            <div class="form-group">
-              <label>Berat per Unit (kg)</label>
-              <input type="number" id="rencanaBerat" placeholder="Contoh: 1.3" min="0" step="0.01">
-            </div>
-            <div class="form-group">
-              <label>Qty</label>
-              <input type="number" id="rencanaQty" placeholder="Contoh: 344" min="0" step="1">
-            </div>
-          </div>
-          <div class="actions" style="margin-bottom:18px;">
-            <button class="btn btn-success btn-small" id="rencanaSubmitBtn" onclick="simpanRencanaAlokasi()">+ Tambah Alokasi</button>
-            <button class="btn btn-ghost btn-small" id="rencanaCancelBtn" onclick="batalEditRencanaAlokasi()" style="display:none;">Batal Edit</button>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th><th>WO</th><th>B/L</th><th></th></tr></thead>
-              <tbody id="rencanaDistribusiBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
-              <tfoot id="rencanaDistribusiFoot"></tfoot>
-            </table>
-          </div>
-        </div>
 
-        <div style="max-width:820px; margin-top:20px;">
-          <h3 style="margin:0 0 4px;">Work Order Sapi</h3>
-          <p style="color:var(--ink-soft); font-size:14px; margin-top:0; margin-bottom:16px;">
-            Satu Work Order per sapi hasil survey - lengkap dengan rincian daging &amp; daftar penerima (mis. Mudhohi, RT, Panitia, Kupon). Berat per unit × Qty = Total, dihitung otomatis. Qty per alokasi dibatasi otomatis (lintas semua sapi) supaya tidak melebihi Qty di Rencana Distribusi Daging (Umum).
-          </p>
-          <div id="workOrderListAdmin"></div>
-        </div>
+            <div id="estimasiTab" class="sub-tab-content">
+              <h3>Estimasi Distribusi Daging</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Perkiraan pembagian daging tiap sapi buat rencana hari H - berdasarkan rumus yang sama dengan Ringkasan Perhitungan di form survey.
+              </p>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
+                  <tbody id="surveySapiDistribusiBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="surveySapiDistribusiFoot"></tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div id="rencanaTab" class="sub-tab-content" style="display:none;">
+              <h3>Rencana Distribusi Daging (Umum)</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Hitungan kasar/awal, TIDAK terikat 1 sapi tertentu - dipakai buat estimasi cepat sebelum dirinci per sapi di Work Order. Kolom <strong>WO</strong> otomatis terisi dari total berat yang sudah dimasukkan di Work Order per sapi (dicocokkan dari nama Alokasi), dan <strong>B/L</strong> (Balance) = Rencana - WO.
+              </p>
+              <div id="rencanaDistribusiSummary" style="margin-bottom:18px;"></div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Alokasi</label>
+                  <input type="text" id="rencanaAlokasi" placeholder="Contoh: Warga, Kupon Biru, Panitia">
+                </div>
+                <div class="form-group">
+                  <label>Berat per Unit (kg)</label>
+                  <input type="number" id="rencanaBerat" placeholder="Contoh: 1.3" min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                  <label>Qty</label>
+                  <input type="number" id="rencanaQty" placeholder="Contoh: 344" min="0" step="1">
+                </div>
+              </div>
+              <div class="actions" style="margin-bottom:18px;">
+                <button class="btn btn-success btn-small" id="rencanaSubmitBtn" onclick="simpanRencanaAlokasi()">+ Tambah Alokasi</button>
+                <button class="btn btn-ghost btn-small" id="rencanaCancelBtn" onclick="batalEditRencanaAlokasi()" style="display:none;">Batal Edit</button>
+              </div>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th><th>WO</th><th>B/L</th><th></th></tr></thead>
+                  <tbody id="rencanaDistribusiBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="rencanaDistribusiFoot"></tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div id="workOrderTab" class="sub-tab-content" style="display:none;">
+              <h3>Work Order Sapi</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:16px;">
+                Satu Work Order per sapi hasil survey - lengkap dengan rincian daging &amp; daftar penerima (mis. Mudhohi, RT, Panitia, Kupon). Berat per unit × Qty = Total, dihitung otomatis. Qty per alokasi dibatasi otomatis (lintas semua sapi) supaya tidak melebihi Qty di Rencana Distribusi Daging (Umum).
+              </p>
+              <div id="workOrderListAdmin"></div>
+            </div>
+          </div>
         </div>
 
         <div id="distribusiDagingMemberSection" style="display:none;">
-          <div class="card" style="max-width:820px;">
-            <h3 style="margin-top:0;">Estimasi Distribusi Daging</h3>
-            <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
-              Perkiraan pembagian daging tiap sapi hasil survey.
-            </p>
-            <div class="table-container">
-              <table>
-                <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
-                <tbody id="surveySapiDistribusiBodyMember"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
-                <tfoot id="surveySapiDistribusiFootMember"></tfoot>
-              </table>
+          <div class="report-hero">
+            <div class="report-hero-label">🥩 Total Estimasi Daging</div>
+            <div class="report-hero-total" id="distribusiHeroTotalMember">0 kg</div>
+            <div class="report-hero-stats">
+              <div class="report-hero-stat">
+                <div class="report-hero-stat-label">Share Warga</div>
+                <div class="report-hero-stat-value" id="distribusiHeroShareWargaMember">0 kg</div>
+              </div>
+              <div class="report-hero-stat">
+                <div class="report-hero-stat-label">Rencana Distribusi</div>
+                <div class="report-hero-stat-value" id="distribusiHeroRencanaMember">0 kg</div>
+              </div>
+              <div class="report-hero-stat">
+                <div class="report-hero-stat-label">🐄 Jumlah Sapi</div>
+                <div class="report-hero-stat-value" id="distribusiHeroJumlahSapiMember">0</div>
+              </div>
             </div>
           </div>
 
-          <div class="card" style="max-width:820px; margin-top:20px;">
-            <h3 style="margin-top:0;">Rencana Distribusi Daging (Umum)</h3>
-            <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
-              Hitungan kasar/awal yang disusun admin, tidak terikat 1 sapi tertentu. Kolom <strong>WO</strong> = total berat yang sudah masuk Work Order per sapi, <strong>B/L</strong> (Balance) = Rencana - WO.
-            </p>
-            <div id="rencanaDistribusiSummaryMember" style="margin-bottom:18px;"></div>
-            <div class="table-container">
-              <table>
-                <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th><th>WO</th><th>B/L</th></tr></thead>
-                <tbody id="rencanaDistribusiBodyMember"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
-                <tfoot id="rencanaDistribusiFootMember"></tfoot>
-              </table>
+          <div class="card report-card">
+            <div class="report-tabs">
+              <button class="report-tab-btn active" onclick="switchDistribusiTab('estimasi', this, 'member')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h1a1 1 0 011 1v14M11 19V9a1 1 0 011-1h1a1 1 0 011 1v10M18 19v-6a1 1 0 011-1h1a1 1 0 011 1v6"/></svg>
+                <span>Estimasi Distribusi</span>
+              </button>
+              <button class="report-tab-btn" onclick="switchDistribusiTab('rencana', this, 'member')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+                <span>Rencana (Umum)</span>
+              </button>
+              <button class="report-tab-btn" onclick="switchDistribusiTab('workOrder', this, 'member')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                <span>Work Order Sapi</span>
+              </button>
             </div>
-          </div>
 
-          <div style="max-width:820px; margin-top:20px;">
-            <h3 style="margin:0 0 4px;">Work Order Sapi</h3>
-            <p style="color:var(--ink-soft); font-size:14px; margin-top:0; margin-bottom:16px;">
-              Rincian daging &amp; daftar penerima tiap sapi yang disusun admin.
-            </p>
-            <div id="workOrderListMember"></div>
+            <div id="estimasiTabMember" class="sub-tab-content">
+              <h3>Estimasi Distribusi Daging</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Perkiraan pembagian daging tiap sapi hasil survey.
+              </p>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
+                  <tbody id="surveySapiDistribusiBodyMember"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="surveySapiDistribusiFootMember"></tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div id="rencanaTabMember" class="sub-tab-content" style="display:none;">
+              <h3>Rencana Distribusi Daging (Umum)</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Hitungan kasar/awal yang disusun admin, tidak terikat 1 sapi tertentu. Kolom <strong>WO</strong> = total berat yang sudah masuk Work Order per sapi, <strong>B/L</strong> (Balance) = Rencana - WO.
+              </p>
+              <div id="rencanaDistribusiSummaryMember" style="margin-bottom:18px;"></div>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th><th>WO</th><th>B/L</th></tr></thead>
+                  <tbody id="rencanaDistribusiBodyMember"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="rencanaDistribusiFootMember"></tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div id="workOrderTabMember" class="sub-tab-content" style="display:none;">
+              <h3>Work Order Sapi</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:16px;">
+                Rincian daging &amp; daftar penerima tiap sapi yang disusun admin.
+              </p>
+              <div id="workOrderListMember"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -4506,6 +4583,7 @@ function runTabDataLoaders(tabName) {
             loadRencanaDistribusiGlobal('rencanaDistribusiBodyMember', 'rencanaDistribusiFootMember', false);
             loadWorkOrderList('workOrderListMember', false);
         }
+        renderDistribusiHero();
     }
     if (tabName === 'woAktual') {
         loadWoAktualList('woAktualList');
@@ -5367,6 +5445,49 @@ function totalShareWargaSemuaSurvey() {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         return sum + k.shareWarga;
     }, 0);
+}
+
+// Pindah antar sub-tab (Estimasi Distribusi/Rencana Umum/Work Order Sapi) di
+// tab Distribusi Daging - sama pola dengan switchKeuanganTab()/switchLaporanTab().
+// Dipisah per scope ('admin'/'member') karena admin & member section punya
+// masing-masing set tombol+panel sendiri dalam 1 tab-content yang sama.
+function switchDistribusiTab(tabName, btn, scope) {
+    const suffix = scope === 'member' ? 'Member' : '';
+    const containerId = scope === 'member' ? 'distribusiDagingMemberSection' : 'distribusiDagingAdminSection';
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    container.querySelectorAll('.sub-tab-content').forEach(tab => tab.style.display = 'none');
+    const panel = document.getElementById(tabName + 'Tab' + suffix);
+    if (panel) panel.style.display = 'block';
+
+    container.querySelectorAll('.report-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+// Angka hero card (Total Estimasi Daging/Share Warga/Rencana Distribusi/
+// Jumlah Sapi) - dihitung sekali, dipakai buat isi hero admin & member
+// sekaligus (angkanya sama, cuma beda tempat tampil).
+function renderDistribusiHero() {
+    const jumlahSapi = appData.surveySapi.length;
+    let totalEstimasiDaging = 0;
+    appData.surveySapi.forEach(s => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        totalEstimasiDaging += k.estimasiDaging;
+    });
+    const totalShareWarga = totalShareWargaSemuaSurvey();
+    const totalRencana = appData.rencanaDistribusi
+        .filter(d => d.status !== 'batal')
+        .reduce((sum, d) => sum + d.berat * d.qty, 0);
+
+    ['', 'Member'].forEach(suffix => {
+        const totalEl = document.getElementById('distribusiHeroTotal' + suffix);
+        if (!totalEl) return;
+        totalEl.textContent = formatKg(totalEstimasiDaging);
+        document.getElementById('distribusiHeroShareWarga' + suffix).textContent = formatKg(totalShareWarga);
+        document.getElementById('distribusiHeroRencana' + suffix).textContent = formatKg(totalRencana);
+        document.getElementById('distribusiHeroJumlahSapi' + suffix).textContent = jumlahSapi.toLocaleString('id-ID');
+    });
 }
 
 // ===== RENCANA DISTRIBUSI DAGING (UMUM) - hitungan kasar, TIDAK terikat 1
