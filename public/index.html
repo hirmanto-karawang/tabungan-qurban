@@ -3774,6 +3774,63 @@ const SHEETDB_CONFIG = {
     ENDPOINT: '/api/sheets'
 };
 
+// ===== MULTI-TENANT (platform "1 kode, banyak masjid") =====
+// Slug masjid diambil dari segmen PERTAMA path URL, mis. situs dibuka di
+// "/dhafinul/apa-saja" -> slug "dhafinul". Path root ("/", tanpa slug) tetap
+// jalan seperti sebelumnya (mode legacy/single-tenant) - APP_CONFIG hardcoded
+// di atas dipakai apa adanya, TIDAK ada fetch config tambahan - supaya URL
+// live yang sudah beredar (tabungan-qurban-orpin.vercel.app) tidak berubah
+// perilaku sama sekali.
+function detectTenantFromPath() {
+    const seg = (window.location.pathname.split('/').filter(Boolean)[0] || '').toLowerCase();
+    // Slug valid cuma huruf kecil/angka/strip - kalau path pertama bukan pola
+    // itu (mis. "/manifest.json", "/api/..."), jangan dianggap tenant.
+    return /^[a-z0-9-]+$/.test(seg) ? seg : '';
+}
+const CURRENT_TENANT = detectTenantFromPath();
+
+// Ditempel ke setiap URL /api/sheets... - kosong ('') kalau mode legacy
+// (root path), "&tenant=slug" kalau mode multi-tenant.
+function tenantParam() {
+    return CURRENT_TENANT ? `&tenant=${encodeURIComponent(CURRENT_TENANT)}` : '';
+}
+
+// Ambil config publik masjid (nama, logo, rekening, dst) dari Registry lewat
+// backend, lalu timpa APP_CONFIG hardcoded di atas. Cuma jalan kalau ada
+// CURRENT_TENANT (mode multi-tenant) - di mode legacy langsung selesai tanpa
+// fetch tambahan. Return false kalau tenant tidak ditemukan/nonaktif, supaya
+// caller bisa tampilkan halaman error alih-alih app kosong yang membingungkan.
+async function loadTenantConfigIfNeeded() {
+    if (!CURRENT_TENANT) return true;
+    try {
+        const resp = await fetch(`${SHEETDB_CONFIG.ENDPOINT}?tenant=${encodeURIComponent(CURRENT_TENANT)}&config=1`);
+        if (!resp.ok) return false;
+        const config = await resp.json();
+        if (!config || !config.mosqueName) return false;
+        Object.assign(APP_CONFIG, config);
+        // appUrl dihitung dari origin+path saat ini (bukan dari Registry) -
+        // selalu akurat walau domain/subdomain berubah di kemudian hari.
+        APP_CONFIG.appUrl = `${window.location.origin}/${CURRENT_TENANT}`;
+        return true;
+    } catch (error) {
+        console.error('Gagal memuat config tenant:', error);
+        return false;
+    }
+}
+
+// Ditampilkan kalau slug di path tidak ketemu/nonaktif di Registry - dulu
+// dari sini user bisa tahu ini masalah URL, bukan app-nya rusak.
+function showTenantNotFoundScreen() {
+    document.body.innerHTML = `
+        <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; font-family:inherit;">
+          <div>
+            <div style="font-size:48px; margin-bottom:12px;">🕌</div>
+            <h2 style="margin:0 0 8px;">Masjid tidak ditemukan</h2>
+            <p style="color:#666; max-width:360px; margin:0 auto;">Alamat "<strong>${CURRENT_TENANT}</strong>" belum terdaftar atau belum aktif di platform ini. Cek kembali link yang diberikan admin masjid Anda.</p>
+          </div>
+        </div>`;
+}
+
 // Pengiriman WhatsApp (Fonnte) sekarang lewat proxy /api/wa-send supaya API
 // key Fonnte TIDAK pernah tampil di kode sisi browser (dulu sempat hardcoded
 // di sini - itu risiko keamanan karena siapapun bisa lihat lewat "View Source"
@@ -3898,7 +3955,7 @@ function normalizePhone(phone) {
 
 async function fetchSheetDBTable(tableName) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}${tenantParam()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -3918,7 +3975,7 @@ async function fetchSheetDBTable(tableName) {
 
 async function appendSheetDB(tableName, record) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=append`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=append${tenantParam()}`;
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -3945,7 +4002,7 @@ async function appendSheetDB(tableName, record) {
 
 async function updateSheetDB(tableName, keyColumn, keyValue, updates) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=update`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=update${tenantParam()}`;
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -3972,7 +4029,7 @@ async function updateSheetDB(tableName, keyColumn, keyValue, updates) {
 // daripada 5 request terpisah karena Spreadsheet cuma dibuka sekali di server.
 async function fetchAllSheetsBootstrap() {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?bootstrap=1`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?bootstrap=1${tenantParam()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -6887,7 +6944,7 @@ function cetakTiketPenerima(id) {
 // ikut di load data biasa, lihat stripPenerimaFoto di public/api/sheets.js).
 async function fetchPenerimaFotoData(id) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=PenerimaQR&getFile=${id}`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=PenerimaQR&getFile=${id}${tenantParam()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -7234,7 +7291,7 @@ function renderScanResult(type, html) {
 // fetchSavingFileData, base64 sengaja tidak ikut di load data biasa).
 async function fetchSurveyFotoData(surveyId, col) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=SurveySapi&getFile=${surveyId}&col=${col}`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=SurveySapi&getFile=${surveyId}&col=${col}${tenantParam()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -7759,7 +7816,7 @@ async function hapusTransaksiKeuangan(id) {
 // ikut di load data biasa, lihat stripBuktiTransaksi di public/api/sheets.js).
 async function fetchBuktiTransaksiData(id) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=TransaksiKeuangan&getFile=${id}`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=TransaksiKeuangan&getFile=${id}${tenantParam()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -9892,7 +9949,7 @@ Admin ${APP_CONFIG.mosqueName}`;
 // bisa besar dan bikin loading lambat kalau dikirim tiap kali untuk semua baris.
 async function fetchSavingFileData(savingsId) {
     try {
-        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=Savings&getFile=${savingsId}`;
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=Savings&getFile=${savingsId}${tenantParam()}`;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -11170,32 +11227,46 @@ function renderPrayerTimes(jadwal) {
 }
 
 // ===== INIT =====
-document.getElementById('uploadDate').valueAsDate = new Date();
-initFileDropzone();
-initPullToRefresh();
+// Dibungkus async IIFE supaya bisa nunggu loadTenantConfigIfNeeded() dulu
+// (fetch config masjid dari Registry, cuma jalan kalau CURRENT_TENANT ada -
+// mode legacy/root path selesai instan tanpa fetch tambahan) sebelum
+// applyBranding() & sisa init jalan - supaya nama/logo/rekening yang tampil
+// pertama kali sudah benar punya masjid yang bersangkutan, bukan sempat
+// kelihatan default lalu "loncat" begitu config-nya datang.
+(async function initApp() {
+    const tenantOk = await loadTenantConfigIfNeeded();
+    if (!tenantOk) {
+        showTenantNotFoundScreen();
+        return;
+    }
 
-// Terapkan identitas masjid (nama, logo, rekening) ke seluruh halaman dari
-// APP_CONFIG - supaya kustomisasi cukup edit satu tempat di atas, tidak
-// perlu cari-cari teks di HTML.
-applyBranding();
+    document.getElementById('uploadDate').valueAsDate = new Date();
+    initFileDropzone();
+    initPullToRefresh();
 
-// Kalau ada sesi login tersimpan (lihat SESSION_STORAGE_KEY), langsung
-// lanjutkan ke app tanpa lewat layar login - ini yang bikin pull-to-refresh
-// atau app dibuka ulang di HP tidak lagi terasa seperti "logout paksa".
-// Kalau tidak ada sesi tersimpan (benar-benar pertama kali/sudah logout),
-// tetap prefetch data di background seperti biasa supaya begitu user login
-// manual, datanya kemungkinan besar sudah siap.
-if (loadSavedSession()) {
-    restoreSession();
-} else {
-    ensureDataLoaded();
-}
+    // Terapkan identitas masjid (nama, logo, rekening) ke seluruh halaman dari
+    // APP_CONFIG - supaya kustomisasi cukup edit satu tempat di atas, tidak
+    // perlu cari-cari teks di HTML.
+    applyBranding();
 
-// Waktu sholat: tampil terlepas dari status login (info umum, bukan data
-// pribadi), dan di-refresh tiap menit supaya highlight "sholat berikutnya" +
-// hitung mundur tetap akurat tanpa perlu reload halaman.
-loadPrayerTimes();
-setInterval(loadPrayerTimes, 60000);
+    // Kalau ada sesi login tersimpan (lihat SESSION_STORAGE_KEY), langsung
+    // lanjutkan ke app tanpa lewat layar login - ini yang bikin pull-to-refresh
+    // atau app dibuka ulang di HP tidak lagi terasa seperti "logout paksa".
+    // Kalau tidak ada sesi tersimpan (benar-benar pertama kali/sudah logout),
+    // tetap prefetch data di background seperti biasa supaya begitu user login
+    // manual, datanya kemungkinan besar sudah siap.
+    if (loadSavedSession()) {
+        restoreSession();
+    } else {
+        ensureDataLoaded();
+    }
+
+    // Waktu sholat: tampil terlepas dari status login (info umum, bukan data
+    // pribadi), dan di-refresh tiap menit supaya highlight "sholat berikutnya" +
+    // hitung mundur tetap akurat tanpa perlu reload halaman.
+    loadPrayerTimes();
+    setInterval(loadPrayerTimes, 60000);
+})();
 </script>
 </body>
 </html>

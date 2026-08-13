@@ -12,12 +12,21 @@
 //   GOOGLE_CLIENT_ID
 //   GOOGLE_CLIENT_SECRET
 //   GOOGLE_REFRESH_TOKEN
-//   GOOGLE_SHEET_ID     - ID Google Sheet (lihat panduan setup: bagian antara
-//                         /d/ dan /edit di URL spreadsheet Anda)
+//   GOOGLE_SHEET_ID     - ID Google Sheet single-tenant lama (fallback kalau
+//                         request tidak bawa ?tenant=, lihat panduan setup:
+//                         bagian antara /d/ dan /edit di URL spreadsheet Anda)
+//   REGISTRY_SHEET_ID   - ID Google Sheet "Registry" (daftar semua masjid
+//                         platform multi-tenant, lihat komentar
+//                         REGISTRY_SHEET_ID di bawah) - opsional, cuma
+//                         wajib kalau mau pakai fitur multi-masjid.
 //
 // Endpoint & format request/response SENGAJA dibuat sama persis dengan Apps
-// Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
+// Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT.
+// Semua endpoint di bawah bisa ditambah "&tenant=<slug>" (mis. "&tenant=
+// dhafinul") buat nunjuk ke data masjid tertentu di platform multi-tenant -
+// tanpa "tenant", tetap jalan seperti biasa (mode single-tenant/legacy):
 //   GET  /api/sheets                          -> { status: 'API is running' }
+//   GET  /api/sheets?tenant=<slug>&config=1   -> config publik masjid (nama, logo, rekening, dst)
 //   GET  /api/sheets?sheet=Members             -> array of objects
 //   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
@@ -30,6 +39,67 @@
 // lain yang deploy ulang project ini WAJIB set GOOGLE_SHEET_ID di Vercel ke
 // ID spreadsheet mereka sendiri - jangan pakai ID di bawah ini.
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgEAOlBJfBwjcH4Q';
+
+// ===== MULTI-TENANT (platform "1 kode, banyak masjid") =====
+// REGISTRY_SHEET_ID menunjuk ke 1 Google Sheet KHUSUS yang cuma dipegang
+// Super Admin (bukan Sheet data masjid manapun) - isinya daftar semua masjid
+// yang pakai platform ini, 1 baris = 1 masjid, kolom (header baris 1):
+//   slug | status | mosqueName | mosqueShortName | logoFile | locationName |
+//   prayerLocationId | bankName | bankCode | bankAccountNumber |
+//   bankAccountNumberDisplay | bankAccountHolder | qurbanTarget | sheetId |
+//   fonnteApiKey | createdDate
+// "slug" dipakai di path URL (mis. /dhafinul, /annurlam) buat nentuin masjid
+// mana yang sedang diakses. "sheetId" = ID Google Sheet DATA masjid itu
+// (skema persis sama dengan SHEET_NAMES di bawah - bukan Registry-nya).
+// "status" != 'aktif' dianggap tenant nonaktif/belum siap, ditolak.
+// Kalau request TIDAK bawa parameter ?tenant=, fallback ke SHEET_ID di atas
+// (mode single-tenant lama) - supaya deployment yang belum di-migrasi ke
+// Registry tetap jalan seperti biasa selama masa transisi.
+const REGISTRY_SHEET_ID = process.env.REGISTRY_SHEET_ID || '';
+const REGISTRY_SHEET_NAME = 'Registry';
+const REGISTRY_TTL_MS = 30000; // Registry jarang berubah, cache lebih lama dari bootstrap biasa
+let registryCache = null;
+let registryCacheAt = 0;
+
+async function loadRegistry(accessToken) {
+  if (registryCache && (Date.now() - registryCacheAt) < REGISTRY_TTL_MS) return registryCache;
+  const data = await sheetsFetch(REGISTRY_SHEET_ID, `/values/${encodeURIComponent(REGISTRY_SHEET_NAME)}`, accessToken);
+  const rows = valuesToObjects(data.values || []);
+  registryCache = rows;
+  registryCacheAt = Date.now();
+  return rows;
+}
+
+// Cari 1 baris tenant by slug (case-insensitive). null kalau tidak ada atau
+// statusnya bukan 'aktif'. Butuh REGISTRY_SHEET_ID ke-set di env var Vercel.
+async function resolveTenant(tenantSlug, accessToken) {
+  if (!tenantSlug || !REGISTRY_SHEET_ID) return null;
+  const rows = await loadRegistry(accessToken);
+  const tenant = rows.find(r => (r.slug || '').toString().trim().toLowerCase() === tenantSlug.toString().trim().toLowerCase());
+  if (!tenant) return null;
+  if ((tenant.status || '').toString().trim().toLowerCase() !== 'aktif') return null;
+  return tenant;
+}
+
+// Subset field yang aman dikirim ke browser - "sheetId" & "fonnteApiKey"
+// SENGAJA tidak pernah ikut terkirim ke frontend (internal-only, dipakai
+// server-side saja).
+function tenantConfigPublicFields(tenant) {
+  return {
+    slug: tenant.slug || '',
+    mosqueName: tenant.mosqueName || '',
+    mosqueShortName: tenant.mosqueShortName || '',
+    logoFile: tenant.logoFile || '',
+    locationName: tenant.locationName || '',
+    prayerLocationId: tenant.prayerLocationId || '',
+    bankName: tenant.bankName || '',
+    bankCode: tenant.bankCode || '',
+    bankAccountNumber: tenant.bankAccountNumber || '',
+    bankAccountNumberDisplay: tenant.bankAccountNumberDisplay || '',
+    bankAccountHolder: tenant.bankAccountHolder || '',
+    qurbanTarget: parseInt(tenant.qurbanTarget) || 0
+  };
+}
 // 'SurveyPeserta' menyimpan siapa saja anggota yang klik "Ikut" di sebuah
 // survey sapi (kolom: id, surveyId, memberId, memberName, phone, created_date)
 // - dipakai untuk menampilkan list peserta grup sapi ke sesama anggota.
@@ -135,17 +205,22 @@ async function getAccessToken() {
 }
 
 // ----- Cache hasil bootstrap di memori, TTL pendek (mirip CacheService di Apps Script) -----
-let bootstrapCache = null;
-let bootstrapCacheAt = 0;
+// Di-key per tenant slug ('default' utk mode single-tenant lama) supaya data
+// masjid A tidak pernah ke-cache-tertukar dengan masjid B di instance
+// function yang sama.
+let bootstrapCacheStore = {};
 const BOOTSTRAP_TTL_MS = 12000;
 
-function invalidateBootstrapCache() {
-  bootstrapCache = null;
+function invalidateBootstrapCache(tenantKey) {
+  delete bootstrapCacheStore[tenantKey || 'default'];
 }
 
 // ----- Helper: panggil Google Sheets API v4 -----
-async function sheetsFetch(path, accessToken, options = {}) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}${path}`;
+// "sheetId" WAJIB dioper eksplisit (bukan baca SHEET_ID global lagi) supaya
+// 1 handler yang sama bisa melayani banyak masjid sekaligus, tiap request
+// bisa nunjuk ke spreadsheet DATA masjid yang berbeda-beda (lihat resolveTenant()).
+async function sheetsFetch(sheetId, path, accessToken, options = {}) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}${path}`;
   const resp = await fetch(url, {
     ...options,
     headers: {
@@ -188,8 +263,8 @@ function columnToLetter(colIndexZeroBased) {
 // Baca 1 sheet penuh -> array of objects. Untuk Savings, fileData (base64 foto
 // bukti, bisa besar) DIBUANG dan diganti flag hasFile - sama seperti versi
 // Apps Script sebelumnya, supaya list/bootstrap tetap ringan & cepat.
-async function readSheet(sheetName, accessToken) {
-  const data = await sheetsFetch(`/values/${encodeURIComponent(sheetName)}`, accessToken);
+async function readSheet(sheetId, sheetName, accessToken) {
+  const data = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName)}`, accessToken);
   let rows = valuesToObjects(data.values || []);
   if (sheetName === 'Savings') {
     rows = rows.map(row => {
@@ -209,10 +284,10 @@ async function readSheet(sheetName, accessToken) {
   return rows;
 }
 
-async function readAllSheetsBatch(accessToken) {
+async function readAllSheetsBatch(sheetId, accessToken) {
   try {
     const rangesQuery = SHEET_NAMES.map(n => `ranges=${encodeURIComponent(n)}`).join('&');
-    const data = await sheetsFetch(`/values:batchGet?${rangesQuery}`, accessToken);
+    const data = await sheetsFetch(sheetId, `/values:batchGet?${rangesQuery}`, accessToken);
     const result = {};
     SHEET_NAMES.forEach((name, idx) => {
       const valueRange = data.valueRanges[idx];
@@ -246,7 +321,7 @@ async function readAllSheetsBatch(accessToken) {
     const result = {};
     await Promise.all(SHEET_NAMES.map(async (name) => {
       try {
-        result[name] = await readSheet(name, accessToken);
+        result[name] = await readSheet(sheetId, name, accessToken);
       } catch (innerErr) {
         console.error(`Sheet "${name}" gagal dibaca (mungkin belum dibuat):`, innerErr.message);
         result[name] = [];
@@ -256,9 +331,9 @@ async function readAllSheetsBatch(accessToken) {
   }
 }
 
-async function appendRow(sheetName, record, accessToken) {
+async function appendRow(sheetId, sheetName, record, accessToken) {
   // Ambil header dulu buat tahu urutan kolom
-  const headerData = await sheetsFetch(`/values/${encodeURIComponent(sheetName)}!1:1`, accessToken);
+  const headerData = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName)}!1:1`, accessToken);
   const headers = (headerData.values && headerData.values[0]) || [];
   const newRow = headers.map(h => (record[h] !== undefined ? record[h] : ''));
 
@@ -275,14 +350,15 @@ async function appendRow(sheetName, record, accessToken) {
   // valueInputOption=RAW penting: supaya nilai seperti "0812..." TIDAK diubah
   // jadi angka (dan kehilangan 0 di depan) oleh Google Sheets.
   await sheetsFetch(
+    sheetId,
     `/values/${appendRange}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     accessToken,
     { method: 'POST', body: JSON.stringify({ values: [newRow] }) }
   );
 }
 
-async function updateRows(sheetName, keyColumn, keyValue, updates, accessToken) {
-  const data = await sheetsFetch(`/values/${encodeURIComponent(sheetName)}`, accessToken);
+async function updateRows(sheetId, sheetName, keyColumn, keyValue, updates, accessToken) {
+  const data = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName)}`, accessToken);
   const values = data.values || [];
   if (values.length === 0) return { success: false, updated: 0 };
 
@@ -312,7 +388,7 @@ async function updateRows(sheetName, keyColumn, keyValue, updates, accessToken) 
 
   if (updatedCount === 0) return { success: false, updated: 0 };
 
-  await sheetsFetch(`/values:batchUpdate`, accessToken, {
+  await sheetsFetch(sheetId, `/values:batchUpdate`, accessToken, {
     method: 'POST',
     body: JSON.stringify({ valueInputOption: 'RAW', data: batchData })
   });
@@ -324,8 +400,8 @@ async function updateRows(sheetName, keyColumn, keyValue, updates, accessToken) 
 // via kolom "id") di sheet manapun. Dipakai baik oleh Savings!fileData maupun
 // SurveySapi!foto1..foto5 - keduanya sama-sama "kolom berat" yang sengaja
 // dibuang dari list biasa dan diambil satu-satu on-demand (lihat readSheet).
-async function getFileData(sheetName, recordId, accessToken, columnName) {
-  const data = await sheetsFetch(`/values/${encodeURIComponent(sheetName)}`, accessToken);
+async function getFileData(sheetId, sheetName, recordId, accessToken, columnName) {
+  const data = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName)}`, accessToken);
   const values = data.values || [];
   if (values.length === 0) return '';
   const headers = values[0];
@@ -355,45 +431,73 @@ module.exports = async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
-    const { sheet, bootstrap, getFile, action, col } = req.query;
+    const { sheet, bootstrap, getFile, action, col, tenant, config } = req.query;
+
+    // ----- Resolve tenant (platform multi-masjid) -----
+    // Ada "tenant" di query -> WAJIB ketemu di Registry & statusnya 'aktif',
+    // pakai Sheet DATA masjid itu. Tidak ada "tenant" -> mode single-tenant
+    // lama, pakai SHEET_ID (env var GOOGLE_SHEET_ID / fallback Dhafinul),
+    // supaya deployment yang belum sempat migrasi ke Registry tetap jalan.
+    let targetSheetId = SHEET_ID;
+    let tenantRow = null;
+    if (tenant) {
+      tenantRow = await resolveTenant(tenant, accessToken);
+      if (!tenantRow) {
+        return res.status(404).json({ error: `Masjid "${tenant}" tidak ditemukan atau belum aktif` });
+      }
+      if (!tenantRow.sheetId) {
+        return res.status(500).json({ error: `Masjid "${tenant}" belum punya Sheet data (kolom sheetId kosong di Registry)` });
+      }
+      targetSheetId = tenantRow.sheetId;
+    }
+    const cacheKey = tenant || 'default';
 
     if (req.method === 'GET') {
+      // Config publik masjid (nama, logo, rekening, dst) - dipakai frontend
+      // buat isi APP_CONFIG saat boot, sebelum login. WAJIB pakai ?tenant=.
+      if (config) {
+        if (!tenantRow) {
+          return res.status(400).json({ error: 'Parameter tenant wajib diisi utk ambil config, contoh: ?tenant=dhafinul&config=1' });
+        }
+        return res.status(200).json(tenantConfigPublicFields(tenantRow));
+      }
+
       if (sheet === 'Savings' && getFile) {
-        const fileData = await getFileData('Savings', getFile, accessToken, 'fileData');
+        const fileData = await getFileData(targetSheetId, 'Savings', getFile, accessToken, 'fileData');
         return res.status(200).json({ id: getFile, fileData });
       }
 
       if (sheet === 'SurveySapi' && getFile) {
         const columnName = SURVEY_FOTO_COLUMNS.includes(col) ? col : 'foto1';
-        const fileData = await getFileData('SurveySapi', getFile, accessToken, columnName);
+        const fileData = await getFileData(targetSheetId, 'SurveySapi', getFile, accessToken, columnName);
         return res.status(200).json({ id: getFile, col: columnName, fileData });
       }
 
       if (sheet === 'PenerimaQR' && getFile) {
-        const fileData = await getFileData('PenerimaQR', getFile, accessToken, 'fotoAmbil');
+        const fileData = await getFileData(targetSheetId, 'PenerimaQR', getFile, accessToken, 'fotoAmbil');
         return res.status(200).json({ id: getFile, fileData });
       }
 
       if (sheet === 'TransaksiKeuangan' && getFile) {
-        const fileData = await getFileData('TransaksiKeuangan', getFile, accessToken, 'bukti');
+        const fileData = await getFileData(targetSheetId, 'TransaksiKeuangan', getFile, accessToken, 'bukti');
         return res.status(200).json({ id: getFile, fileData });
       }
 
       if (bootstrap) {
-        if (bootstrapCache && (Date.now() - bootstrapCacheAt) < BOOTSTRAP_TTL_MS) {
-          return res.status(200).json(bootstrapCache);
+        const cached = bootstrapCacheStore[cacheKey];
+        if (cached && (Date.now() - cached.at) < BOOTSTRAP_TTL_MS) {
+          return res.status(200).json(cached.data);
         }
-        const data = await readAllSheetsBatch(accessToken);
-        bootstrapCache = data;
-        bootstrapCacheAt = Date.now();
+        const data = await readAllSheetsBatch(targetSheetId, accessToken);
+        bootstrapCacheStore[cacheKey] = { data, at: Date.now() };
         return res.status(200).json(data);
       }
 
       if (!sheet) {
-        return res.status(200).json({ status: 'API is running', timestamp: new Date() });
+        return res.status(200).json({ status: 'API is running', timestamp: new Date(), tenant: tenant || null });
       }
 
-      const rows = await readSheet(sheet, accessToken);
+      const rows = await readSheet(targetSheetId, sheet, accessToken);
       return res.status(200).json(rows);
     }
 
@@ -408,14 +512,14 @@ module.exports = async function handler(req, res) {
       }
       if (!body) body = {};
 
-      invalidateBootstrapCache();
+      invalidateBootstrapCache(cacheKey);
 
       if (action === 'update') {
         const { keyColumn, keyValue, updates } = body;
-        const result = await updateRows(sheet, keyColumn, keyValue, updates || {}, accessToken);
+        const result = await updateRows(targetSheetId, sheet, keyColumn, keyValue, updates || {}, accessToken);
         return res.status(200).json(result);
       } else {
-        await appendRow(sheet, body, accessToken);
+        await appendRow(targetSheetId, sheet, body, accessToken);
         return res.status(200).json({ success: true, created: true });
       }
     }
