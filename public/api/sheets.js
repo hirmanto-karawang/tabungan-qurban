@@ -467,6 +467,10 @@ module.exports = async function handler(req, res) {
       if (!saBody) saBody = {};
 
       // Submit pengajuan baru dari landing page - publik, TANPA password.
+      // Kolom bank (bankName/bankAccountNumber/bankAccountHolder) sengaja
+      // ditampung di sini juga - dipakai langsung isi Registry begitu
+      // pengajuan di-approve (lihat aksi "approve" di bawah), supaya Super
+      // Admin tidak perlu ketik ulang info rekening masjid baru secara manual.
       if (superadmin === 'submit') {
         const record = {
           ref: saBody.ref || '',
@@ -476,7 +480,9 @@ module.exports = async function handler(req, res) {
           namaKontak: saBody.namaKontak || '',
           posisiKontak: saBody.posisiKontak || '',
           teleponKontak: saBody.teleponKontak || '',
-          emailKontak: saBody.emailKontak || '',
+          bankName: saBody.bankName || '',
+          bankAccountNumber: saBody.bankAccountNumber || '',
+          bankAccountHolder: saBody.bankAccountHolder || '',
           paket: saBody.paketPilih || '',
           anggaran: saBody.budget || '',
           target: saBody.timeline || '',
@@ -489,7 +495,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
-      // Aksi lain (list, updateStatus) WAJIB password Super Admin yang benar.
+      // Aksi lain (list, approve, updateStatus) WAJIB password Super Admin yang benar.
       if (!SUPERADMIN_PASSWORD || saBody.password !== SUPERADMIN_PASSWORD) {
         return res.status(401).json({ error: 'Password Super Admin salah' });
       }
@@ -497,6 +503,55 @@ module.exports = async function handler(req, res) {
       if (superadmin === 'list') {
         const rows = await readSheet(REGISTRY_SHEET_ID, PENDAFTARAN_MASJID_SHEET, accessToken);
         return res.status(200).json(rows);
+      }
+
+      // Approve = tandai pengajuan "approved" DAN langsung bikin baris baru
+      // di Registry (tab "Registry") dari data pengajuan - supaya Super Admin
+      // tidak perlu ketik ulang manual. Status tenant baru sengaja BUKAN
+      // 'aktif' (dipakai 'pending_setup') karena "sheetId" (Sheet data masjid
+      // itu sendiri, terpisah dari Registry) belum ada - masih harus dibuatkan
+      // manual, baru status diubah ke 'aktif' kalau semua sudah siap.
+      if (superadmin === 'approve') {
+        const { ref } = saBody;
+        if (!ref) return res.status(400).json({ error: 'ref wajib diisi' });
+
+        const pendaftaranRows = await readSheet(REGISTRY_SHEET_ID, PENDAFTARAN_MASJID_SHEET, accessToken);
+        const row = pendaftaranRows.find(r => String(r.ref || '') === String(ref));
+        if (!row) return res.status(404).json({ error: `Pengajuan dengan ref "${ref}" tidak ditemukan` });
+
+        let baseSlug = (row.namaMasjid || '').toString().trim().toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        if (!baseSlug) baseSlug = 'masjid-' + Date.now();
+
+        const registryRows = await loadRegistry(accessToken);
+        let slug = baseSlug, n = 2;
+        while (registryRows.some(t => (t.slug || '').toString().trim().toLowerCase() === slug)) {
+          slug = `${baseSlug}-${n}`;
+          n++;
+        }
+
+        await appendRow(REGISTRY_SHEET_ID, REGISTRY_SHEET_NAME, {
+          slug,
+          status: 'pending_setup',
+          mosqueName: row.namaMasjid || '',
+          mosqueShortName: row.namaMasjid || '',
+          logoFile: '',
+          locationName: row.kota || '',
+          prayerLocationId: '',
+          bankName: row.bankName || '',
+          bankCode: '',
+          bankAccountNumber: row.bankAccountNumber || '',
+          bankAccountNumberDisplay: row.bankAccountNumber || '',
+          bankAccountHolder: row.bankAccountHolder || '',
+          qurbanTarget: 0,
+          sheetId: '',
+          fonnteApiKey: '',
+          createdDate: new Date().toISOString()
+        }, accessToken);
+        registryCache = null; // biar baris baru ini langsung kebaca, tidak nunggu TTL cache
+
+        await updateRows(REGISTRY_SHEET_ID, PENDAFTARAN_MASJID_SHEET, 'ref', ref, { status: 'approved' }, accessToken);
+        return res.status(200).json({ success: true, slug });
       }
 
       if (superadmin === 'updateStatus') {

@@ -952,6 +952,8 @@ button{background:none;border:none;cursor:pointer;}
             <div class="srow"><span class="k">Masjid</span><span class="v none" data-sum="namaOrg">belum diisi</span></div>
             <div class="srow"><span class="k">Kota</span><span class="v none" data-sum="kotaOrg">belum diisi</span></div>
             <div class="srow"><span class="k">Jamaah</span><span class="v none" data-sum="jumlahJamaah">belum diisi</span></div>
+            <div class="srow"><span class="k">Bank</span><span class="v none" data-sum="bankName">belum diisi</span></div>
+            <div class="srow"><span class="k">No. Rekening</span><span class="v none" data-sum="bankAccountNumber">belum diisi</span></div>
             <div class="srow"><span class="k">Logo</span><span class="v none" data-sum="logo">belum diunggah</span></div>
             <div class="srow"><span class="k">Kontak</span><span class="v none" data-sum="namaKontak">belum diisi</span></div>
             <div class="srow"><span class="k">WhatsApp</span><span class="v none" data-sum="teleponKontak">belum diisi</span></div>
@@ -984,6 +986,20 @@ button{background:none;border:none;cursor:pointer;}
             </div>
             <div class="f"><label for="alamatOrg">Alamat lengkap</label>
               <textarea id="alamatOrg" name="alamatOrg" placeholder="Jl. ... No. ..."></textarea></div>
+
+            <div class="f"><label for="bankName">Bank rekening tujuan masjid *</label>
+              <select id="bankName" name="bankName" required>
+                <option value="">— Pilih Bank —</option>
+                <option>BCA</option><option>BRI</option><option>Mandiri</option><option>BNI</option>
+                <option>BSI</option><option>BTN</option><option>CIMB Niaga</option><option>Danamon</option>
+                <option>Permata</option><option>BJB</option><option>Muamalat</option><option>Lainnya</option>
+              </select></div>
+            <div class="frow">
+              <div class="f"><label for="bankAccountNumber">Nomor rekening *</label>
+                <input id="bankAccountNumber" name="bankAccountNumber" type="text" inputmode="numeric" placeholder="Tanpa spasi" required></div>
+              <div class="f"><label for="bankAccountHolder">Atas nama rekening *</label>
+                <input id="bankAccountHolder" name="bankAccountHolder" type="text" placeholder="Sesuai buku tabungan" required></div>
+            </div>
 
             <div class="f">
               <label for="logoFile">Logo masjid (opsional)</label>
@@ -1020,8 +1036,6 @@ button{background:none;border:none;cursor:pointer;}
               </select></div>
             <div class="f"><label for="teleponKontak">Nomor WhatsApp *</label>
               <input id="teleponKontak" name="teleponKontak" type="tel" inputmode="tel" placeholder="62812xxxxxxx" autocomplete="tel" required></div>
-            <div class="f"><label for="emailKontak">Email *</label>
-              <input id="emailKontak" name="emailKontak" type="email" inputmode="email" placeholder="nama@email.com" autocomplete="email" required></div>
             <div class="f"><label for="waktuHubung">Waktu enak dihubungi</label>
               <select id="waktuHubung" name="waktuHubung">
                 <option value="">Kapan saja</option>
@@ -1397,7 +1411,7 @@ $('#lfX').addEventListener('click',()=>{
 
 /* ══ RINGKASAN ══ */
 const form=$('#woForm');
-const FIELDS=['namaOrg','kotaOrg','jumlahJamaah','namaKontak','teleponKontak','paketPilih'];
+const FIELDS=['namaOrg','kotaOrg','jumlahJamaah','bankName','bankAccountNumber','namaKontak','teleponKontak','paketPilih'];
 $$('[data-sum]').forEach(el=>el.dataset.ph=el.textContent);
 
 function syncSummary(){
@@ -1493,8 +1507,8 @@ function waLink(d){
     'Masjid: '+(d.namaOrg||'-'),
     'Kota: '+(d.kotaOrg||'-'),
     'Jamaah: '+(d.jumlahJamaah||'-'),
+    'Rekening: '+(d.bankName||'-')+' '+(d.bankAccountNumber||'-')+' a.n. '+(d.bankAccountHolder||'-'),
     'Nama: '+(d.namaKontak||'-')+' ('+(d.posisiKontak||'-')+')',
-    'Email: '+(d.emailKontak||'-'),
     'Paket: '+(d.paketPilih||'-'),
     'Anggaran: '+(d.budget||'-'),
     'Target: '+(d.timeline||'-'),

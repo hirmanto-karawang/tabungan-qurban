@@ -185,7 +185,8 @@ function render(){
         <div class="f"><div class="k">Perkiraan jamaah</div><div class="v">${esc(r.jumlahJamaah || '-')}</div></div>
         <div class="f"><div class="k">Nama kontak</div><div class="v">${esc(r.namaKontak || '-')} (${esc(r.posisiKontak || '-')})</div></div>
         <div class="f"><div class="k">WhatsApp</div><div class="v">${esc(r.teleponKontak || '-')}${wa ? `<br><a class="wa-link" href="${wa}" target="_blank" rel="noopener">Chat WhatsApp →</a>` : ''}</div></div>
-        <div class="f"><div class="k">Email</div><div class="v"><a href="mailto:${esc(r.emailKontak)}">${esc(r.emailKontak || '-')}</a></div></div>
+        <div class="f"><div class="k">Bank rekening masjid</div><div class="v">${esc(r.bankName || '-')}</div></div>
+        <div class="f"><div class="k">No. Rekening (a.n.)</div><div class="v">${esc(r.bankAccountNumber || '-')} (${esc(r.bankAccountHolder || '-')})</div></div>
         <div class="f"><div class="k">Paket diminati</div><div class="v">${esc(r.paket || '-')}</div></div>
         <div class="f"><div class="k">Anggaran</div><div class="v">${esc(r.anggaran || '-')}</div></div>
         <div class="f"><div class="k">Target selesai</div><div class="v">${esc(r.target || '-')}</div></div>
@@ -207,10 +208,20 @@ function render(){
       const status = btn.dataset.act;
       $$('.btn', card).forEach(b => b.disabled = true);
       try {
-        await callApi('updateStatus', { ref, status });
-        const row = rows.find(r => r.ref === ref);
-        if (row) row.status = status;
-        render();
+        if (status === 'approved') {
+          // "approve" (bukan updateStatus biasa) - backend sekaligus bikin
+          // baris baru di Registry dari data pengajuan ini (nama, kota, bank).
+          const result = await callApi('approve', { ref });
+          const row = rows.find(r => r.ref === ref);
+          if (row) row.status = 'approved';
+          render();
+          alert(`Disetujui. Masjid terdaftar di Registry dengan slug "${result.slug}" (status: pending_setup).\n\nLangkah selanjutnya di Registry Sheet: buat Google Sheet data masjid ini, isi kolom sheetId, unggah logo (kolom logoFile), lalu ubah status jadi "aktif" supaya /${result.slug} bisa diakses.`);
+        } else {
+          await callApi('updateStatus', { ref, status });
+          const row = rows.find(r => r.ref === ref);
+          if (row) row.status = status;
+          render();
+        }
       } catch (e) {
         alert('Gagal menyimpan perubahan. Coba lagi.');
         $$('.btn', card).forEach(b => b.disabled = false);
