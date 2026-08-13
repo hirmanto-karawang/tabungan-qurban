@@ -146,12 +146,26 @@ async function loadList(){
   }
 }
 
-function waLinkFor(r){
-  let p = String(r.teleponKontak || '').replace(/\D/g, '');
+function normalizeWaNumber(phone){
+  let p = String(phone || '').replace(/\D/g, '');
   if (p.startsWith('0')) p = '62' + p.slice(1);
+  return p;
+}
+function waLinkTo(phone, msg){
+  const p = normalizeWaNumber(phone);
   if (!p) return '';
-  const msg = `Assalamu'alaikum ${r.namaKontak || ''}, terkait pengajuan Alur Qurban untuk ${r.namaMasjid || 'masjid Anda'} (Ref: ${r.ref || '-'}).`;
   return `https://wa.me/${p}?text=${encodeURIComponent(msg)}`;
+}
+function waLinkFor(r){
+  const msg = `Assalamu'alaikum ${r.namaKontak || ''}, terkait pengajuan Alur Qurban untuk ${r.namaMasjid || 'masjid Anda'} (Ref: ${r.ref || '-'}).`;
+  return waLinkTo(r.teleponKontak, msg);
+}
+function waApprovedMsg(r, slug){
+  const link = slug ? `tabungan-qurban-orpin.vercel.app/${slug}` : '(link menyusul)';
+  return `Assalamu'alaikum ${r.namaKontak || ''}, kabar baik! Pengajuan *${r.namaMasjid || ''}* untuk bergabung dengan *Alur Qurban* sudah kami *SETUJUI* ✅\n\nRef: ${r.ref || '-'}\nAplikasi masjid Anda nanti aktif di: ${link}\n\nKami akan hubungi lagi untuk kelengkapan setup (data, logo, dll) sebelum link ini bisa dipakai. Terima kasih!`;
+}
+function waRejectedMsg(r){
+  return `Assalamu'alaikum ${r.namaKontak || ''}, terima kasih atas minat Anda mendaftarkan *${r.namaMasjid || ''}* ke *Alur Qurban*.\n\nRef: ${r.ref || '-'}\nMohon maaf, untuk saat ini kami belum bisa memproses pengajuan ini. Kalau ada pertanyaan atau ingin mengajukan ulang di lain waktu, silakan balas chat ini. Terima kasih atas pengertiannya 🙏`;
 }
 
 function render(){
@@ -206,23 +220,32 @@ function render(){
       const card = btn.closest('.card');
       const ref = card.dataset.ref;
       const status = btn.dataset.act;
+      const row = rows.find(r => r.ref === ref);
       $$('.btn', card).forEach(b => b.disabled = true);
+
+      // Buka tab kosong DULU (masih dalam konteks klik user) supaya browser
+      // tidak blokir popup - baru diisi link WA-nya setelah request selesai.
+      // Kalau nomor WA kontak tidak valid, ditutup lagi tanpa isi apa-apa.
+      const wantsWa = (status === 'approved' || status === 'rejected') && row && normalizeWaNumber(row.teleponKontak);
+      const waWin = wantsWa ? window.open('', '_blank') : null;
+
       try {
         if (status === 'approved') {
           // "approve" (bukan updateStatus biasa) - backend sekaligus bikin
           // baris baru di Registry dari data pengajuan ini (nama, kota, bank).
           const result = await callApi('approve', { ref });
-          const row = rows.find(r => r.ref === ref);
           if (row) row.status = 'approved';
           render();
-          alert(`Disetujui. Masjid terdaftar di Registry dengan slug "${result.slug}" (status: pending_setup).\n\nLangkah selanjutnya di Registry Sheet: buat Google Sheet data masjid ini, isi kolom sheetId, unggah logo (kolom logoFile), lalu ubah status jadi "aktif" supaya /${result.slug} bisa diakses.`);
+          if (waWin) waWin.location.href = waLinkTo(row.teleponKontak, waApprovedMsg(row, result.slug));
         } else {
           await callApi('updateStatus', { ref, status });
-          const row = rows.find(r => r.ref === ref);
           if (row) row.status = status;
           render();
+          if (waWin && status === 'rejected') waWin.location.href = waLinkTo(row.teleponKontak, waRejectedMsg(row));
+          else if (waWin) waWin.close();
         }
       } catch (e) {
+        if (waWin) waWin.close();
         alert('Gagal menyimpan perubahan. Coba lagi.');
         $$('.btn', card).forEach(b => b.disabled = false);
       }
