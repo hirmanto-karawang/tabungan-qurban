@@ -463,7 +463,39 @@ export default async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
-    const { sheet, bootstrap, getFile, action, col, tenant, config, superadmin } = req.query;
+    const { sheet, bootstrap, getFile, action, col, tenant, config, superadmin, findMasjid } = req.query;
+
+    // ----- Pencarian masjid publik (tombol "Masuk" di landing page, buat
+    // pengurus yang lupa kode/slug masjidnya) -----
+    // Publik, TANPA password - makanya field yang dikembalikan dibatasi
+    // ketat (cuma slug/nama/logo, TIDAK ada bank/qurbanTarget/dll) dan query
+    // minimal 2 karakter supaya tidak jadi jalan pintas nge-dump seluruh
+    // Registry cuma dengan query kosong.
+    if (findMasjid !== undefined) {
+      if (!REGISTRY_SHEET_ID) {
+        return res.status(500).json({ error: 'REGISTRY_SHEET_ID belum diset' });
+      }
+      const q = (findMasjid || '').toString().trim().toLowerCase();
+      if (q.length < 2) {
+        return res.status(200).json([]);
+      }
+      const rows = await loadRegistry(accessToken);
+      const results = rows
+        .filter(r => (r.status || '').toString().trim().toLowerCase() === 'aktif')
+        .filter(r => {
+          const name = (r.mosqueName || '').toString().toLowerCase();
+          const short = (r.mosqueShortName || '').toString().toLowerCase();
+          return name.includes(q) || short.includes(q);
+        })
+        .slice(0, 8)
+        .map(r => ({
+          slug: r.slug || '',
+          mosqueName: r.mosqueName || '',
+          mosqueShortName: r.mosqueShortName || '',
+          logoFile: r.logoFile || ''
+        }));
+      return res.status(200).json(results);
+    }
 
     // ----- Super Admin: pendaftaran masjid baru dari landing page -----
     // Berdiri sendiri, tidak lewat logic tenant di bawah (sheet-nya di
