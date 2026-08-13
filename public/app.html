@@ -182,6 +182,96 @@
     letter-spacing:.02em;
   }
 
+  /* PLATFORM BRAND BAR - "Alur Qurban" sebagai brand utama di atas hero;
+     identitas masjid ditampilkan di bawahnya sebagai "workspace" (lihat
+     .workspace-card), bukan lagi headline utama - karena Tabungan Qurban
+     sekarang cuma satu modul dari platform hulu-hilir Alur Qurban. */
+  .platform-bar{
+    position:relative; z-index:1;
+    display:flex;
+    align-items:center;
+    gap:11px;
+    margin-bottom:30px;
+  }
+  .platform-mark{ width:34px; height:34px; flex-shrink:0; }
+  .platform-word{
+    font-family: var(--font-display);
+    font-size:17px;
+    font-weight:600;
+    letter-spacing:.01em;
+    color:#FBF6E9;
+    line-height:1.15;
+  }
+  .platform-word span{ color: var(--gold-soft); font-weight:400; }
+  .platform-tagline{
+    font-family: var(--font-mono);
+    font-size:9.5px;
+    letter-spacing:.13em;
+    text-transform:uppercase;
+    color: rgba(244,239,225,.55);
+    margin-top:2px;
+  }
+
+  .workspace-card{
+    position:relative; z-index:1;
+    display:flex;
+    align-items:center;
+    gap:13px;
+    padding:9px 20px 9px 9px;
+    background: rgba(255,255,255,.05);
+    border:1px solid rgba(231,200,120,.28);
+    border-radius:14px;
+    margin-bottom:26px;
+    width:fit-content;
+    max-width:100%;
+    backdrop-filter: blur(6px);
+  }
+  .ws-logo-wrap{
+    width:46px; height:46px;
+    display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.02) 100%);
+    border:1.5px solid rgba(231,200,120,.4);
+    border-radius:11px;
+    flex-shrink:0;
+    overflow:hidden;
+  }
+  .ws-logo{ width:36px; height:36px; object-fit:contain; }
+  .ws-label{
+    font-family: var(--font-mono);
+    font-size:9px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color: var(--gold-soft);
+    margin-bottom:3px;
+  }
+  .ws-name{
+    font-family: var(--font-display);
+    font-size:15.5px;
+    font-weight:600;
+    color:#FBF6E9;
+    line-height:1.2;
+  }
+
+  .module-strip{
+    position:relative; z-index:1;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:26px;
+  }
+  .module-chip{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 13px 6px 9px;
+    background: rgba(255,255,255,.04);
+    border:1px solid rgba(244,239,225,.16);
+    border-radius:100px;
+    font-size:11.5px;
+    color: rgba(244,239,225,.78);
+  }
+  .module-chip svg{ width:13px; height:13px; opacity:.9; color: var(--gold-soft); flex-shrink:0; }
+
   .login-panel{
     display:flex;
     align-items:center;
@@ -331,9 +421,23 @@
     pointer-events:none;
   }
 
+  /* Strip brand "Alur Qurban" di puncak sidebar - platform ditampilkan
+     duluan, identitas masjid (.sidebar-brand di bawahnya) jadi "workspace"
+     yang sedang aktif, bukan lagi satu-satunya identitas. */
+  .sidebar-platform{
+    position:relative; z-index:1;
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding: 18px 24px 14px;
+  }
+  .sidebar-platform .platform-mark{ width:23px; height:23px; }
+  .sidebar-platform .platform-word{ font-size:13.5px; }
+  .sidebar-platform .platform-tagline{ font-size:8.5px; }
+
   .sidebar-brand{
     position:relative; z-index:1;
-    padding: 26px 24px 22px;
+    padding: 14px 24px 22px;
     border-bottom:1px solid rgba(244,239,225,.12);
     display:flex; align-items:center; gap:12px;
   }
@@ -433,6 +537,21 @@
   .sidebar-user .who{ font-size:13px; color:#F4EFE1; font-weight:600; line-height:1.3; }
   .sidebar-user .role{ font-size:10.5px; color: var(--gold-soft); text-transform:uppercase; letter-spacing:.06em; }
 
+  .sidebar-powered{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-family: var(--font-mono);
+    font-size:9.5px;
+    letter-spacing:.07em;
+    text-transform:uppercase;
+    color: rgba(244,239,225,.4);
+    margin-top:14px;
+    padding-top:14px;
+    border-top:1px solid rgba(244,239,225,.1);
+  }
+  .sidebar-powered svg{ width:12px; height:12px; opacity:.7; flex-shrink:0; }
+
   /* MAIN AREA */
   .main-area{
     margin-left:264px;
@@ -474,6 +593,22 @@
     align-items:center; justify-content:center;
     color: var(--emerald);
   }
+
+  /* Badge kecil "Alur Qurban" di topbar - cuma tampil di mobile (lihat
+     media query 980px) karena di layar itu sidebar (tempat brand utama
+     ditampilkan) tersembunyi sampai hamburger dibuka. */
+  .topbar-mini-brand{
+    display:none;
+    align-items:center;
+    gap:5px;
+    font-family: var(--font-mono);
+    font-size:9.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color: var(--gold);
+    margin-bottom:5px;
+  }
+  .topbar-mini-brand svg{ width:12px; height:12px; }
 
   .content-scroll{
     padding: 30px 36px 60px;
@@ -1881,6 +2016,7 @@
     .hamburger{ display:flex; }
     .content-scroll{ padding: 24px 18px 50px; }
     .topbar{ padding: 16px 18px; }
+    .topbar-mini-brand{ display:flex; }
   }
 
   @media (max-width: 760px){
@@ -1982,12 +2118,39 @@
     </svg>
 
     <div class="hero-brand">
-      <div class="hero-logo-container">
-        <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="hero-logo js-brand-logo">
+      <div class="platform-bar">
+        <svg class="platform-mark" viewBox="0 0 44 44" fill="none">
+          <rect x="1" y="1" width="42" height="42" rx="11" stroke="#E7C878" stroke-width="1.4" fill="rgba(231,200,120,.07)"/>
+          <path d="M13 30V19c0-6 4-10 9-10s9 4 9 10v11" stroke="#E7C878" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="22" cy="19" r="3.2" stroke="#E7C878" stroke-width="1.6"/>
+        </svg>
+        <div>
+          <div class="platform-word">Alur<span> Qurban</span></div>
+          <div class="platform-tagline">Tata Kelola Qurban Hulu—Hilir</div>
+        </div>
       </div>
-      <div class="eyebrow">Sistem Amanah Digital</div>
-      <h1>Tabungan Qurban, dicatat rapi, dipercaya bersama.</h1>
+
+      <div class="workspace-card">
+        <div class="ws-logo-wrap">
+          <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="ws-logo js-brand-logo">
+        </div>
+        <div>
+          <div class="ws-label">Workspace</div>
+          <div class="ws-name" id="heroWorkspaceName">Masjid Dhafinul Jariyah</div>
+        </div>
+      </div>
+
+      <h1>Satu alur, dari pendaftaran jemaah sampai daging di tangan mustahik.</h1>
       <p id="heroDesc">Platform pencatatan tabungan Qurban untuk jemaah Masjid Dhafinul Jariyah — transparan dari transfer hingga hari penyembelihan.</p>
+
+      <div class="module-strip">
+        <div class="module-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>Tabungan Qurban</div>
+        <div class="module-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4.5-3-7-6.2-7-9.5A7 7 0 0112 4a7 7 0 017 7.5c0 3.3-2.5 6.5-7 9.5z"/><circle cx="12" cy="11" r="2.3"/></svg>Survey Sapi</div>
+        <div class="module-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/></svg>Distribusi Daging</div>
+        <div class="module-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>Keuangan</div>
+        <div class="module-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Penerima &amp; Tiket</div>
+        <div class="module-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/><path d="M12 13v6"/></svg>Kemasan &amp; Inventaris</div>
+      </div>
     </div>
 
     <div class="hero-stats">
@@ -2125,13 +2288,24 @@
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
   <aside class="sidebar" id="sidebar">
+    <div class="sidebar-platform">
+      <svg class="platform-mark" viewBox="0 0 44 44" fill="none">
+        <rect x="1" y="1" width="42" height="42" rx="11" stroke="#E7C878" stroke-width="1.4" fill="rgba(231,200,120,.07)"/>
+        <path d="M13 30V19c0-6 4-10 9-10s9 4 9 10v11" stroke="#E7C878" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="22" cy="19" r="3.2" stroke="#E7C878" stroke-width="1.6"/>
+      </svg>
+      <div>
+        <div class="platform-word">Alur<span> Qurban</span></div>
+        <div class="platform-tagline">Hulu—Hilir</div>
+      </div>
+    </div>
     <div class="sidebar-brand">
       <div class="brand-mark">
         <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="brand-logo js-brand-logo">
       </div>
       <div>
         <div class="name" id="sidebarMosqueName">Dhafinul Jariyah</div>
-        <div class="sub">Tabungan Qurban</div>
+        <div class="sub">Workspace</div>
       </div>
     </div>
 
@@ -2207,12 +2381,20 @@
         </div>
       </div>
       <button class="btn btn-ghost btn-block btn-small" style="color:#F4EFE1;border-color:rgba(244,239,225,.25);" onclick="logout()">Keluar</button>
+      <div class="sidebar-powered">
+        <svg viewBox="0 0 44 44" fill="none"><rect x="1" y="1" width="42" height="42" rx="11" stroke="currentColor" stroke-width="2"/><path d="M13 30V19c0-6 4-10 9-10s9 4 9 10v11" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        Powered by Alur Qurban
+      </div>
     </div>
   </aside>
 
   <div class="main-area">
     <div class="topbar">
       <div>
+        <div class="topbar-mini-brand">
+          <svg viewBox="0 0 44 44" fill="none"><rect x="1" y="1" width="42" height="42" rx="11" stroke="currentColor" stroke-width="2.2"/><path d="M13 30V19c0-6 4-10 9-10s9 4 9 10v11" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+          Alur Qurban
+        </div>
         <div class="crumb" id="pageCrumb">Ringkasan</div>
         <h1 id="pageTitle">Dashboard</h1>
       </div>
@@ -3856,6 +4038,7 @@ function applyBranding() {
     };
 
     setText('heroDesc', `Platform pencatatan tabungan Qurban untuk jemaah ${APP_CONFIG.mosqueName} — transparan dari transfer hingga hari penyembelihan.`);
+    setText('heroWorkspaceName', APP_CONFIG.mosqueName);
     setText('sidebarMosqueName', APP_CONFIG.mosqueShortName);
     setText('prayerLocationLabel', `🕌 Waktu Sholat — ${APP_CONFIG.locationName}`);
 
