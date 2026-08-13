@@ -1951,6 +1951,7 @@
   .tiket-head{
     position:relative; z-index:1;
     display:flex; align-items:center; gap:10px;
+    min-height:44px;
     margin-bottom:18px; padding-bottom:16px;
     border-bottom:1px solid rgba(244,239,225,.14);
   }
@@ -1958,6 +1959,14 @@
     width:38px; height:38px; border-radius:9px; object-fit:contain;
     background:rgba(255,255,255,.08); border:1px solid rgba(231,200,120,.35);
     padding:3px; flex-shrink:0;
+  }
+  /* Fallback kalau masjid belum sempat upload logo (logoFile kosong) -
+     supaya kartu tetap kelihatan lengkap/premium, bukan kotak gambar
+     rusak/kosong. Pakai huruf awal nama masjid, gaya monogram. */
+  .tiket-logo-fallback{
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-size:16px; font-weight:600;
+    color:var(--gold-soft);
   }
   .tiket-masjid{ font-family:var(--font-display); font-size:14.5px; font-weight:600; color:#FBF6E9; line-height:1.25; }
   .tiket-kategori{ font-family:var(--font-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-soft); margin-top:2px; }
@@ -7285,14 +7294,22 @@ function lihatQrPenerima(id) {
         </div>` : '';
 
     const isMudhohi = p.kategori === 'mudhohi';
+    const mosqueNameSafe = (APP_CONFIG.mosqueName || 'Masjid').trim();
+    // Kalau logoFile belum diisi (masjid baru/belum sempat upload logo),
+    // pakai monogram huruf awal nama masjid - supaya kartu tetap lengkap,
+    // bukan kotak gambar kosong/rusak (<img src=""> sering tidak render
+    // apa-apa di sebagian browser).
+    const logoHtml = APP_CONFIG.logoFile
+        ? `<img src="${APP_CONFIG.logoFile}" alt="${mosqueNameSafe}" class="tiket-logo">`
+        : `<div class="tiket-logo tiket-logo-fallback">${mosqueNameSafe.charAt(0).toUpperCase()}</div>`;
     title.textContent = `${isMudhohi ? 'Kupon Mudhohi' : 'E-Tiket'} - ${p.nama}`;
     body.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center;">
           <div class="tiket-card">
             <div class="tiket-head">
-              <img src="${APP_CONFIG.logoFile}" alt="${APP_CONFIG.mosqueName}" class="tiket-logo">
+              ${logoHtml}
               <div>
-                <div class="tiket-masjid">${APP_CONFIG.mosqueName}</div>
+                <div class="tiket-masjid">${mosqueNameSafe}</div>
                 <div class="tiket-kategori">${isMudhohi ? 'Kupon Mudhohi' : 'E-Tiket Penerima'}</div>
               </div>
             </div>
@@ -7354,6 +7371,13 @@ function cetakTiketPenerima(id) {
     if (!w) { showAlert('Popup diblokir browser, izinkan popup utk cetak tiket.', 'error'); return; }
 
     const isMudhohi = p.kategori === 'mudhohi';
+    const mosqueNameSafe = (APP_CONFIG.mosqueName || 'Masjid').trim();
+    // Kalau logoFile belum diisi, pakai monogram huruf awal nama masjid -
+    // <img src=""> sering tidak render apa-apa sama sekali di sebagian
+    // browser, jadi jangan pernah kirim src kosong.
+    const logoHtml = APP_CONFIG.logoFile
+        ? `<img src="${APP_CONFIG.logoFile}" alt="${mosqueNameSafe}">`
+        : `<div class="logo-fallback">${mosqueNameSafe.charAt(0).toUpperCase()}</div>`;
     const statRows = isMudhohi
         ? `<div class="stat"><span>Kelompok Sapi</span><b>${p.kelompokSapi || '—'}</b></div>
            <div class="stat"><span>Jatah Daging</span><b>${p.berat != null ? formatKg(p.berat) : '—'}</b></div>`
@@ -7370,8 +7394,9 @@ function cetakTiketPenerima(id) {
             *{ box-sizing:border-box; }
             body{ font-family: Georgia, 'Times New Roman', serif; margin:0; padding:26px 16px; background:#fff; color:#1a1a1a; }
             .card{ max-width:330px; margin:0 auto; border:1.5px solid #0E3B34; border-radius:14px; overflow:hidden; }
-            .head{ background:#0E3B34; color:#FBF8F1; padding:16px 18px; display:flex; align-items:center; gap:10px; }
-            .head img{ width:34px; height:34px; border-radius:8px; object-fit:contain; background:rgba(255,255,255,.12); padding:3px; flex-shrink:0; }
+            .head{ background:#0E3B34; color:#FBF8F1; padding:16px 18px; display:flex; align-items:center; gap:10px; min-height:38px; }
+            .head img, .head .logo-fallback{ width:34px; height:34px; border-radius:8px; object-fit:contain; background:rgba(255,255,255,.12); padding:3px; flex-shrink:0; }
+            .head .logo-fallback{ display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; color:#DCBB79; padding:0; }
             .head .masjid{ font-size:14.5px; font-weight:700; line-height:1.25; }
             .head .kategori{ font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#DCBB79; margin-top:3px; }
             .body{ padding:22px 20px 4px; text-align:center; }
@@ -7390,9 +7415,9 @@ function cetakTiketPenerima(id) {
         <body>
           <div class="card">
             <div class="head">
-              <img src="${APP_CONFIG.logoFile}" alt="">
+              ${logoHtml}
               <div>
-                <div class="masjid">${APP_CONFIG.mosqueName}</div>
+                <div class="masjid">${mosqueNameSafe}</div>
                 <div class="kategori">${isMudhohi ? 'Kupon Mudhohi' : 'E-Tiket Penerima'}</div>
               </div>
             </div>
