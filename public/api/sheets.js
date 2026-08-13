@@ -75,6 +75,20 @@ const REGISTRY_SHEET_NAME = 'Registry';
 // public/superadmin.html, dilindungi SUPERADMIN_PASSWORD.
 const PENDAFTARAN_MASJID_SHEET = 'PendaftaranMasjid';
 const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || '';
+
+// Kode bank (SKN/kliring) standar Indonesia - dipakai auto-isi kolom
+// "bankCode" Registry pas approve pendaftaran masjid, supaya Super Admin
+// tidak perlu cari manual utk bank-bank umum. "prayerLocationId" SENGAJA
+// TIDAK ada lookup serupa - itu ID lokasi khusus api.myquran.com, tidak bisa
+// ditebak dari nama kota, tetap harus dicari & diisi manual di Registry.
+const BANK_CODES = {
+  'bca': '014', 'bri': '002', 'mandiri': '008', 'bni': '009', 'bsi': '451',
+  'btn': '200', 'cimb niaga': '022', 'danamon': '011', 'permata': '013',
+  'bjb': '110', 'muamalat': '147'
+};
+function lookupBankCode(bankName) {
+  return BANK_CODES[(bankName || '').toString().trim().toLowerCase()] || '';
+}
 const REGISTRY_TTL_MS = 30000; // Registry jarang berubah, cache lebih lama dari bootstrap biasa
 let registryCache = null;
 let registryCacheAt = 0;
@@ -539,7 +553,7 @@ module.exports = async function handler(req, res) {
           locationName: row.kota || '',
           prayerLocationId: '',
           bankName: row.bankName || '',
-          bankCode: '',
+          bankCode: lookupBankCode(row.bankName),
           bankAccountNumber: row.bankAccountNumber || '',
           bankAccountNumberDisplay: row.bankAccountNumber || '',
           bankAccountHolder: row.bankAccountHolder || '',
