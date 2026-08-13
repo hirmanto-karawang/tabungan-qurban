@@ -1,16 +1,16 @@
 {
-  "name": "Tabungan Qurban - Masjid Dhafinul Jariyah",
-  "short_name": "Tabungan Qurban",
-  "description": "Aplikasi manajemen tabungan qurban dan pendaftaran anggota komunitas",
+  "name": "Alur Qurban - Tata Kelola Qurban Masjid",
+  "short_name": "Alur Qurban",
+  "description": "Platform tata kelola qurban masjid dari hulu ke hilir - tabungan jamaah, survei hewan, distribusi daging, hingga laporan pertanggungjawaban.",
   "start_url": "/",
   "display": "standalone",
   "scope": "/",
   "orientation": "portrait-primary",
-  "background_color": "#FAF7F0",
+  "background_color": "#0E3B34",
   "theme_color": "#0E3B34",
   "lang": "id-ID",
   "dir": "ltr",
-  
+
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -37,88 +37,12 @@
       "purpose": "maskable"
     }
   ],
-  
-  "screenshots": [
-    {
-      "src": "/screenshots/screenshot-1.png",
-      "sizes": "540x720",
-      "type": "image/png",
-      "form_factor": "narrow"
-    },
-    {
-      "src": "/screenshots/screenshot-2.png",
-      "sizes": "540x720",
-      "type": "image/png",
-      "form_factor": "narrow"
-    }
-  ],
-  
+
   "categories": [
     "finance",
     "productivity"
   ],
-  
-  "shortcuts": [
-    {
-      "name": "Daftar Tabungan",
-      "short_name": "Tabung",
-      "description": "Tambah tabungan baru",
-      "url": "/?tab=savings",
-      "icons": [
-        {
-          "src": "/icons/shortcut-tabung-192x192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Profil Saya",
-      "short_name": "Profil",
-      "description": "Lihat profil dan data pribadi",
-      "url": "/?tab=profile",
-      "icons": [
-        {
-          "src": "/icons/shortcut-profile-192x192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Approval Pendaftar",
-      "short_name": "Approval",
-      "description": "Review pendaftar baru (Admin)",
-      "url": "/?tab=approval",
-      "icons": [
-        {
-          "src": "/icons/shortcut-approval-192x192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    }
-  ],
-  
-  "share_target": {
-    "action": "/share",
-    "method": "POST",
-    "enctype": "multipart/form-data",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url",
-      "files": [
-        {
-          "name": "media",
-          "accept": ["image/*", "video/*"]
-        }
-      ]
-    }
-  },
-  
+
   "prefer_related_applications": false,
-  "related_applications": [],
-  
-  "iarc_rating_id": ""
+  "related_applications": []
 }

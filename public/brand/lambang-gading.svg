@@ -1,0 +1,10 @@
+<!--
+  Lambang resmi Alur Qurban — anyaman bintang delapan. Lihat
+  lambang-emerald.svg untuk catatan lengkap soal geometri & ekuivalensi
+  anyaman/padat. Warna: Gading #FBF8F1 ("Latar gelap" resmi) — dipakai
+  di atas latar GELAP.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Alur Qurban">
+  <path d="M 162.23 162.23 L 37.77 162.23 L 37.77 37.77 L 162.23 37.77 Z M 142.23 142.23 L 57.77 142.23 L 57.77 57.77 L 142.23 57.77 Z" fill="#FBF8F1" fill-rule="evenodd"/>
+  <path d="M 188.00 100.00 L 100.00 188.00 L 12.00 100.00 L 100.00 12.00 Z M 159.72 100.00 L 100.00 159.72 L 40.28 100.00 L 100.00 40.28 Z" fill="#FBF8F1" fill-rule="evenodd"/>
+</svg>

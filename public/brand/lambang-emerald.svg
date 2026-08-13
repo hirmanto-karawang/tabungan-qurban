@@ -1,0 +1,14 @@
+<!--
+  Lambang resmi Alur Qurban — anyaman bintang delapan (dua pita persegi
+  saling menyilang, rongga tengah kosong). Geometri diambil persis dari
+  panduan-logo.html (dua path evenodd: cincin persegi + cincin persegi
+  diputar 45°). Varian resmi "anyaman" (pakai clipPath+mask buat efek
+  tenun) dan "padat" (rata, tanpa mask) SUDAH DIVERIFIKASI render
+  identik piksel-demi-piksel selama satu warna (monokrom) — jadi versi
+  rata ini dipakai di semua ukuran, sesuai berkas lambang-padat.svg resmi.
+  Warna: Emerald #0E3B34 — dipakai di atas latar TERANG.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Alur Qurban">
+  <path d="M 162.23 162.23 L 37.77 162.23 L 37.77 37.77 L 162.23 37.77 Z M 142.23 142.23 L 57.77 142.23 L 57.77 57.77 L 142.23 57.77 Z" fill="#0E3B34" fill-rule="evenodd"/>
+  <path d="M 188.00 100.00 L 100.00 188.00 L 12.00 100.00 L 100.00 12.00 Z M 159.72 100.00 L 100.00 159.72 L 40.28 100.00 L 100.00 40.28 Z" fill="#0E3B34" fill-rule="evenodd"/>
+</svg>

@@ -1,19 +1,23 @@
 /**
  * SERVICE WORKER - OFFLINE CAPABILITY & CACHING
- * Versi: 1.1.0
+ * Versi: 1.2.0
  * Handle offline mode dan sync data ke Google Sheets
  */
 
 // NAIKKAN angka di belakang string ini (v2, v3, dst) SETIAP kali ada
 // perubahan besar - itu memicu activate() membuang cache lama, jadi user
 // yang sudah pernah buka app tidak nyangkut di versi lama selamanya.
-const CACHE_VERSION = 'tabungan-qurban-v3';
+const CACHE_VERSION = 'tabungan-qurban-v4';
+// PENTING: cache.addAll() di install() di bawah GAGAL TOTAL (install error,
+// SW tidak pernah aktif) kalau SATU SAJA path di sini 404 - makanya
+// '/styles.css' (tidak pernah ada, semua CSS inline di index.html/app.html)
+// dibuang dari daftar ini. Cuma masukkan path yang beneran ada di public/.
 const CACHE_ASSETS = [
     '/',
     '/index.html',
     '/app.html',
     '/manifest.json',
-    '/styles.css',
+    '/favicon.ico',
     '/offline.html'
 ];
 

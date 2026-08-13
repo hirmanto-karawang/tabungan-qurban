@@ -6,7 +6,8 @@
 <meta name="theme-color" content="#061714">
 <meta name="description" content="Alur Qurban — sistem tata kelola qurban masjid, dari tabungan jamaah sampai laporan pertanggungjawaban. Sudah berjalan di Masjid Dhafinul Jariyah, Karawang.">
 <title>Alur Qurban — Sistem Tata Kelola Qurban Masjid</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/icons/icon-180x180.png">
 <meta name="robots" content="index, follow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -120,7 +121,8 @@ button{background:none;border:none;cursor:pointer;}
 }
 .hdr-in{display:flex;align-items:center;justify-content:space-between;gap:.75rem;
   padding-top:.7rem;padding-bottom:.7rem;}
-.brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;min-height:44px;}
+.brand{display:flex;align-items:center;gap:.7rem;text-decoration:none;min-height:44px;}
+.brand-div{width:1px;height:24px;background:var(--gold);flex-shrink:0;}
 .brand-tx{display:flex;flex-direction:column;line-height:1.02;}
 .brand-1{font-family:Fraunces,serif;font-size:1.12rem;font-weight:500;color:var(--ivory);}
 .brand-2{font-family:'IBM Plex Mono',monospace;font-size:.52rem;letter-spacing:.24em;
@@ -630,10 +632,11 @@ button{background:none;border:none;cursor:pointer;}
 <header class="hdr">
   <div class="shell hdr-in">
     <a href="#atas" class="brand">
-      <svg width="32" height="32" viewBox="0 0 200 200" aria-hidden="true">
-        <path d="M100.00 12.00 L188.00 100.00 L100.00 188.00 L12.00 100.00 Z M100.00 40.28 L59.72 100.00 L100.00 159.72 L140.28 100.00 Z" fill="#DCBB79" fill-rule="evenodd" transform="rotate(45 100 100)"/>
-        <path d="M100.00 12.00 L188.00 100.00 L100.00 188.00 L12.00 100.00 Z M100.00 40.28 L59.72 100.00 L100.00 159.72 L140.28 100.00 Z" fill="#B6893A" fill-rule="evenodd"/>
+      <svg width="32" height="32" viewBox="0 0 200 200" role="img" aria-label="Alur Qurban">
+        <path d="M 162.23 162.23 L 37.77 162.23 L 37.77 37.77 L 162.23 37.77 Z M 142.23 142.23 L 57.77 142.23 L 57.77 57.77 L 142.23 57.77 Z" fill="#FBF8F1" fill-rule="evenodd"/>
+        <path d="M 188.00 100.00 L 100.00 188.00 L 12.00 100.00 L 100.00 12.00 Z M 159.72 100.00 L 100.00 159.72 L 40.28 100.00 L 100.00 40.28 Z" fill="#FBF8F1" fill-rule="evenodd"/>
       </svg>
+      <span class="brand-div"></span>
       <span class="brand-tx">
         <span class="brand-1">Alur Qurban</span>
         <span class="brand-2">Tata Kelola Qurban Masjid</span>
@@ -659,13 +662,14 @@ button{background:none;border:none;cursor:pointer;}
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-label="Menu utama">
   <div class="dr-top">
-    <svg width="34" height="34" viewBox="0 0 200 200" aria-hidden="true">
-      <path d="M100.00 12.00 L188.00 100.00 L100.00 188.00 L12.00 100.00 Z M100.00 40.28 L59.72 100.00 L100.00 159.72 L140.28 100.00 Z" fill="#DCBB79" fill-rule="evenodd" transform="rotate(45 100 100)"/>
-      <path d="M100.00 12.00 L188.00 100.00 L100.00 188.00 L12.00 100.00 Z M100.00 40.28 L59.72 100.00 L100.00 159.72 L140.28 100.00 Z" fill="#B6893A" fill-rule="evenodd"/>
+    <svg width="34" height="34" viewBox="0 0 200 200" role="img" aria-label="Alur Qurban">
+      <path d="M 162.23 162.23 L 37.77 162.23 L 37.77 37.77 L 162.23 37.77 Z M 142.23 142.23 L 57.77 142.23 L 57.77 57.77 L 142.23 57.77 Z" fill="#FBF8F1" fill-rule="evenodd"/>
+      <path d="M 188.00 100.00 L 100.00 188.00 L 12.00 100.00 L 100.00 12.00 Z M 159.72 100.00 L 100.00 159.72 L 40.28 100.00 L 100.00 40.28 Z" fill="#FBF8F1" fill-rule="evenodd"/>
     </svg>
+    <span class="brand-div"></span>
     <span class="brand-tx">
       <span class="brand-1">Alur Qurban</span>
-      <span class="brand-2">alurqurban.id</span>
+      <span class="brand-2">Tata Kelola Qurban Masjid</span>
     </span>
   </div>
 
@@ -1149,9 +1153,9 @@ button{background:none;border:none;cursor:pointer;}
     <div class="ftr-gr">
       <div>
         <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.8rem">
-          <svg width="28" height="28" viewBox="0 0 200 200" aria-hidden="true">
-            <path d="M100.00 12.00 L188.00 100.00 L100.00 188.00 L12.00 100.00 Z M100.00 40.28 L59.72 100.00 L100.00 159.72 L140.28 100.00 Z" fill="#DCBB79" fill-rule="evenodd" transform="rotate(45 100 100)"/>
-            <path d="M100.00 12.00 L188.00 100.00 L100.00 188.00 L12.00 100.00 Z M100.00 40.28 L59.72 100.00 L100.00 159.72 L140.28 100.00 Z" fill="#B6893A" fill-rule="evenodd"/>
+          <svg width="28" height="28" viewBox="0 0 200 200" role="img" aria-label="Alur Qurban">
+            <path d="M 162.23 162.23 L 37.77 162.23 L 37.77 37.77 L 162.23 37.77 Z M 142.23 142.23 L 57.77 142.23 L 57.77 57.77 L 142.23 57.77 Z" fill="#FBF8F1" fill-rule="evenodd"/>
+            <path d="M 188.00 100.00 L 100.00 188.00 L 12.00 100.00 L 100.00 12.00 Z M 159.72 100.00 L 100.00 159.72 L 40.28 100.00 L 100.00 40.28 Z" fill="#FBF8F1" fill-rule="evenodd"/>
           </svg>
           <span style="font-family:Fraunces,serif;font-size:1.2rem;color:var(--ivory)">Alur Qurban</span>
         </div>
