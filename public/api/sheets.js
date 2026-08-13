@@ -497,6 +497,10 @@ module.exports = async function handler(req, res) {
           bankName: saBody.bankName || '',
           bankAccountNumber: saBody.bankAccountNumber || '',
           bankAccountHolder: saBody.bankAccountHolder || '',
+          // Logo dikirim browser sebagai thumbnail kecil (data URI, sudah
+          // dikompres muat 1 sel) - disimpan apa adanya, dipakai langsung
+          // isi kolom logoFile Registry pas di-approve (lihat aksi "approve").
+          logoDataUrl: (saBody.logo && saBody.logo.dataUrl) || '',
           paket: saBody.paketPilih || '',
           anggaran: saBody.budget || '',
           target: saBody.timeline || '',
@@ -549,7 +553,10 @@ module.exports = async function handler(req, res) {
           status: 'pending_setup',
           mosqueName: row.namaMasjid || '',
           mosqueShortName: row.namaMasjid || '',
-          logoFile: '',
+          // Data URI thumbnail dari form pengajuan - img.src menerima data:
+          // URI langsung, jadi tidak perlu commit file statis baru ke repo
+          // buat logo masjid ini. Kosong kalau pemohon tidak upload logo.
+          logoFile: row.logoDataUrl || '',
           locationName: row.kota || '',
           prayerLocationId: '',
           bankName: row.bankName || '',
