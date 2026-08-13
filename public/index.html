@@ -3818,6 +3818,75 @@ async function loadTenantConfigIfNeeded() {
     }
 }
 
+// Landing page brand "Alur Qurban" - ditampilkan di root (/) tanpa slug
+// masjid. Alur Qurban = nama merk dagang platform-nya (menaungi banyak
+// masjid), beda dari nama masjid yang ditampilkan di /slug masing-masing.
+// Cuma sambutan + form daftar (kirim ke WA admin) - TIDAK ada login/app di
+// sini, karena root tidak terikat ke masjid manapun.
+function submitDaftarMasjid(e) {
+    e.preventDefault();
+    const namaMasjid = document.getElementById('dmNamaMasjid').value.trim();
+    const namaPic = document.getElementById('dmNamaPic').value.trim();
+    const wa = document.getElementById('dmWhatsapp').value.trim();
+    const kota = document.getElementById('dmKota').value.trim();
+    const catatan = document.getElementById('dmCatatan').value.trim();
+    if (!namaMasjid || !namaPic || !wa) {
+        alert('Mohon lengkapi Nama Masjid, Nama Anda, dan No. WhatsApp.');
+        return false;
+    }
+    let msg = `Assalamu'alaikum, saya ingin mendaftarkan masjid ke *Alur Qurban*.\n\n`;
+    msg += `Nama Masjid: ${namaMasjid}\n`;
+    msg += `Nama Pengurus: ${namaPic}\n`;
+    msg += `No. WhatsApp: ${wa}\n`;
+    if (kota) msg += `Kota/Lokasi: ${kota}\n`;
+    if (catatan) msg += `Catatan: ${catatan}\n`;
+    window.open(`https://wa.me/6289604697415?text=${encodeURIComponent(msg)}`, '_blank');
+    return false;
+}
+
+function showAlurQurbanLanding() {
+    document.title = 'Alur Qurban — Platform Manajemen Qurban Masjid';
+    document.body.innerHTML = `
+        <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; font-family:inherit; background:var(--paper, #F7F3EC);">
+          <div style="max-width:480px; width:100%; background:var(--surface,#fff); border:1px solid var(--border,#e2ddd0); border-radius:var(--radius-lg,18px); padding:36px 32px; box-shadow:0 10px 40px rgba(14,59,52,.08);">
+            <div style="text-align:center; margin-bottom:24px;">
+              <div style="font-size:40px; margin-bottom:8px;">🕌</div>
+              <div style="font-family:var(--font-mono,monospace); letter-spacing:.08em; text-transform:uppercase; font-size:12px; color:var(--gold,#B6893A); font-weight:600;">Platform Manajemen Qurban</div>
+              <h1 style="font-family:var(--font-display,serif); font-size:32px; margin:6px 0 12px; color:var(--emerald,#0E3B34);">Alur Qurban</h1>
+              <p style="color:var(--ink-soft,#555); font-size:15px; line-height:1.6; margin:0;">
+                Kami memfasilitasi masjid-masjid dalam mengelola tabungan &amp; distribusi qurban secara digital — transparan, rapi, dan dipercaya jemaah.
+              </p>
+            </div>
+            <form id="daftarMasjidForm" onsubmit="return submitDaftarMasjid(event)" style="display:flex; flex-direction:column; gap:14px;">
+              <div>
+                <label style="font-size:13px; font-weight:600; color:var(--ink,#222);">Nama Masjid *</label>
+                <input id="dmNamaMasjid" required style="width:100%; padding:10px 12px; border:1px solid var(--border,#ddd); border-radius:var(--radius-md,12px); margin-top:4px; font-size:14px; box-sizing:border-box;" placeholder="Contoh: Masjid Al-Ikhlas">
+              </div>
+              <div>
+                <label style="font-size:13px; font-weight:600; color:var(--ink,#222);">Nama Anda (Pengurus/DKM) *</label>
+                <input id="dmNamaPic" required style="width:100%; padding:10px 12px; border:1px solid var(--border,#ddd); border-radius:var(--radius-md,12px); margin-top:4px; font-size:14px; box-sizing:border-box;" placeholder="Nama lengkap">
+              </div>
+              <div>
+                <label style="font-size:13px; font-weight:600; color:var(--ink,#222);">No. WhatsApp Anda *</label>
+                <input id="dmWhatsapp" required style="width:100%; padding:10px 12px; border:1px solid var(--border,#ddd); border-radius:var(--radius-md,12px); margin-top:4px; font-size:14px; box-sizing:border-box;" placeholder="08xxxxxxxxxx">
+              </div>
+              <div>
+                <label style="font-size:13px; font-weight:600; color:var(--ink,#222);">Kota/Lokasi Masjid</label>
+                <input id="dmKota" style="width:100%; padding:10px 12px; border:1px solid var(--border,#ddd); border-radius:var(--radius-md,12px); margin-top:4px; font-size:14px; box-sizing:border-box;" placeholder="Contoh: Karawang">
+              </div>
+              <div>
+                <label style="font-size:13px; font-weight:600; color:var(--ink,#222);">Catatan (opsional)</label>
+                <textarea id="dmCatatan" rows="3" style="width:100%; padding:10px 12px; border:1px solid var(--border,#ddd); border-radius:var(--radius-md,12px); margin-top:4px; font-size:14px; box-sizing:border-box; resize:vertical;" placeholder="Perkiraan jumlah jemaah, kebutuhan khusus, dll"></textarea>
+              </div>
+              <button type="submit" style="margin-top:6px; background:var(--emerald,#0E3B34); color:#fff; border:none; border-radius:var(--radius-md,12px); padding:14px; font-size:15px; font-weight:600; cursor:pointer;">
+                Daftarkan Masjid Anda via WhatsApp
+              </button>
+            </form>
+            <p style="text-align:center; font-size:12px; color:var(--ink-faint,#999); margin-top:18px;">Data Anda dikirim langsung ke WhatsApp admin Alur Qurban — bukan disimpan otomatis di sistem.</p>
+          </div>
+        </div>`;
+}
+
 // Ditampilkan kalau slug di path tidak ketemu/nonaktif di Registry - dulu
 // dari sini user bisa tahu ini masalah URL, bukan app-nya rusak.
 function showTenantNotFoundScreen() {
@@ -11234,6 +11303,14 @@ function renderPrayerTimes(jadwal) {
 // pertama kali sudah benar punya masjid yang bersangkutan, bukan sempat
 // kelihatan default lalu "loncat" begitu config-nya datang.
 (async function initApp() {
+    // Root (/) tanpa slug masjid = landing page brand "Alur Qurban", bukan
+    // lagi fallback ke masjid Dhafinul Jariyah. Anggota Dhafinul yang masih
+    // pakai URL root (termasuk PWA lama) perlu diarahkan pindah ke /dhafinul.
+    if (!CURRENT_TENANT) {
+        showAlurQurbanLanding();
+        return;
+    }
+
     const tenantOk = await loadTenantConfigIfNeeded();
     if (!tenantOk) {
         showTenantNotFoundScreen();
