@@ -7,10 +7,11 @@
 // NAIKKAN angka di belakang string ini (v2, v3, dst) SETIAP kali ada
 // perubahan besar - itu memicu activate() membuang cache lama, jadi user
 // yang sudah pernah buka app tidak nyangkut di versi lama selamanya.
-const CACHE_VERSION = 'tabungan-qurban-v2';
+const CACHE_VERSION = 'tabungan-qurban-v3';
 const CACHE_ASSETS = [
     '/',
     '/index.html',
+    '/app.html',
     '/manifest.json',
     '/styles.css',
     '/offline.html'
