@@ -3313,9 +3313,13 @@
         <!-- TABS -->
         <div class="card report-card">
           <div class="report-tabs">
-            <button class="report-tab-btn active" onclick="switchKemasanTab('kelola', this)">
+            <button class="report-tab-btn active" onclick="switchKemasanTab('kemasan', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/></svg>
+              <span>Kemasan</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchKemasanTab('inventaris', this)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 15h4"/></svg>
-              <span>Kelola Item</span>
+              <span>Inventaris</span>
             </button>
             <button class="report-tab-btn" onclick="switchKemasanTab('checklist', this)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
@@ -3323,11 +3327,11 @@
             </button>
           </div>
 
-          <!-- SUB-TAB: KELOLA ITEM -->
-          <div id="kelolaTab" class="sub-tab-content">
-            <h3>Item Kemasan &amp; Inventaris</h3>
+          <!-- SUB-TAB: KEMASAN (konsumsi, skala otomatis) -->
+          <div id="kemasanTab" class="sub-tab-content">
+            <h3>Item Kemasan</h3>
             <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
-              Kebutuhan dihitung otomatis: pilih basis <strong>per Paket/Penerima</strong> (mis. 1 kantong plastik per paket) atau <strong>per Kg Daging</strong> (mis. 1 dus per 10 kg), isi rasionya, lalu bandingkan dengan Stok Tersedia.
+              Habis pakai/konsumsi yang jumlahnya ikut skala jumlah paket atau kg daging (kantong plastik, dus, tali, label). Kebutuhan dihitung otomatis: pilih basis <strong>per Paket/Penerima</strong> atau <strong>per Kg Daging</strong>, isi rasionya, lalu bandingkan dengan Stok Tersedia.
             </p>
             <div class="form-grid">
               <div class="form-group">
@@ -3367,11 +3371,48 @@
             </div>
           </div>
 
+          <!-- SUB-TAB: INVENTARIS (alat/perlengkapan, kebutuhan manual) -->
+          <div id="inventarisTab" class="sub-tab-content" style="display:none;">
+            <h3>Item Inventaris</h3>
+            <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+              Alat/perlengkapan yang jumlahnya TIDAK ikut skala jumlah paket/kg (pisau, talenan, timbangan, terpal, sarung tangan panitia). Kebutuhan diisi manual, lalu dibandingkan dengan Stok Tersedia.
+            </p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Nama Item</label>
+                <input type="text" id="inventarisNamaItem" placeholder="Contoh: Timbangan Gantung">
+              </div>
+              <div class="form-group">
+                <label>Kebutuhan</label>
+                <input type="number" step="any" min="0" id="inventarisKebutuhanManual" placeholder="Contoh: 2">
+              </div>
+              <div class="form-group">
+                <label>Stok Tersedia</label>
+                <input type="number" step="any" min="0" id="inventarisStokTersedia" placeholder="0">
+              </div>
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Catatan (opsional)</label>
+                <input type="text" id="inventarisCatatan" placeholder="Catatan singkat">
+              </div>
+            </div>
+            <input type="hidden" id="inventarisEditId" value="">
+            <div class="actions" style="margin-bottom:18px;">
+              <button class="btn btn-success btn-small" id="inventarisSubmitBtn" onclick="simpanInventarisItem()">+ Tambah Item</button>
+              <button class="btn btn-ghost btn-small" id="inventarisCancelBtn" onclick="batalEditInventarisItem()" style="display:none;">Batal Edit</button>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Item</th><th>Kebutuhan</th><th>Stok Tersedia</th><th>Selisih</th><th></th></tr></thead>
+                <tbody id="inventarisListBody"><tr><td colspan="5" class="loading">Memuat…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- SUB-TAB: CHECKLIST -->
           <div id="checklistTab" class="sub-tab-content" style="display:none;">
-            <h3>Checklist Kebutuhan Kemasan</h3>
+            <h3>Checklist Kebutuhan</h3>
             <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:14px;">
-              Item yang masih <strong>kurang</strong> ditampilkan lebih dulu supaya gampang dicek tim logistik sebelum hari pelaksanaan.
+              Item yang masih <strong>kurang</strong> ditampilkan lebih dulu supaya gampang dicek tim logistik sebelum hari pelaksanaan, dikelompokkan Kemasan &amp; Inventaris.
             </p>
             <div id="kemasanChecklistBox"></div>
           </div>
@@ -4203,14 +4244,19 @@ async function loadDataFromSheets() {
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
-    // Parse KemasanInventaris (checklist item kemasan modul "Kemasan &
-    // Inventaris" - kebutuhan dihitung otomatis dari rasioPerUnit x basis
-    // (Total Paket/Penerima ATAU Total Kg Daging), lihat hitungKebutuhanKemasan()).
+    // Parse KemasanInventaris (modul "Kemasan & Inventaris", 2 kategori):
+    // - kategori 'kemasan': habis pakai yg skalanya otomatis dari rasioPerUnit
+    //   x basis (Total Paket/Penerima ATAU Total Kg Daging), lihat
+    //   hitungKebutuhanKemasan().
+    // - kategori 'inventaris': alat/perlengkapan, kebutuhan diisi MANUAL
+    //   (kebutuhanManual), tidak ikut skala paket/kg.
     appData.kemasanInventaris = kemasanInventarisRows.map(row => ({
         id: parseInt(row.id) || 0,
         namaItem: row.namaItem || '',
+        kategori: (row.kategori || '').toString().trim().toLowerCase() === 'inventaris' ? 'inventaris' : 'kemasan',
         basisHitung: (row.basisHitung || '').toString().trim().toLowerCase() === 'kg' ? 'kg' : 'paket',
         rasioPerUnit: parseFloat(row.rasioPerUnit) || 0,
+        kebutuhanManual: parseFloat(row.kebutuhanManual) || 0,
         stokTersedia: parseFloat(row.stokTersedia) || 0,
         catatan: row.catatan || '',
         status: row.status || 'aktif',
@@ -4776,8 +4822,7 @@ function runTabDataLoaders(tabName) {
         loadTransaksiKeuanganList();
     }
     if (tabName === 'kemasan') {
-        loadKemasanList();
-        renderKemasanHero();
+        refreshKemasanInventaris();
     }
     if (tabName === 'broadcast') {
         populateSapiOptions();
@@ -7748,13 +7793,17 @@ async function lihatBuktiTransaksi(id) {
     body.innerHTML = `<div style="text-align:center;"><img src="${fotoData}" class="preview-image" alt="Bukti transaksi" style="max-width:100%; border-radius:8px;"></div>`;
 }
 
-// ===== KEMASAN & INVENTARIS (checklist kebutuhan kemasan) - modul
-// admin-only. Kebutuhan tiap item dihitung otomatis dari rasioPerUnit x
-// basis (Total Paket/Penerima dari PenerimaQR, ATAU Total Estimasi Kg
-// Daging dari Survey Sapi - sama sumber angka dengan renderDistribusiHero()),
-// lalu dibandingkan dengan Stok Tersedia (checklist sederhana, tanpa
-// histori in/out). =====
+// ===== KEMASAN & INVENTARIS - modul admin-only, 2 kategori terpisah:
+// - 'kemasan': habis pakai yang kebutuhannya dihitung OTOMATIS dari
+//   rasioPerUnit x basis (Total Paket/Penerima dari PenerimaQR, ATAU Total
+//   Estimasi Kg Daging dari Survey Sapi - sama sumber angka dengan
+//   renderDistribusiHero()).
+// - 'inventaris': alat/perlengkapan, kebutuhannya diisi MANUAL
+//   (kebutuhanManual), tidak ikut skala paket/kg.
+// Keduanya dibandingkan dengan Stok Tersedia (checklist sederhana, tanpa
+// histori in/out), disimpan di 1 sheet yang sama (KemasanInventaris). =====
 let editingKemasanId = null;
+let editingInventarisId = null;
 
 // Total paket/penerima terdaftar (1 baris PenerimaQR = 1 paket) - sumber
 // yang sama dipakai countPenerimaAktifUntukAlokasi() per alokasi, di sini
@@ -7773,8 +7822,12 @@ function totalEstimasiKgDaging() {
 }
 
 // Kebutuhan dibulatkan ke atas (Math.ceil) - tidak mungkin beli/pakai
-// setengah kantong plastik.
+// setengah kantong plastik/alat. Item 'inventaris' pakai kebutuhanManual
+// langsung (tidak ikut skala paket/kg).
 function hitungKebutuhanKemasan(item) {
+    if (item.kategori === 'inventaris') {
+        return Math.ceil(item.kebutuhanManual || 0);
+    }
     const basisTotal = item.basisHitung === 'kg' ? totalEstimasiKgDaging() : totalPaketPenerima();
     return Math.ceil((item.rasioPerUnit || 0) * basisTotal);
 }
@@ -7783,7 +7836,7 @@ function kemasanSelisihColor(selisih) {
     return selisih < 0 ? 'var(--brick)' : 'var(--emerald-2)';
 }
 
-// Pindah antar sub-tab (Kelola Item/Checklist) di dalam tab Kemasan &
+// Pindah antar sub-tab (Kemasan/Inventaris/Checklist) di dalam tab Kemasan &
 // Inventaris - sama pola dengan switchKeuanganTab().
 function switchKemasanTab(tabName, btn) {
     document.querySelectorAll('#kemasan .sub-tab-content').forEach(tab => tab.style.display = 'none');
@@ -7793,6 +7846,16 @@ function switchKemasanTab(tabName, btn) {
     btn.classList.add('active');
 
     if (tabName === 'checklist') renderKemasanChecklist();
+}
+
+// Dipanggil tiap ada perubahan (tambah/edit/hapus item, atau buka tab) -
+// menyegarkan kedua tabel + hero + checklist sekaligus supaya selalu
+// konsisten satu sama lain.
+function refreshKemasanInventaris() {
+    loadKemasanList();
+    loadInventarisList();
+    renderKemasanHero();
+    renderKemasanChecklist();
 }
 
 function renderKemasanHero() {
@@ -7813,49 +7876,78 @@ function loadKemasanList() {
     const tbody = document.getElementById('kemasanListBody');
     if (!tbody) return;
 
-    const rows = appData.kemasanInventaris.filter(i => i.status !== 'batal');
+    const rows = appData.kemasanInventaris.filter(i => i.status !== 'batal' && i.kategori !== 'inventaris');
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada item. Tambahkan lewat form di atas.</td></tr>';
-    } else {
-        tbody.innerHTML = rows.map(item => {
-            const kebutuhan = hitungKebutuhanKemasan(item);
-            const selisih = item.stokTersedia - kebutuhan;
-            const basisLabel = item.basisHitung === 'kg' ? 'Per Kg Daging' : 'Per Paket/Penerima';
-            const color = kemasanSelisihColor(selisih);
-            const warningHtml = selisih < 0
-                ? `<div style="color:var(--brick); font-size:11px; font-weight:600;">⚠️ Kurang ${Math.abs(selisih).toLocaleString('id-ID')}</div>`
-                : '<div style="color:var(--emerald-2); font-size:11px; font-weight:600;">✓ Cukup</div>';
-
-            return `
-                <tr>
-                  <td>${item.namaItem}${item.catatan ? `<div style="font-size:11px; color:var(--ink-faint);">${item.catatan}</div>` : ''}</td>
-                  <td><span style="color:var(--ink-soft);">${basisLabel}</span></td>
-                  <td>${item.rasioPerUnit.toLocaleString('id-ID')}</td>
-                  <td>${kebutuhan.toLocaleString('id-ID')}</td>
-                  <td>${item.stokTersedia.toLocaleString('id-ID')}</td>
-                  <td><span style="color:${color}; font-weight:600;">${selisih.toLocaleString('id-ID')}</span>${warningHtml}</td>
-                  <td style="white-space:nowrap;">
-                    <button class="btn btn-ghost btn-small" onclick="editKemasanItem(${item.id})" title="Edit">✏️</button>
-                    <button class="btn btn-ghost btn-small" onclick="hapusKemasanItem(${item.id})" title="Hapus">🗑️</button>
-                  </td>
-                </tr>`;
-        }).join('');
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada item Kemasan. Tambahkan lewat form di atas.</td></tr>';
+        return;
     }
+    tbody.innerHTML = rows.map(item => {
+        const kebutuhan = hitungKebutuhanKemasan(item);
+        const selisih = item.stokTersedia - kebutuhan;
+        const basisLabel = item.basisHitung === 'kg' ? 'Per Kg Daging' : 'Per Paket/Penerima';
+        const color = kemasanSelisihColor(selisih);
+        const warningHtml = selisih < 0
+            ? `<div style="color:var(--brick); font-size:11px; font-weight:600;">⚠️ Kurang ${Math.abs(selisih).toLocaleString('id-ID')}</div>`
+            : '<div style="color:var(--emerald-2); font-size:11px; font-weight:600;">✓ Cukup</div>';
 
-    renderKemasanHero();
-    renderKemasanChecklist();
+        return `
+            <tr>
+              <td>${item.namaItem}${item.catatan ? `<div style="font-size:11px; color:var(--ink-faint);">${item.catatan}</div>` : ''}</td>
+              <td><span style="color:var(--ink-soft);">${basisLabel}</span></td>
+              <td>${item.rasioPerUnit.toLocaleString('id-ID')}</td>
+              <td>${kebutuhan.toLocaleString('id-ID')}</td>
+              <td>${item.stokTersedia.toLocaleString('id-ID')}</td>
+              <td><span style="color:${color}; font-weight:600;">${selisih.toLocaleString('id-ID')}</span>${warningHtml}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-small" onclick="editKemasanItem(${item.id})" title="Edit">✏️</button>
+                <button class="btn btn-ghost btn-small" onclick="hapusKemasanItem(${item.id})" title="Hapus">🗑️</button>
+              </td>
+            </tr>`;
+    }).join('');
 }
 
-// Checklist read-only buat tim logistik - item yang masih KURANG ditampilkan
-// lebih dulu supaya gampang dicek sebelum hari pelaksanaan.
+function loadInventarisList() {
+    const tbody = document.getElementById('inventarisListBody');
+    if (!tbody) return;
+
+    const rows = appData.kemasanInventaris.filter(i => i.status !== 'batal' && i.kategori === 'inventaris');
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">Belum ada item Inventaris. Tambahkan lewat form di atas.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rows.map(item => {
+        const kebutuhan = hitungKebutuhanKemasan(item);
+        const selisih = item.stokTersedia - kebutuhan;
+        const color = kemasanSelisihColor(selisih);
+        const warningHtml = selisih < 0
+            ? `<div style="color:var(--brick); font-size:11px; font-weight:600;">⚠️ Kurang ${Math.abs(selisih).toLocaleString('id-ID')}</div>`
+            : '<div style="color:var(--emerald-2); font-size:11px; font-weight:600;">✓ Cukup</div>';
+
+        return `
+            <tr>
+              <td>${item.namaItem}${item.catatan ? `<div style="font-size:11px; color:var(--ink-faint);">${item.catatan}</div>` : ''}</td>
+              <td>${kebutuhan.toLocaleString('id-ID')}</td>
+              <td>${item.stokTersedia.toLocaleString('id-ID')}</td>
+              <td><span style="color:${color}; font-weight:600;">${selisih.toLocaleString('id-ID')}</span>${warningHtml}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-small" onclick="editInventarisItem(${item.id})" title="Edit">✏️</button>
+                <button class="btn btn-ghost btn-small" onclick="hapusKemasanItem(${item.id})" title="Hapus">🗑️</button>
+              </td>
+            </tr>`;
+    }).join('');
+}
+
+// Checklist read-only buat tim logistik - dikelompokkan per kategori (Kemasan
+// dulu, baru Inventaris), item yang masih KURANG ditampilkan lebih dulu di
+// tiap kelompok supaya gampang dicek sebelum hari pelaksanaan.
 function renderKemasanChecklist() {
     const box = document.getElementById('kemasanChecklistBox');
     if (!box) return;
     const tabEl = document.getElementById('checklistTab');
     if (tabEl && tabEl.style.display === 'none') return;
 
-    const rows = appData.kemasanInventaris
-        .filter(i => i.status !== 'batal')
+    const buildRows = kategori => appData.kemasanInventaris
+        .filter(i => i.status !== 'batal' && (kategori === 'inventaris' ? i.kategori === 'inventaris' : i.kategori !== 'inventaris'))
         .map(item => {
             const kebutuhan = hitungKebutuhanKemasan(item);
             const selisih = item.stokTersedia - kebutuhan;
@@ -7863,25 +7955,36 @@ function renderKemasanChecklist() {
         })
         .sort((a, b) => a.selisih - b.selisih);
 
-    if (rows.length === 0) {
-        box.innerHTML = '<p class="loading">Belum ada item kemasan.</p>';
+    const renderGroup = (label, rows) => {
+        if (rows.length === 0) return '';
+        const itemsHtml = rows.map(({ item, kebutuhan, selisih }) => {
+            const kurang = selisih < 0;
+            const detail = item.kategori === 'inventaris'
+                ? `Kebutuhan ${kebutuhan.toLocaleString('id-ID')} · Stok ${item.stokTersedia.toLocaleString('id-ID')}`
+                : `Rasio ${item.rasioPerUnit.toLocaleString('id-ID')} ${item.basisHitung === 'kg' ? 'per Kg Daging' : 'per Paket/Penerima'} · Kebutuhan ${kebutuhan.toLocaleString('id-ID')} · Stok ${item.stokTersedia.toLocaleString('id-ID')}`;
+            return `
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; background:${kurang ? 'rgba(155,70,50,0.06)' : 'transparent'};">
+                  <div>
+                    <div style="font-weight:600;">${kurang ? '⚠️' : '✅'} ${item.namaItem}</div>
+                    <div style="font-size:12px; color:var(--ink-faint);">${detail}</div>
+                  </div>
+                  <div style="text-align:right; font-weight:700; color:${kemasanSelisihColor(selisih)};">
+                    ${kurang ? `Kurang ${Math.abs(selisih).toLocaleString('id-ID')}` : `Lebih ${selisih.toLocaleString('id-ID')}`}
+                  </div>
+                </div>`;
+        }).join('');
+        return `<h4 style="margin:18px 0 8px;">${label}</h4>${itemsHtml}`;
+    };
+
+    const kemasanRows = buildRows('kemasan');
+    const inventarisRows = buildRows('inventaris');
+
+    if (kemasanRows.length === 0 && inventarisRows.length === 0) {
+        box.innerHTML = '<p class="loading">Belum ada item Kemasan/Inventaris.</p>';
         return;
     }
 
-    box.innerHTML = rows.map(({ item, kebutuhan, selisih }) => {
-        const kurang = selisih < 0;
-        const basisLabel = item.basisHitung === 'kg' ? 'per Kg Daging' : 'per Paket/Penerima';
-        return `
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; background:${kurang ? 'rgba(155,70,50,0.06)' : 'transparent'};">
-              <div>
-                <div style="font-weight:600;">${kurang ? '⚠️' : '✅'} ${item.namaItem}</div>
-                <div style="font-size:12px; color:var(--ink-faint);">Rasio ${item.rasioPerUnit.toLocaleString('id-ID')} ${basisLabel} · Kebutuhan ${kebutuhan.toLocaleString('id-ID')} · Stok ${item.stokTersedia.toLocaleString('id-ID')}</div>
-              </div>
-              <div style="text-align:right; font-weight:700; color:${kemasanSelisihColor(selisih)};">
-                ${kurang ? `Kurang ${Math.abs(selisih).toLocaleString('id-ID')}` : `Lebih ${selisih.toLocaleString('id-ID')}`}
-              </div>
-            </div>`;
-    }).join('');
+    box.innerHTML = renderGroup('📦 Kemasan', kemasanRows) + renderGroup('🧰 Inventaris', inventarisRows);
 }
 
 async function simpanKemasanItem() {
@@ -7901,7 +8004,7 @@ async function simpanKemasanItem() {
             if (item) { item.namaItem = namaItem; item.basisHitung = basisHitung; item.rasioPerUnit = rasioPerUnit; item.stokTersedia = stokTersedia; item.catatan = catatan; }
             showAlert('Item diperbarui', 'success');
             batalEditKemasanItem();
-            loadKemasanList();
+            refreshKemasanInventaris();
         } else {
             showAlert('Gagal menyimpan perubahan, coba lagi.', 'error');
         }
@@ -7915,8 +8018,10 @@ async function simpanKemasanItem() {
     const record = {
         id: newId,
         namaItem,
+        kategori: 'kemasan',
         basisHitung,
         rasioPerUnit,
+        kebutuhanManual: 0,
         stokTersedia,
         catatan,
         status: 'aktif',
@@ -7932,7 +8037,7 @@ async function simpanKemasanItem() {
         document.getElementById('kemasanStokTersedia').value = '';
         document.getElementById('kemasanCatatan').value = '';
         document.getElementById('kemasanBasisHitung').value = 'paket';
-        loadKemasanList();
+        refreshKemasanInventaris();
     } else {
         showAlert('Gagal menyimpan item, coba lagi.', 'error');
     }
@@ -7973,6 +8078,95 @@ function batalEditKemasanItem() {
     if (cancelBtn) cancelBtn.style.display = 'none';
 }
 
+async function simpanInventarisItem() {
+    const namaItem = document.getElementById('inventarisNamaItem').value.trim();
+    const kebutuhanManual = parseFloat(document.getElementById('inventarisKebutuhanManual').value) || 0;
+    const stokTersedia = parseFloat(document.getElementById('inventarisStokTersedia').value) || 0;
+    const catatan = document.getElementById('inventarisCatatan').value.trim();
+
+    if (!namaItem) { showAlert('Nama Item harus diisi', 'error'); return; }
+    if (kebutuhanManual <= 0) { showAlert('Kebutuhan harus diisi', 'error'); return; }
+
+    if (editingInventarisId) {
+        const success = await updateSheetDB('KemasanInventaris', 'id', editingInventarisId, { namaItem, kebutuhanManual, stokTersedia, catatan });
+        if (success) {
+            const item = appData.kemasanInventaris.find(i => i.id === editingInventarisId);
+            if (item) { item.namaItem = namaItem; item.kebutuhanManual = kebutuhanManual; item.stokTersedia = stokTersedia; item.catatan = catatan; }
+            showAlert('Item diperbarui', 'success');
+            batalEditInventarisItem();
+            refreshKemasanInventaris();
+        } else {
+            showAlert('Gagal menyimpan perubahan, coba lagi.', 'error');
+        }
+        return;
+    }
+
+    const newId = appData.kemasanInventaris.length > 0
+        ? Math.max(...appData.kemasanInventaris.map(i => i.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        namaItem,
+        kategori: 'inventaris',
+        basisHitung: 'paket',
+        rasioPerUnit: 0,
+        kebutuhanManual,
+        stokTersedia,
+        catatan,
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+
+    const success = await appendSheetDB('KemasanInventaris', record);
+    if (success) {
+        appData.kemasanInventaris.push(record);
+        showAlert('Item ditambahkan', 'success');
+        document.getElementById('inventarisNamaItem').value = '';
+        document.getElementById('inventarisKebutuhanManual').value = '';
+        document.getElementById('inventarisStokTersedia').value = '';
+        document.getElementById('inventarisCatatan').value = '';
+        refreshKemasanInventaris();
+    } else {
+        showAlert('Gagal menyimpan item, coba lagi.', 'error');
+    }
+}
+
+function editInventarisItem(id) {
+    const item = appData.kemasanInventaris.find(i => i.id === id);
+    if (!item) return;
+
+    editingInventarisId = id;
+    document.getElementById('inventarisNamaItem').value = item.namaItem;
+    document.getElementById('inventarisKebutuhanManual').value = item.kebutuhanManual;
+    document.getElementById('inventarisStokTersedia').value = item.stokTersedia;
+    document.getElementById('inventarisCatatan').value = item.catatan;
+    document.getElementById('inventarisEditId').value = id;
+
+    const btn = document.getElementById('inventarisSubmitBtn');
+    if (btn) btn.textContent = '💾 Simpan Perubahan';
+    const cancelBtn = document.getElementById('inventarisCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+    document.getElementById('inventarisNamaItem').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function batalEditInventarisItem() {
+    editingInventarisId = null;
+    document.getElementById('inventarisNamaItem').value = '';
+    document.getElementById('inventarisKebutuhanManual').value = '';
+    document.getElementById('inventarisStokTersedia').value = '';
+    document.getElementById('inventarisCatatan').value = '';
+    document.getElementById('inventarisEditId').value = '';
+
+    const btn = document.getElementById('inventarisSubmitBtn');
+    if (btn) btn.textContent = '+ Tambah Item';
+    const cancelBtn = document.getElementById('inventarisCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+// Dipakai bareng oleh item kategori 'kemasan' maupun 'inventaris' - soft
+// delete generik by id, lalu refresh kedua tabel sekaligus.
 async function hapusKemasanItem(id) {
     const item = appData.kemasanInventaris.find(i => i.id === id);
     if (!item) return;
@@ -7983,7 +8177,8 @@ async function hapusKemasanItem(id) {
         item.status = 'batal';
         showAlert('Item dihapus', 'success');
         if (editingKemasanId === id) batalEditKemasanItem();
-        loadKemasanList();
+        if (editingInventarisId === id) batalEditInventarisItem();
+        refreshKemasanInventaris();
     } else {
         showAlert('Gagal menghapus item, coba lagi.', 'error');
     }

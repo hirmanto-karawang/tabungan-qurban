@@ -90,13 +90,16 @@ function stripBuktiTransaksi(row) {
   return { ...row, hasBukti: !!row.bukti, bukti: '' };
 }
 
-// 'KemasanInventaris' - modul "Kemasan & Inventaris": daftar item kemasan
-// (plastik, dus, tali, dsb) buat dihitung kebutuhannya otomatis (basis per
-// Paket/Penerima ATAU per Kg daging, lihat hitungKebutuhanKemasan() di
-// frontend) dibanding stok yang sudah tersedia (kolom: id, namaItem,
-// basisHitung ['paket'/'kg'], rasioPerUnit, stokTersedia, catatan, status,
-// created_date). Checklist sederhana, tanpa histori in/out - "status" tetap
-// dipakai sebagai soft-delete ('batal'), sama pola dengan sheet lain.
+// 'KemasanInventaris' - modul "Kemasan & Inventaris", 2 kategori dalam 1
+// sheet (kolom "kategori"): 'kemasan' (habis pakai spt plastik/dus/tali -
+// kebutuhan dihitung OTOMATIS dari basisHitung ['paket'/'kg'] x rasioPerUnit,
+// lihat hitungKebutuhanKemasan() di frontend) dan 'inventaris' (alat/
+// perlengkapan spt pisau/timbangan - kebutuhan diisi MANUAL lewat kolom
+// kebutuhanManual, tidak ikut skala paket/kg). Kolom lengkap: id, namaItem,
+// kategori, basisHitung, rasioPerUnit, kebutuhanManual, stokTersedia,
+// catatan, status, created_date. Checklist sederhana, tanpa histori in/out -
+// "status" tetap dipakai sebagai soft-delete ('batal'), sama pola dengan
+// sheet lain.
 
 // ----- Cache access token di memori (bertahan selama instance function masih "warm") -----
 let cachedAccessToken = null;
