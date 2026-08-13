@@ -2180,6 +2180,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 6v0M18 6v0M6 18v0M18 18v0"/></svg>
         Keuangan
       </button>
+      <button class="tab-btn" id="kemasanTabBtn" onclick="switchTab('kemasan')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/><path d="M12 13v6"/></svg>
+        Kemasan &amp; Inventaris
+      </button>
       <button class="tab-btn" id="profileTabBtn" onclick="switchTab('profile')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Profil
@@ -3285,6 +3289,95 @@
         </div>
       </div>
 
+      <!-- Tab: Kemasan & Inventaris -->
+      <div id="kemasan" class="tab-content">
+        <div class="report-hero">
+          <div class="report-hero-label">📦 Item Perlu Ditambah</div>
+          <div class="report-hero-total" id="kemasanHeroKurang">0</div>
+          <div class="report-hero-stats">
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">🗂️ Total Jenis Item</div>
+              <div class="report-hero-stat-value" id="kemasanHeroJumlahItem">0</div>
+            </div>
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">👥 Total Paket/Penerima</div>
+              <div class="report-hero-stat-value" id="kemasanHeroTotalPaket">0</div>
+            </div>
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">⚖️ Total Estimasi Daging</div>
+              <div class="report-hero-stat-value" id="kemasanHeroTotalKg">0 kg</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="card report-card">
+          <div class="report-tabs">
+            <button class="report-tab-btn active" onclick="switchKemasanTab('kelola', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 15h4"/></svg>
+              <span>Kelola Item</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchKemasanTab('checklist', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              <span>Checklist</span>
+            </button>
+          </div>
+
+          <!-- SUB-TAB: KELOLA ITEM -->
+          <div id="kelolaTab" class="sub-tab-content">
+            <h3>Item Kemasan &amp; Inventaris</h3>
+            <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+              Kebutuhan dihitung otomatis: pilih basis <strong>per Paket/Penerima</strong> (mis. 1 kantong plastik per paket) atau <strong>per Kg Daging</strong> (mis. 1 dus per 10 kg), isi rasionya, lalu bandingkan dengan Stok Tersedia.
+            </p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Nama Item</label>
+                <input type="text" id="kemasanNamaItem" placeholder="Contoh: Kantong Plastik Besar">
+              </div>
+              <div class="form-group">
+                <label>Basis Hitung</label>
+                <select id="kemasanBasisHitung">
+                  <option value="paket">Per Paket/Penerima</option>
+                  <option value="kg">Per Kg Daging</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Rasio per Unit</label>
+                <input type="number" step="any" min="0" id="kemasanRasioPerUnit" placeholder="Contoh: 1">
+              </div>
+              <div class="form-group">
+                <label>Stok Tersedia</label>
+                <input type="number" step="any" min="0" id="kemasanStokTersedia" placeholder="0">
+              </div>
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Catatan (opsional)</label>
+                <input type="text" id="kemasanCatatan" placeholder="Catatan singkat">
+              </div>
+            </div>
+            <input type="hidden" id="kemasanEditId" value="">
+            <div class="actions" style="margin-bottom:18px;">
+              <button class="btn btn-success btn-small" id="kemasanSubmitBtn" onclick="simpanKemasanItem()">+ Tambah Item</button>
+              <button class="btn btn-ghost btn-small" id="kemasanCancelBtn" onclick="batalEditKemasanItem()" style="display:none;">Batal Edit</button>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Item</th><th>Basis</th><th>Rasio/Unit</th><th>Kebutuhan</th><th>Stok Tersedia</th><th>Selisih</th><th></th></tr></thead>
+                <tbody id="kemasanListBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-TAB: CHECKLIST -->
+          <div id="checklistTab" class="sub-tab-content" style="display:none;">
+            <h3>Checklist Kebutuhan Kemasan</h3>
+            <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:14px;">
+              Item yang masih <strong>kurang</strong> ditampilkan lebih dulu supaya gampang dicek tim logistik sebelum hari pelaksanaan.
+            </p>
+            <div id="kemasanChecklistBox"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tab: Profil -->
       <div id="profile" class="tab-content">
 
@@ -3692,7 +3785,8 @@ let appData = {
     workOrderAktual: [],
     penerimaQR: [],
     posBudget: [],
-    transaksiKeuangan: []
+    transaksiKeuangan: [],
+    kemasanInventaris: []
 };
 
 let currentUser = null;
@@ -3878,6 +3972,7 @@ async function loadDataFromSheets() {
     const penerimaQRRows = bootstrap ? (bootstrap.PenerimaQR || []) : await fetchSheetDBTable('PenerimaQR');
     const posBudgetRows = bootstrap ? (bootstrap.PosBudget || []) : await fetchSheetDBTable('PosBudget');
     const transaksiKeuanganRows = bootstrap ? (bootstrap.TransaksiKeuangan || []) : await fetchSheetDBTable('TransaksiKeuangan');
+    const kemasanInventarisRows = bootstrap ? (bootstrap.KemasanInventaris || []) : await fetchSheetDBTable('KemasanInventaris');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -4104,6 +4199,20 @@ async function loadDataFromSheets() {
         jumlah: parseInt(row.jumlah) || 0,
         keterangan: row.keterangan || '',
         hasBukti: !!row.hasBukti,
+        status: row.status || 'aktif',
+        created_date: row.created_date || ''
+    })).filter(d => d.id);
+
+    // Parse KemasanInventaris (checklist item kemasan modul "Kemasan &
+    // Inventaris" - kebutuhan dihitung otomatis dari rasioPerUnit x basis
+    // (Total Paket/Penerima ATAU Total Kg Daging), lihat hitungKebutuhanKemasan()).
+    appData.kemasanInventaris = kemasanInventarisRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        namaItem: row.namaItem || '',
+        basisHitung: (row.basisHitung || '').toString().trim().toLowerCase() === 'kg' ? 'kg' : 'paket',
+        rasioPerUnit: parseFloat(row.rasioPerUnit) || 0,
+        stokTersedia: parseFloat(row.stokTersedia) || 0,
+        catatan: row.catatan || '',
         status: row.status || 'aktif',
         created_date: row.created_date || ''
     })).filter(d => d.id);
@@ -4463,6 +4572,7 @@ function showApp() {
     const woAktualTabBtn = document.getElementById('woAktualTabBtn');
     const penerimaTabBtn = document.getElementById('penerimaTabBtn');
     const keuanganTabBtn = document.getElementById('keuanganTabBtn');
+    const kemasanTabBtn = document.getElementById('kemasanTabBtn');
 
     // Menu untuk Anggota
     const profileTabBtn = document.getElementById('profileTabBtn');
@@ -4481,6 +4591,7 @@ function showApp() {
         woAktualTabBtn.style.display = 'flex';
         penerimaTabBtn.style.display = 'flex';
         keuanganTabBtn.style.display = 'flex';
+        kemasanTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';  // Admin bisa lihat laporan
 
         // Hide menu anggota
@@ -4507,6 +4618,7 @@ function showApp() {
         woAktualTabBtn.style.display = 'none';
         penerimaTabBtn.style.display = 'none';
         keuanganTabBtn.style.display = 'none';
+        kemasanTabBtn.style.display = 'none';
 
         // Redirect ke dashboard
         switchTab('dashboard');
@@ -4531,6 +4643,7 @@ function showApp() {
         woAktualTabBtn.style.display = 'none';
         penerimaTabBtn.style.display = 'none';
         keuanganTabBtn.style.display = 'none';
+        kemasanTabBtn.style.display = 'none';
     }
 
     updateDashboard();
@@ -4555,6 +4668,7 @@ const TAB_META = {
     woAktual: { title: 'Work Order Aktual', crumb: 'Pelaksanaan' },
     penerima: { title: 'Penerima & Tiket', crumb: 'Pelaksanaan' },
     keuangan: { title: 'Keuangan', crumb: 'Keuangan' },
+    kemasan: { title: 'Kemasan & Inventaris', crumb: 'Pelaksanaan' },
     history: { title: 'Riwayat', crumb: 'Tabungan' },
     laporan: { title: 'Laporan', crumb: 'Ringkasan' }
 };
@@ -4590,7 +4704,7 @@ async function switchTab(tabName) {
     // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
     // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
     // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
-    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima', 'keuangan'];
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima', 'keuangan', 'kemasan'];
     if (needsFreshData.includes(tabName)) {
         await ensureDataLoaded();
     }
@@ -4660,6 +4774,10 @@ function runTabDataLoaders(tabName) {
         populateKeuanganPosSelect();
         loadPosBudgetList();
         loadTransaksiKeuanganList();
+    }
+    if (tabName === 'kemasan') {
+        loadKemasanList();
+        renderKemasanHero();
     }
     if (tabName === 'broadcast') {
         populateSapiOptions();
@@ -7628,6 +7746,247 @@ async function lihatBuktiTransaksi(id) {
         return;
     }
     body.innerHTML = `<div style="text-align:center;"><img src="${fotoData}" class="preview-image" alt="Bukti transaksi" style="max-width:100%; border-radius:8px;"></div>`;
+}
+
+// ===== KEMASAN & INVENTARIS (checklist kebutuhan kemasan) - modul
+// admin-only. Kebutuhan tiap item dihitung otomatis dari rasioPerUnit x
+// basis (Total Paket/Penerima dari PenerimaQR, ATAU Total Estimasi Kg
+// Daging dari Survey Sapi - sama sumber angka dengan renderDistribusiHero()),
+// lalu dibandingkan dengan Stok Tersedia (checklist sederhana, tanpa
+// histori in/out). =====
+let editingKemasanId = null;
+
+// Total paket/penerima terdaftar (1 baris PenerimaQR = 1 paket) - sumber
+// yang sama dipakai countPenerimaAktifUntukAlokasi() per alokasi, di sini
+// dijumlah lintas semua alokasi.
+function totalPaketPenerima() {
+    return appData.penerimaQR.filter(p => p.status !== 'batal').length;
+}
+
+// Total estimasi daging (kg) dari semua Survey Sapi - persis sumber yang
+// dipakai renderDistribusiHero() utk 'Total Estimasi Daging'.
+function totalEstimasiKgDaging() {
+    return appData.surveySapi.reduce((sum, s) => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        return sum + k.estimasiDaging;
+    }, 0);
+}
+
+// Kebutuhan dibulatkan ke atas (Math.ceil) - tidak mungkin beli/pakai
+// setengah kantong plastik.
+function hitungKebutuhanKemasan(item) {
+    const basisTotal = item.basisHitung === 'kg' ? totalEstimasiKgDaging() : totalPaketPenerima();
+    return Math.ceil((item.rasioPerUnit || 0) * basisTotal);
+}
+
+function kemasanSelisihColor(selisih) {
+    return selisih < 0 ? 'var(--brick)' : 'var(--emerald-2)';
+}
+
+// Pindah antar sub-tab (Kelola Item/Checklist) di dalam tab Kemasan &
+// Inventaris - sama pola dengan switchKeuanganTab().
+function switchKemasanTab(tabName, btn) {
+    document.querySelectorAll('#kemasan .sub-tab-content').forEach(tab => tab.style.display = 'none');
+    document.getElementById(tabName + 'Tab').style.display = 'block';
+
+    document.querySelectorAll('#kemasan .report-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    if (tabName === 'checklist') renderKemasanChecklist();
+}
+
+function renderKemasanHero() {
+    const heroKurang = document.getElementById('kemasanHeroKurang');
+    if (!heroKurang) return;
+
+    const items = appData.kemasanInventaris.filter(i => i.status !== 'batal');
+    const jumlahKurang = items.filter(i => (i.stokTersedia - hitungKebutuhanKemasan(i)) < 0).length;
+
+    heroKurang.textContent = jumlahKurang.toLocaleString('id-ID');
+    heroKurang.style.color = jumlahKurang > 0 ? 'var(--gold-soft)' : '#fff';
+    document.getElementById('kemasanHeroJumlahItem').textContent = items.length.toLocaleString('id-ID');
+    document.getElementById('kemasanHeroTotalPaket').textContent = totalPaketPenerima().toLocaleString('id-ID');
+    document.getElementById('kemasanHeroTotalKg').textContent = `${formatKg(totalEstimasiKgDaging())} kg`;
+}
+
+function loadKemasanList() {
+    const tbody = document.getElementById('kemasanListBody');
+    if (!tbody) return;
+
+    const rows = appData.kemasanInventaris.filter(i => i.status !== 'batal');
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada item. Tambahkan lewat form di atas.</td></tr>';
+    } else {
+        tbody.innerHTML = rows.map(item => {
+            const kebutuhan = hitungKebutuhanKemasan(item);
+            const selisih = item.stokTersedia - kebutuhan;
+            const basisLabel = item.basisHitung === 'kg' ? 'Per Kg Daging' : 'Per Paket/Penerima';
+            const color = kemasanSelisihColor(selisih);
+            const warningHtml = selisih < 0
+                ? `<div style="color:var(--brick); font-size:11px; font-weight:600;">⚠️ Kurang ${Math.abs(selisih).toLocaleString('id-ID')}</div>`
+                : '<div style="color:var(--emerald-2); font-size:11px; font-weight:600;">✓ Cukup</div>';
+
+            return `
+                <tr>
+                  <td>${item.namaItem}${item.catatan ? `<div style="font-size:11px; color:var(--ink-faint);">${item.catatan}</div>` : ''}</td>
+                  <td><span style="color:var(--ink-soft);">${basisLabel}</span></td>
+                  <td>${item.rasioPerUnit.toLocaleString('id-ID')}</td>
+                  <td>${kebutuhan.toLocaleString('id-ID')}</td>
+                  <td>${item.stokTersedia.toLocaleString('id-ID')}</td>
+                  <td><span style="color:${color}; font-weight:600;">${selisih.toLocaleString('id-ID')}</span>${warningHtml}</td>
+                  <td style="white-space:nowrap;">
+                    <button class="btn btn-ghost btn-small" onclick="editKemasanItem(${item.id})" title="Edit">✏️</button>
+                    <button class="btn btn-ghost btn-small" onclick="hapusKemasanItem(${item.id})" title="Hapus">🗑️</button>
+                  </td>
+                </tr>`;
+        }).join('');
+    }
+
+    renderKemasanHero();
+    renderKemasanChecklist();
+}
+
+// Checklist read-only buat tim logistik - item yang masih KURANG ditampilkan
+// lebih dulu supaya gampang dicek sebelum hari pelaksanaan.
+function renderKemasanChecklist() {
+    const box = document.getElementById('kemasanChecklistBox');
+    if (!box) return;
+    const tabEl = document.getElementById('checklistTab');
+    if (tabEl && tabEl.style.display === 'none') return;
+
+    const rows = appData.kemasanInventaris
+        .filter(i => i.status !== 'batal')
+        .map(item => {
+            const kebutuhan = hitungKebutuhanKemasan(item);
+            const selisih = item.stokTersedia - kebutuhan;
+            return { item, kebutuhan, selisih };
+        })
+        .sort((a, b) => a.selisih - b.selisih);
+
+    if (rows.length === 0) {
+        box.innerHTML = '<p class="loading">Belum ada item kemasan.</p>';
+        return;
+    }
+
+    box.innerHTML = rows.map(({ item, kebutuhan, selisih }) => {
+        const kurang = selisih < 0;
+        const basisLabel = item.basisHitung === 'kg' ? 'per Kg Daging' : 'per Paket/Penerima';
+        return `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; background:${kurang ? 'rgba(155,70,50,0.06)' : 'transparent'};">
+              <div>
+                <div style="font-weight:600;">${kurang ? '⚠️' : '✅'} ${item.namaItem}</div>
+                <div style="font-size:12px; color:var(--ink-faint);">Rasio ${item.rasioPerUnit.toLocaleString('id-ID')} ${basisLabel} · Kebutuhan ${kebutuhan.toLocaleString('id-ID')} · Stok ${item.stokTersedia.toLocaleString('id-ID')}</div>
+              </div>
+              <div style="text-align:right; font-weight:700; color:${kemasanSelisihColor(selisih)};">
+                ${kurang ? `Kurang ${Math.abs(selisih).toLocaleString('id-ID')}` : `Lebih ${selisih.toLocaleString('id-ID')}`}
+              </div>
+            </div>`;
+    }).join('');
+}
+
+async function simpanKemasanItem() {
+    const namaItem = document.getElementById('kemasanNamaItem').value.trim();
+    const basisHitung = document.getElementById('kemasanBasisHitung').value === 'kg' ? 'kg' : 'paket';
+    const rasioPerUnit = parseFloat(document.getElementById('kemasanRasioPerUnit').value) || 0;
+    const stokTersedia = parseFloat(document.getElementById('kemasanStokTersedia').value) || 0;
+    const catatan = document.getElementById('kemasanCatatan').value.trim();
+
+    if (!namaItem) { showAlert('Nama Item harus diisi', 'error'); return; }
+    if (rasioPerUnit <= 0) { showAlert('Rasio per Unit harus diisi', 'error'); return; }
+
+    if (editingKemasanId) {
+        const success = await updateSheetDB('KemasanInventaris', 'id', editingKemasanId, { namaItem, basisHitung, rasioPerUnit, stokTersedia, catatan });
+        if (success) {
+            const item = appData.kemasanInventaris.find(i => i.id === editingKemasanId);
+            if (item) { item.namaItem = namaItem; item.basisHitung = basisHitung; item.rasioPerUnit = rasioPerUnit; item.stokTersedia = stokTersedia; item.catatan = catatan; }
+            showAlert('Item diperbarui', 'success');
+            batalEditKemasanItem();
+            loadKemasanList();
+        } else {
+            showAlert('Gagal menyimpan perubahan, coba lagi.', 'error');
+        }
+        return;
+    }
+
+    const newId = appData.kemasanInventaris.length > 0
+        ? Math.max(...appData.kemasanInventaris.map(i => i.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        namaItem,
+        basisHitung,
+        rasioPerUnit,
+        stokTersedia,
+        catatan,
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+
+    const success = await appendSheetDB('KemasanInventaris', record);
+    if (success) {
+        appData.kemasanInventaris.push(record);
+        showAlert('Item ditambahkan', 'success');
+        document.getElementById('kemasanNamaItem').value = '';
+        document.getElementById('kemasanRasioPerUnit').value = '';
+        document.getElementById('kemasanStokTersedia').value = '';
+        document.getElementById('kemasanCatatan').value = '';
+        document.getElementById('kemasanBasisHitung').value = 'paket';
+        loadKemasanList();
+    } else {
+        showAlert('Gagal menyimpan item, coba lagi.', 'error');
+    }
+}
+
+function editKemasanItem(id) {
+    const item = appData.kemasanInventaris.find(i => i.id === id);
+    if (!item) return;
+
+    editingKemasanId = id;
+    document.getElementById('kemasanNamaItem').value = item.namaItem;
+    document.getElementById('kemasanBasisHitung').value = item.basisHitung;
+    document.getElementById('kemasanRasioPerUnit').value = item.rasioPerUnit;
+    document.getElementById('kemasanStokTersedia').value = item.stokTersedia;
+    document.getElementById('kemasanCatatan').value = item.catatan;
+    document.getElementById('kemasanEditId').value = id;
+
+    const btn = document.getElementById('kemasanSubmitBtn');
+    if (btn) btn.textContent = '💾 Simpan Perubahan';
+    const cancelBtn = document.getElementById('kemasanCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+    document.getElementById('kemasanNamaItem').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function batalEditKemasanItem() {
+    editingKemasanId = null;
+    document.getElementById('kemasanNamaItem').value = '';
+    document.getElementById('kemasanBasisHitung').value = 'paket';
+    document.getElementById('kemasanRasioPerUnit').value = '';
+    document.getElementById('kemasanStokTersedia').value = '';
+    document.getElementById('kemasanCatatan').value = '';
+    document.getElementById('kemasanEditId').value = '';
+
+    const btn = document.getElementById('kemasanSubmitBtn');
+    if (btn) btn.textContent = '+ Tambah Item';
+    const cancelBtn = document.getElementById('kemasanCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+async function hapusKemasanItem(id) {
+    const item = appData.kemasanInventaris.find(i => i.id === id);
+    if (!item) return;
+    if (!confirm(`Hapus item "${item.namaItem}"?`)) return;
+
+    const success = await updateSheetDB('KemasanInventaris', 'id', id, { status: 'batal' });
+    if (success) {
+        item.status = 'batal';
+        showAlert('Item dihapus', 'success');
+        if (editingKemasanId === id) batalEditKemasanItem();
+        loadKemasanList();
+    } else {
+        showAlert('Gagal menghapus item, coba lagi.', 'error');
+    }
 }
 
 // ===== SURVEY SAPI - TAMPILAN ANGGOTA (read-only + tombol Ikut) =====

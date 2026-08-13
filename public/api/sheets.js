@@ -19,7 +19,7 @@
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT:
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
@@ -60,7 +60,7 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgE
 // bawah), sama alasannya dengan foto SurveySapi.
 // Keduanya pakai "status" sebagai soft-delete ('batal' = disembunyikan,
 // bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan'];
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
 // Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
@@ -89,6 +89,14 @@ function stripPenerimaFoto(row) {
 function stripBuktiTransaksi(row) {
   return { ...row, hasBukti: !!row.bukti, bukti: '' };
 }
+
+// 'KemasanInventaris' - modul "Kemasan & Inventaris": daftar item kemasan
+// (plastik, dus, tali, dsb) buat dihitung kebutuhannya otomatis (basis per
+// Paket/Penerima ATAU per Kg daging, lihat hitungKebutuhanKemasan() di
+// frontend) dibanding stok yang sudah tersedia (kolom: id, namaItem,
+// basisHitung ['paket'/'kg'], rasioPerUnit, stokTersedia, catatan, status,
+// created_date). Checklist sederhana, tanpa histori in/out - "status" tetap
+// dipakai sebagai soft-delete ('batal'), sama pola dengan sheet lain.
 
 // ----- Cache access token di memori (bertahan selama instance function masih "warm") -----
 let cachedAccessToken = null;
