@@ -1925,6 +1925,64 @@
     display:flex; align-items:center; justify-content:center;
     min-height:200px;
   }
+
+  /* KARTU TIKET/KUPON PREMIUM - dipakai di lihatQrPenerima() (E-Tiket
+     Penerima biasa & Kupon Mudhohi). Sengaja kartu gelap (gradasi emerald +
+     titik emas, senada login-hero/sidebar) yang "melayang" di atas modal
+     putih - gaya boarding pass/tiket event, bukan kotak form biasa. */
+  .tiket-card{
+    position:relative;
+    width:100%; max-width:360px;
+    background: radial-gradient(120% 140% at 15% 0%, #144E45 0%, var(--emerald) 55%, #0A2823 100%);
+    border-radius:18px;
+    padding:24px 24px 22px;
+    color:#F4EFE1;
+    text-align:left;
+    overflow:hidden;
+    box-shadow: 0 12px 32px rgba(14,59,52,.28);
+  }
+  .tiket-card::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image: radial-gradient(rgba(231,200,120,.12) 1px, transparent 1.6px);
+    background-size: 20px 20px;
+    pointer-events:none;
+  }
+  .tiket-head{
+    position:relative; z-index:1;
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:18px; padding-bottom:16px;
+    border-bottom:1px solid rgba(244,239,225,.14);
+  }
+  .tiket-logo{
+    width:38px; height:38px; border-radius:9px; object-fit:contain;
+    background:rgba(255,255,255,.08); border:1px solid rgba(231,200,120,.35);
+    padding:3px; flex-shrink:0;
+  }
+  .tiket-masjid{ font-family:var(--font-display); font-size:14.5px; font-weight:600; color:#FBF6E9; line-height:1.25; }
+  .tiket-kategori{ font-family:var(--font-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-soft); margin-top:2px; }
+
+  .tiket-nama{ position:relative; z-index:1; font-family:var(--font-display); font-size:23px; font-weight:600; color:#fff; margin-bottom:14px; line-height:1.2; }
+
+  .tiket-stats{ position:relative; z-index:1; display:flex; flex-direction:column; gap:9px; }
+  .tiket-stat{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+  .ts-label{ font-family:var(--font-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:rgba(244,239,225,.55); flex-shrink:0; }
+  .ts-val{ font-size:14px; font-weight:600; color:#F4EFE1; text-align:right; }
+  .tiket-alamat{ position:relative; z-index:1; font-size:12.5px; color:rgba(244,239,225,.6); margin-top:6px; }
+
+  .tiket-perforasi{ position:relative; z-index:1; display:flex; align-items:center; margin:20px -24px; }
+  .tiket-perforasi .dash-line{ flex:1; border-top:1.5px dashed rgba(244,239,225,.28); }
+  .tiket-perforasi .notch{ width:18px; height:18px; background:var(--surface); border-radius:50%; flex-shrink:0; }
+  .tiket-perforasi .notch.left{ margin-left:-9px; }
+  .tiket-perforasi .notch.right{ margin-right:-9px; }
+
+  .tiket-qr-wrap{ position:relative; z-index:1; text-align:center; }
+  .tiket-qr{ display:inline-block; padding:14px; background:#fff; border-radius:12px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+  .tiket-kode{ margin-top:12px; font-family:var(--font-mono); font-size:16px; letter-spacing:3px; font-weight:700; color:var(--gold-soft); }
+  .tiket-status{ display:inline-block; margin-top:9px; padding:4px 13px; border-radius:100px; font-size:11.5px; font-weight:600; }
+  .tiket-status.belum{ background:rgba(231,200,120,.16); color:var(--gold-soft); }
+  .tiket-status.diambil{ background:rgba(244,239,225,.14); color:#FBF6E9; }
+  .tiket-waktu{ font-size:10.5px; color:rgba(244,239,225,.5); margin-top:5px; }
   .preview-full-image{
     max-width:100%; max-height:100%;
     border-radius: var(--radius-md);
@@ -7209,14 +7267,14 @@ function lihatQrPenerima(id) {
     const body = document.getElementById('previewBody');
 
     const statusHtml = p.diambil
-        ? `<span style="color:var(--brick); font-weight:600;">✓ Sudah diambil${p.waktuAmbil ? ' - ' + new Date(p.waktuAmbil).toLocaleString('id-ID') : ''}</span>`
-        : `<span style="color:var(--emerald-2); font-weight:600;">Belum diambil</span>`;
+        ? `<div class="tiket-status diambil">✓ Sudah diambil</div>${p.waktuAmbil ? `<div class="tiket-waktu">${new Date(p.waktuAmbil).toLocaleString('id-ID')}</div>` : ''}`
+        : `<div class="tiket-status belum">Belum diambil</div>`;
 
     // Bukti pengambilan (lokasi GPS + foto) - cuma ada kalau tiket sudah
     // diambil DAN sempat ditangkap otomatis saat konfirmasi (lihat
     // bukaKonfirmasiPengambilan/konfirmasiPengambilan).
     const buktiHtml = p.diambil ? `
-        <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border); text-align:left;">
+        <div style="margin-top:18px; padding-top:16px; border-top:1px dashed var(--border); text-align:left; max-width:360px;">
           <div style="font-size:13px; color:var(--ink-faint); margin-bottom:8px;">Bukti Pengambilan</div>
           ${(p.lokasiLat && p.lokasiLng)
               ? `<div><a href="https://www.google.com/maps?q=${p.lokasiLat},${p.lokasiLng}" target="_blank" rel="noopener">📍 Lihat Lokasi di Google Maps</a></div>`
@@ -7229,17 +7287,40 @@ function lihatQrPenerima(id) {
     const isMudhohi = p.kategori === 'mudhohi';
     title.textContent = `${isMudhohi ? 'Kupon Mudhohi' : 'E-Tiket'} - ${p.nama}`;
     body.innerHTML = `
-        <div style="text-align:center;">
-          <div id="qrCodeContainer" style="display:inline-block; padding:16px; background:#fff; border:1px solid var(--border); border-radius:12px;"></div>
-          <div style="margin-top:14px; font-family:var(--font-display); font-size:18px; font-weight:700;">${p.nama}</div>
-          ${isMudhohi
-              ? `<div style="color:var(--ink-soft); font-size:14px;">${p.kelompokSapi || '—'}</div>
-                 <div style="color:var(--ink-faint); font-size:13px;">Jatah daging: ${p.berat != null ? formatKg(p.berat) : '—'}</div>`
-              : `<div style="color:var(--ink-soft); font-size:14px;">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
-                 ${p.alamat ? `<div style="color:var(--ink-faint); font-size:13px;">${p.alamat}</div>` : ''}`}
-          <div style="margin-top:6px; font-family:monospace; font-size:16px; letter-spacing:2px; font-weight:700;">${p.kodeTiket}</div>
-          <div style="margin-top:6px;">${statusHtml}</div>
-          <div class="actions" style="justify-content:center; margin-top:18px;">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+          <div class="tiket-card">
+            <div class="tiket-head">
+              <img src="${APP_CONFIG.logoFile}" alt="${APP_CONFIG.mosqueName}" class="tiket-logo">
+              <div>
+                <div class="tiket-masjid">${APP_CONFIG.mosqueName}</div>
+                <div class="tiket-kategori">${isMudhohi ? 'Kupon Mudhohi' : 'E-Tiket Penerima'}</div>
+              </div>
+            </div>
+
+            <div class="tiket-nama">${p.nama}</div>
+            <div class="tiket-stats">
+              ${isMudhohi ? `
+                <div class="tiket-stat"><span class="ts-label">Kelompok Sapi</span><span class="ts-val">${p.kelompokSapi || '—'}</span></div>
+                <div class="tiket-stat"><span class="ts-label">Jatah Daging</span><span class="ts-val">${p.berat != null ? formatKg(p.berat) : '—'}</span></div>
+              ` : `
+                <div class="tiket-stat"><span class="ts-label">Alokasi</span><span class="ts-val">${p.alokasi || '—'}</span></div>
+                ${p.noHp ? `<div class="tiket-stat"><span class="ts-label">No. HP</span><span class="ts-val">${p.noHp}</span></div>` : ''}
+              `}
+            </div>
+            ${(!isMudhohi && p.alamat) ? `<div class="tiket-alamat">${p.alamat}</div>` : ''}
+
+            <div class="tiket-perforasi">
+              <span class="notch left"></span><span class="dash-line"></span><span class="notch right"></span>
+            </div>
+
+            <div class="tiket-qr-wrap">
+              <div id="qrCodeContainer" class="tiket-qr"></div>
+              <div class="tiket-kode">${p.kodeTiket}</div>
+              ${statusHtml}
+            </div>
+          </div>
+
+          <div class="actions" style="justify-content:center; margin-top:20px;">
             <button class="btn btn-primary btn-small" onclick="cetakTiketPenerima(${p.id})">🖨️ Cetak Tiket</button>
           </div>
           ${buktiHtml}
@@ -7273,12 +7354,12 @@ function cetakTiketPenerima(id) {
     if (!w) { showAlert('Popup diblokir browser, izinkan popup utk cetak tiket.', 'error'); return; }
 
     const isMudhohi = p.kategori === 'mudhohi';
-    const labelAtas = isMudhohi ? 'KUPON MUDHOHI QURBAN' : 'E-TIKET DAGING QURBAN';
-    const subHtml = isMudhohi
-        ? `<div class="sub"><strong>${p.kelompokSapi || '—'}</strong></div>
-           <div class="sub">Jatah daging: ${p.berat != null ? formatKg(p.berat) : '—'}</div>`
-        : `<div class="sub">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
-           ${p.alamat ? `<div class="sub">${p.alamat}</div>` : ''}`;
+    const statRows = isMudhohi
+        ? `<div class="stat"><span>Kelompok Sapi</span><b>${p.kelompokSapi || '—'}</b></div>
+           <div class="stat"><span>Jatah Daging</span><b>${p.berat != null ? formatKg(p.berat) : '—'}</b></div>`
+        : `<div class="stat"><span>Alokasi</span><b>${p.alokasi || '—'}</b></div>
+           ${p.noHp ? `<div class="stat"><span>No. HP</span><b>${p.noHp}</b></div>` : ''}
+           ${p.alamat ? `<div class="stat"><span>Alamat</span><b>${p.alamat}</b></div>` : ''}`;
 
     w.document.write(`
         <html>
@@ -7286,21 +7367,47 @@ function cetakTiketPenerima(id) {
           <meta charset="utf-8">
           <title>${isMudhohi ? 'Kupon' : 'Tiket'} - ${p.nama}</title>
           <style>
-            body{ font-family: Georgia, 'Times New Roman', serif; text-align:center; padding:28px; }
-            .label{ font-size:13px; color:#888; letter-spacing:1px; }
-            .kode{ font-family: 'Courier New', monospace; font-size:20px; font-weight:700; letter-spacing:3px; margin-top:10px; }
-            .nama{ font-size:22px; font-weight:700; margin-top:16px; }
-            .sub{ color:#555; margin-top:4px; }
-            .masjid{ font-size:12px; color:#888; margin-top:24px; border-top:1px dashed #999; padding-top:12px; }
+            *{ box-sizing:border-box; }
+            body{ font-family: Georgia, 'Times New Roman', serif; margin:0; padding:26px 16px; background:#fff; color:#1a1a1a; }
+            .card{ max-width:330px; margin:0 auto; border:1.5px solid #0E3B34; border-radius:14px; overflow:hidden; }
+            .head{ background:#0E3B34; color:#FBF8F1; padding:16px 18px; display:flex; align-items:center; gap:10px; }
+            .head img{ width:34px; height:34px; border-radius:8px; object-fit:contain; background:rgba(255,255,255,.12); padding:3px; flex-shrink:0; }
+            .head .masjid{ font-size:14.5px; font-weight:700; line-height:1.25; }
+            .head .kategori{ font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#DCBB79; margin-top:3px; }
+            .body{ padding:22px 20px 4px; text-align:center; }
+            .nama{ font-size:21px; font-weight:700; color:#0E3B34; margin-bottom:12px; }
+            .stat{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; color:#444; padding:4px 2px; text-align:left; }
+            .stat span{ color:#777; }
+            .stat b{ color:#0E3B34; text-align:right; }
+            .perforasi{ border-top:1.5px dashed #B6893A; margin:16px -20px 0; }
+            .qrwrap{ padding:20px 18px 22px; text-align:center; }
+            .kode{ font-family:'Courier New', monospace; font-size:16px; letter-spacing:3px; font-weight:700; color:#8A6423; margin-top:10px; }
+            .status{ font-size:11px; font-weight:700; letter-spacing:.5px; margin-top:6px; color:#0E3B34; }
+            .footer{ background:#F0E9DA; padding:9px; font-size:9px; letter-spacing:1px; text-transform:uppercase; color:#5C584F; text-align:center; }
+            @media print{ body{ padding:0; } }
           </style>
         </head>
         <body>
-          <div class="label">${labelAtas}</div>
-          <img src="${imgSrc}" style="width:220px; height:220px; margin-top:12px;">
-          <div class="kode">${p.kodeTiket}</div>
-          <div class="nama">${p.nama}</div>
-          ${subHtml}
-          <div class="masjid">${APP_CONFIG.mosqueName} · Alur Qurban</div>
+          <div class="card">
+            <div class="head">
+              <img src="${APP_CONFIG.logoFile}" alt="">
+              <div>
+                <div class="masjid">${APP_CONFIG.mosqueName}</div>
+                <div class="kategori">${isMudhohi ? 'Kupon Mudhohi' : 'E-Tiket Penerima'}</div>
+              </div>
+            </div>
+            <div class="body">
+              <div class="nama">${p.nama}</div>
+              ${statRows}
+            </div>
+            <div class="perforasi"></div>
+            <div class="qrwrap">
+              <img src="${imgSrc}" style="width:190px; height:190px;">
+              <div class="kode">${p.kodeTiket}</div>
+              <div class="status">${p.diambil ? '✓ SUDAH DIAMBIL' : 'BELUM DIAMBIL'}</div>
+            </div>
+            <div class="footer">Alur Qurban · Tata Kelola Qurban Masjid</div>
+          </div>
           <script>window.onload = function(){ window.print(); };<\/script>
         </body>
         </html>`);
