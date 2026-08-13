@@ -19,6 +19,10 @@
 //                         platform multi-tenant, lihat komentar
 //                         REGISTRY_SHEET_ID di bawah) - opsional, cuma
 //                         wajib kalau mau pakai fitur multi-masjid.
+//   SUPERADMIN_PASSWORD - password buat halaman /superadmin.html (review
+//                         pengajuan masjid baru dari landing page). Opsional,
+//                         tapi tanpa ini endpoint list/approve pendaftaran
+//                         SELALU menolak (lihat blok "Super Admin" di bawah).
 //
 // Endpoint & format request/response SENGAJA dibuat sama persis dengan Apps
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT.
@@ -33,6 +37,12 @@
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
 //   POST /api/sheets?sheet=Members&action=update  body: { keyColumn, keyValue, updates }
+//
+// Super Admin - pendaftaran masjid baru (landing page Alur Qurban, TERPISAH
+// dari sistem tenant, sheet-nya di REGISTRY_SHEET_ID tab "PendaftaranMasjid"):
+//   POST /api/sheets?superadmin=submit         body: data form (publik, tanpa password)
+//   POST /api/sheets?superadmin=list           body: { password }         -> array pengajuan
+//   POST /api/sheets?superadmin=updateStatus   body: { password, ref, status }
 
 // Fallback ke ID spreadsheet Masjid Dhafinul Jariyah kalau env var belum
 // diset, supaya deployment yang sudah jalan tidak tiba-tiba rusak. Masjid/DKM
@@ -57,6 +67,14 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgE
 // Registry tetap jalan seperti biasa selama masa transisi.
 const REGISTRY_SHEET_ID = process.env.REGISTRY_SHEET_ID || '';
 const REGISTRY_SHEET_NAME = 'Registry';
+// Tab TERPISAH di Sheet Registry yang sama, isinya pengajuan "Ajukan work
+// order" dari landing page Alur Qurban (public/index.html) - BUKAN sheet
+// per-masjid manapun. Kolom: ref, namaMasjid, kota, jumlahJamaah, namaKontak,
+// posisiKontak, teleponKontak, emailKontak, paket, anggaran, target, modul,
+// catatan, status (pending/approved/rejected), created_date. Direview lewat
+// public/superadmin.html, dilindungi SUPERADMIN_PASSWORD.
+const PENDAFTARAN_MASJID_SHEET = 'PendaftaranMasjid';
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || '';
 const REGISTRY_TTL_MS = 30000; // Registry jarang berubah, cache lebih lama dari bootstrap biasa
 let registryCache = null;
 let registryCacheAt = 0;
@@ -431,7 +449,67 @@ export default async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
-    const { sheet, bootstrap, getFile, action, col, tenant, config } = req.query;
+    const { sheet, bootstrap, getFile, action, col, tenant, config, superadmin } = req.query;
+
+    // ----- Super Admin: pendaftaran masjid baru dari landing page -----
+    // Berdiri sendiri, tidak lewat logic tenant di bawah (sheet-nya di
+    // REGISTRY_SHEET_ID, bukan sheet data masjid manapun).
+    if (superadmin) {
+      if (!REGISTRY_SHEET_ID) {
+        return res.status(500).json({ error: 'REGISTRY_SHEET_ID belum diset - fitur pendaftaran masjid belum aktif' });
+      }
+      if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method tidak didukung untuk superadmin' });
+      }
+
+      let saBody = req.body;
+      if (typeof saBody === 'string') saBody = saBody ? JSON.parse(saBody) : {};
+      if (!saBody) saBody = {};
+
+      // Submit pengajuan baru dari landing page - publik, TANPA password.
+      if (superadmin === 'submit') {
+        const record = {
+          ref: saBody.ref || '',
+          namaMasjid: saBody.namaOrg || '',
+          kota: saBody.kotaOrg || '',
+          jumlahJamaah: saBody.jumlahJamaah || '',
+          namaKontak: saBody.namaKontak || '',
+          posisiKontak: saBody.posisiKontak || '',
+          teleponKontak: saBody.teleponKontak || '',
+          emailKontak: saBody.emailKontak || '',
+          paket: saBody.paketPilih || '',
+          anggaran: saBody.budget || '',
+          target: saBody.timeline || '',
+          modul: Array.isArray(saBody.modul) ? saBody.modul.join(', ') : (saBody.modul || ''),
+          catatan: saBody.catatan || '',
+          status: 'pending',
+          created_date: new Date().toISOString()
+        };
+        await appendRow(REGISTRY_SHEET_ID, PENDAFTARAN_MASJID_SHEET, record, accessToken);
+        return res.status(200).json({ success: true });
+      }
+
+      // Aksi lain (list, updateStatus) WAJIB password Super Admin yang benar.
+      if (!SUPERADMIN_PASSWORD || saBody.password !== SUPERADMIN_PASSWORD) {
+        return res.status(401).json({ error: 'Password Super Admin salah' });
+      }
+
+      if (superadmin === 'list') {
+        const rows = await readSheet(REGISTRY_SHEET_ID, PENDAFTARAN_MASJID_SHEET, accessToken);
+        return res.status(200).json(rows);
+      }
+
+      if (superadmin === 'updateStatus') {
+        const { ref, status } = saBody;
+        if (!ref || !status) {
+          return res.status(400).json({ error: 'ref dan status wajib diisi' });
+        }
+        const result = await updateRows(REGISTRY_SHEET_ID, PENDAFTARAN_MASJID_SHEET, 'ref', ref, { status }, accessToken);
+        return res.status(200).json(result);
+      }
+
+      return res.status(400).json({ error: `Aksi superadmin="${superadmin}" tidak dikenal` });
+    }
 
     // ----- Resolve tenant (platform multi-masjid) -----
     // Ada "tenant" di query -> WAJIB ketemu di Registry & statusnya 'aktif',

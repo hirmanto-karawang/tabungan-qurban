@@ -1529,6 +1529,16 @@ form.addEventListener('submit',e=>{
 
   const data=collect();
   const link=waLink(data);
+
+  // Simpan ke Sheet Registry (tab PendaftaranMasjid) supaya bisa direview di
+  // /superadmin.html - best effort, tidak menghalangi WhatsApp kalau gagal
+  // (mis. REGISTRY_SHEET_ID belum diset), karena WA tetap jalur utama.
+  fetch('/api/sheets?superadmin=submit',{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(data)
+  }).catch(()=>{});
+
   window.open(link,'_blank','noopener');
   showSent(data.ref, link);
   resetForm();

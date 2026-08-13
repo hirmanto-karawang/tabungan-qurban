@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Super Admin — Alur Qurban</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#182420; --ink-soft:#4C5851; --ink-faint:#869089;
+  --paper:#FAF7F0; --surface:#FFFFFF; --sand:#F1EBDC;
+  --border:#E4DBC5; --border-soft:#EEE7D6;
+  --emerald:#0E3B34; --emerald-2:#175C50; --emerald-tint:#E6EEEA;
+  --gold:#B6893A; --gold-soft:#E7C878; --gold-tint:#F7EFDA;
+  --brick:#9B4632; --brick-tint:#F6E5DE;
+  --sage:#6F9089; --sage-tint:#E9F1EE;
+  --radius-lg:18px; --radius-md:12px; --radius-sm:8px;
+  --font-display:'Fraunces',serif; --font-mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.55;}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px;}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);}
+.brand h1{font-family:var(--font-display);font-weight:600;font-size:22px;margin:0;color:var(--emerald);}
+.brand span{font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);}
+
+/* Gate password */
+.gate{max-width:380px;margin:12vh auto 0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px 28px;box-shadow:0 10px 40px rgba(14,59,52,.08);}
+.gate h2{font-family:var(--font-display);font-size:20px;margin:0 0 6px;color:var(--emerald);}
+.gate p{font-size:13px;color:var(--ink-soft);margin:0 0 18px;}
+.gate input{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:15px;margin-bottom:12px;box-sizing:border-box;}
+.gate button{width:100%;padding:12px;background:var(--emerald);color:#fff;border:none;border-radius:var(--radius-md);font-size:14px;font-weight:600;cursor:pointer;}
+.gate button:active{background:var(--emerald-2);}
+.gate .err{color:var(--brick);font-size:13px;margin-top:10px;display:none;}
+
+/* Dashboard */
+#dash{display:none;}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:18px;}
+.tabs{display:flex;gap:6px;}
+.tab{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:8px 14px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink-soft);cursor:pointer;}
+.tab.on{background:var(--emerald);color:#fff;border-color:var(--emerald);}
+.refresh{font-size:13px;color:var(--emerald-2);background:none;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px 14px;cursor:pointer;}
+.empty{text-align:center;padding:60px 20px;color:var(--ink-faint);font-size:14px;}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px;margin-bottom:14px;}
+.card-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap;}
+.card-hd h3{font-family:var(--font-display);font-size:18px;margin:0 0 4px;color:var(--emerald);}
+.card-hd .meta{font-size:12px;color:var(--ink-faint);}
+.badge{font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:999px;white-space:nowrap;}
+.badge.pending{background:var(--gold-tint);color:var(--gold);}
+.badge.approved{background:var(--emerald-tint);color:var(--emerald-2);}
+.badge.rejected{background:var(--brick-tint);color:var(--brick);}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 16px;margin-bottom:14px;}
+.f{font-size:13px;}
+.f .k{font-family:var(--font-mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:2px;}
+.f .v{color:var(--ink);word-break:break-word;}
+.f a{color:var(--emerald-2);text-decoration:none;}
+.modul{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.pill{font-family:var(--font-mono);font-size:11px;border:1px solid var(--border);padding:4px 10px;border-radius:6px;color:var(--ink-soft);background:var(--sand);}
+.catatan{font-size:13px;color:var(--ink-soft);background:var(--sand);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;}
+.actions{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{font-size:13px;font-weight:600;padding:9px 16px;border-radius:var(--radius-md);border:none;cursor:pointer;}
+.btn-approve{background:var(--emerald);color:#fff;}
+.btn-reject{background:var(--surface);color:var(--brick);border:1px solid var(--brick);}
+.btn-reset{background:var(--surface);color:var(--ink-soft);border:1px solid var(--border);}
+.btn:disabled{opacity:.5;cursor:default;}
+.wa-link{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--emerald-2);text-decoration:none;margin-top:2px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand"><span class="dot"></span><div><h1>Super Admin</h1><span>Alur Qurban — Pendaftaran Masjid</span></div></div>
+
+  <div class="gate" id="gate">
+    <h2>Masuk</h2>
+    <p>Halaman ini hanya untuk admin platform Alur Qurban.</p>
+    <input type="password" id="gatePw" placeholder="Password" autocomplete="current-password">
+    <button id="gateBtn" type="button">Masuk</button>
+    <div class="err" id="gateErr">Password salah.</div>
+  </div>
+
+  <div id="dash">
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab on" data-f="pending">Pending</button>
+        <button class="tab" data-f="approved">Disetujui</button>
+        <button class="tab" data-f="rejected">Ditolak</button>
+        <button class="tab" data-f="all">Semua</button>
+      </div>
+      <button class="refresh" id="refreshBtn">↻ Muat ulang</button>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const ENDPOINT = '/api/sheets';
+let PASSWORD = sessionStorage.getItem('aq_superadmin_pw') || '';
+let rows = [];
+let filter = 'pending';
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function callApi(action, extra){
+  const resp = await fetch(`${ENDPOINT}?superadmin=${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ password: PASSWORD, ...extra })
+  });
+  if (resp.status === 401) throw new Error('unauthorized');
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+async function tryLogin(pw){
+  PASSWORD = pw;
+  try {
+    const data = await callApi('list');
+    sessionStorage.setItem('aq_superadmin_pw', pw);
+    rows = data || [];
+    $('#gate').style.display = 'none';
+    $('#dash').style.display = 'block';
+    render();
+    return true;
+  } catch (e) {
+    PASSWORD = '';
+    return false;
+  }
+}
+
+async function loadList(){
+  $('#list').innerHTML = '<div class="empty">Memuat…</div>';
+  try {
+    rows = await callApi('list') || [];
+    render();
+  } catch (e) {
+    $('#list').innerHTML = '<div class="empty">Gagal memuat data. Coba muat ulang.</div>';
+  }
+}
+
+function waLinkFor(r){
+  let p = String(r.teleponKontak || '').replace(/\D/g, '');
+  if (p.startsWith('0')) p = '62' + p.slice(1);
+  if (!p) return '';
+  const msg = `Assalamu'alaikum ${r.namaKontak || ''}, terkait pengajuan Alur Qurban untuk ${r.namaMasjid || 'masjid Anda'} (Ref: ${r.ref || '-'}).`;
+  return `https://wa.me/${p}?text=${encodeURIComponent(msg)}`;
+}
+
+function render(){
+  const status = r => (r.status || 'pending').toLowerCase();
+  const shown = filter === 'all' ? rows : rows.filter(r => status(r) === filter);
+  // terbaru dulu
+  shown.sort((a,b) => String(b.created_date||'').localeCompare(String(a.created_date||'')));
+
+  if (!shown.length){
+    $('#list').innerHTML = '<div class="empty">Tidak ada pengajuan di kategori ini.</div>';
+    return;
+  }
+
+  $('#list').innerHTML = shown.map(r => {
+    const st = status(r);
+    const badgeLabel = st === 'approved' ? 'Disetujui' : st === 'rejected' ? 'Ditolak' : 'Pending';
+    const modul = String(r.modul || '').split(',').map(m => m.trim()).filter(Boolean);
+    const wa = waLinkFor(r);
+    const tgl = r.created_date ? new Date(r.created_date).toLocaleString('id-ID') : '-';
+    return `
+    <div class="card" data-ref="${esc(r.ref)}">
+      <div class="card-hd">
+        <div>
+          <h3>${esc(r.namaMasjid || '(tanpa nama)')}</h3>
+          <div class="meta">Ref ${esc(r.ref || '-')} · ${esc(tgl)}</div>
+        </div>
+        <span class="badge ${st}">${badgeLabel}</span>
+      </div>
+      <div class="grid">
+        <div class="f"><div class="k">Kota</div><div class="v">${esc(r.kota || '-')}</div></div>
+        <div class="f"><div class="k">Perkiraan jamaah</div><div class="v">${esc(r.jumlahJamaah || '-')}</div></div>
+        <div class="f"><div class="k">Nama kontak</div><div class="v">${esc(r.namaKontak || '-')} (${esc(r.posisiKontak || '-')})</div></div>
+        <div class="f"><div class="k">WhatsApp</div><div class="v">${esc(r.teleponKontak || '-')}${wa ? `<br><a class="wa-link" href="${wa}" target="_blank" rel="noopener">Chat WhatsApp →</a>` : ''}</div></div>
+        <div class="f"><div class="k">Email</div><div class="v"><a href="mailto:${esc(r.emailKontak)}">${esc(r.emailKontak || '-')}</a></div></div>
+        <div class="f"><div class="k">Paket diminati</div><div class="v">${esc(r.paket || '-')}</div></div>
+        <div class="f"><div class="k">Anggaran</div><div class="v">${esc(r.anggaran || '-')}</div></div>
+        <div class="f"><div class="k">Target selesai</div><div class="v">${esc(r.target || '-')}</div></div>
+      </div>
+      ${modul.length ? `<div class="modul">${modul.map(m => `<span class="pill">${esc(m)}</span>`).join('')}</div>` : ''}
+      ${r.catatan ? `<div class="catatan">${esc(r.catatan)}</div>` : ''}
+      <div class="actions">
+        ${st !== 'approved' ? `<button class="btn btn-approve" data-act="approved">Setujui</button>` : ''}
+        ${st !== 'rejected' ? `<button class="btn btn-reject" data-act="rejected">Tolak</button>` : ''}
+        ${st !== 'pending' ? `<button class="btn btn-reset" data-act="pending">Kembalikan ke Pending</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  $$('#list .btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const ref = card.dataset.ref;
+      const status = btn.dataset.act;
+      $$('.btn', card).forEach(b => b.disabled = true);
+      try {
+        await callApi('updateStatus', { ref, status });
+        const row = rows.find(r => r.ref === ref);
+        if (row) row.status = status;
+        render();
+      } catch (e) {
+        alert('Gagal menyimpan perubahan. Coba lagi.');
+        $$('.btn', card).forEach(b => b.disabled = false);
+      }
+    });
+  });
+}
+
+$$('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.tab').forEach(t => t.classList.remove('on'));
+    tab.classList.add('on');
+    filter = tab.dataset.f;
+    render();
+  });
+});
+$('#refreshBtn').addEventListener('click', loadList);
+
+$('#gateBtn').addEventListener('click', async () => {
+  const pw = $('#gatePw').value.trim();
+  if (!pw) return;
+  $('#gateBtn').disabled = true; $('#gateBtn').textContent = 'Memeriksa…';
+  const ok = await tryLogin(pw);
+  $('#gateBtn').disabled = false; $('#gateBtn').textContent = 'Masuk';
+  $('#gateErr').style.display = ok ? 'none' : 'block';
+});
+$('#gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') $('#gateBtn').click(); });
+
+// Kalau password sudah tersimpan di sessionStorage (belum tutup tab), coba
+// langsung tanpa minta ketik ulang.
+(async function init(){
+  if (PASSWORD) {
+    const ok = await tryLogin(PASSWORD);
+    if (!ok) sessionStorage.removeItem('aq_superadmin_pw');
+  }
+})();
+</script>
+</body>
+</html>
