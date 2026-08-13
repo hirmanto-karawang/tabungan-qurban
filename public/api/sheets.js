@@ -153,13 +153,17 @@ function tenantConfigPublicFields(tenant) {
 // cuma angka qty) - dipakai buat cetak e-tiket QR & check-in pas hari
 // pelaksanaan (kolom: id, alokasi, nama, noHp, alamat, kodeTiket, status,
 // diambil ('ya'/'tidak'), waktuAmbil, lokasiLat, lokasiLng, fotoAmbil,
-// created_date). "kodeTiket" itu kode unik acak yang di-encode ke QR;
-// "diambil" ditandai otomatis begitu tiket di-scan (atau dicek manual)
-// supaya 1 tiket cuma bisa dipakai 1x. "lokasiLat"/"lokasiLng" & "fotoAmbil"
-// ditangkap otomatis pas admin konfirmasi pengambilan (GPS browser + foto
-// opsional) - bukti buat pelaporan/transparansi. "fotoAmbil" (base64)
-// SENGAJA dibuang dari list/bootstrap biasa (lihat stripPenerimaFoto di
-// bawah), sama alasannya dengan foto SurveySapi.
+// kategori, berat, kelompokSapi, sourcePesertaId, created_date). "kodeTiket"
+// itu kode unik acak yang di-encode ke QR; "diambil" ditandai otomatis
+// begitu tiket di-scan (atau dicek manual) supaya 1 tiket cuma bisa dipakai
+// 1x. "lokasiLat"/"lokasiLng" & "fotoAmbil" ditangkap otomatis pas admin
+// konfirmasi pengambilan (GPS browser + foto opsional) - bukti buat
+// pelaporan/transparansi. "fotoAmbil" (base64) SENGAJA dibuang dari
+// list/bootstrap biasa (lihat stripPenerimaFoto di bawah), sama alasannya
+// dengan foto SurveySapi. Kolom "kategori" ('umum'/'mudhohi'), "berat" (kg),
+// "kelompokSapi", dan "sourcePesertaId" (id baris SurveyPeserta asal) dipakai
+// fitur Kupon Mudhohi (generateKuponMudhohi() di app.html) - baris lama
+// sebelum fitur ini ada otomatis dianggap kategori 'umum'.
 // Keduanya pakai "status" sebagai soft-delete ('batal' = disembunyikan,
 // bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
 const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris'];

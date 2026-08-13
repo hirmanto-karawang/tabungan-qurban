@@ -3287,6 +3287,23 @@
         </div>
 
         <div class="card" style="max-width:820px; margin-top:20px;">
+          <h2>Kupon Mudhohi</h2>
+          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
+            Kupon dibuat otomatis dari peserta yang sudah "Ikut" di Survey Sapi - tidak perlu input nama satu-satu. Tiap kupon menampilkan nama, kelompok sapi, dan jatah berat daging (Hak Mudhohi). Aman diklik berkali-kali, peserta yang sudah punya kupon tidak akan dibuatkan dobel.
+          </p>
+          <div class="actions" style="margin-bottom:10px;">
+            <button class="btn btn-success btn-small" id="kuponMudhohiGenerateBtn" onclick="generateKuponMudhohi()">🎫 Generate Kupon Mudhohi</button>
+          </div>
+          <div id="kuponMudhohiRingkasan" style="margin-bottom:18px; font-size:14px;"></div>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Nama</th><th>Kelompok Sapi</th><th>Berat</th><th>Kode Tiket</th><th>Status</th><th></th></tr></thead>
+              <tbody id="kuponMudhohiListBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:820px; margin-top:20px;">
           <h2>Scan Tiket (Check-in)</h2>
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
             Arahkan kamera ke QR di e-tiket penerima. Tiket yang sudah pernah di-scan otomatis ditolak (tidak bisa dipakai 2x). Kalau kamera bermasalah, pakai input kode manual di bawah.
@@ -4456,6 +4473,16 @@ async function loadDataFromSheets() {
         lokasiLat: (row.lokasiLat !== undefined && row.lokasiLat !== '') ? parseFloat(row.lokasiLat) : null,
         lokasiLng: (row.lokasiLng !== undefined && row.lokasiLng !== '') ? parseFloat(row.lokasiLng) : null,
         hasFotoAmbil: !!row.hasFotoAmbil,
+        // Baris lama (sebelum fitur Kupon Mudhohi ada) tidak punya kolom-kolom
+        // ini di sheet - kosong dianggap kategori 'umum' (penerima biasa lewat
+        // alokasi Rencana Distribusi), BUKAN 'mudhohi'. sourcePesertaId
+        // mengaitkan baris ini ke 1 baris SurveyPeserta tertentu, dipakai
+        // generateKuponMudhohi() buat cegah bikin kupon dobel kalau tombol
+        // generate diklik berkali-kali.
+        kategori: row.kategori || 'umum',
+        berat: (row.berat !== undefined && row.berat !== '') ? parseFloat(row.berat) : null,
+        kelompokSapi: row.kelompokSapi || '',
+        sourcePesertaId: parseInt(row.sourcePesertaId) || 0,
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
@@ -5056,6 +5083,7 @@ function runTabDataLoaders(tabName) {
     if (tabName === 'penerima') {
         populatePenerimaAlokasiSelect();
         loadPenerimaList();
+        loadKuponMudhohiList();
     }
     if (tabName === 'keuangan') {
         const tanggalInput = document.getElementById('transaksiTanggal');
@@ -6978,8 +7006,10 @@ function loadPenerimaList() {
     const tbody = document.getElementById('penerimaListBody');
     if (!tbody) return;
 
+    // kategori 'mudhohi' (lihat generateKuponMudhohi()) punya tabel & kartu
+    // sendiri di bawah - jangan ikut dobel-tampil di sini.
     const rows = appData.penerimaQR
-        .filter(p => p.status !== 'batal')
+        .filter(p => p.status !== 'batal' && p.kategori !== 'mudhohi')
         .slice()
         .sort((a, b) => (a.alokasi || '').localeCompare(b.alokasi || '') || (a.id - b.id));
 
@@ -6999,6 +7029,147 @@ function loadPenerimaList() {
               <td>${p.nama || '—'}</td>
               <td>${p.noHp || '—'}</td>
               <td>${p.alamat || '—'}</td>
+              <td><code>${p.kodeTiket}</code></td>
+              <td>${statusHtml}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-ghost btn-small" onclick="lihatQrPenerima(${p.id})" title="Lihat/Cetak QR">🔳</button>
+                <button class="btn btn-ghost btn-small" onclick="hapusPenerima(${p.id})" title="Hapus">🗑️</button>
+              </td>
+            </tr>`;
+    }).join('');
+}
+
+// ══ KUPON MUDHOHI (auto-generate dari peserta Survey Sapi) ══
+// Beda dari "Penerima" biasa di atas (manual, satu-satu, terikat alokasi
+// Rencana Distribusi Umum): Mudhohi itu peserta yang SUDAH terdaftar lewat
+// tombol "Ikut" di Survey Sapi (appData.surveyPeserta) - jadi kupon-nya
+// dibuat otomatis dari data yang sudah ada, tidak perlu input ulang nama
+// satu-satu. 1 kupon = 1 peserta, isinya nama, kelompok sapi (Survey#...),
+// dan jatah berat daging (Hak Mudhohi - rumus sama dengan tab Survey Sapi,
+// lihat computeSurveyKalkulasi()). Disimpan di sheet PenerimaQR yang sama
+// dengan Penerima biasa (kategori='mudhohi') supaya ikut kepakai infrastruktur
+// QR/scan/check-in yang sama pas hari-H, tinggal dibedakan tampilannya saja.
+function ringkasanKuponMudhohi() {
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    const sudahAdaIds = new Set(
+        appData.penerimaQR
+            .filter(p => p.kategori === 'mudhohi' && p.status !== 'batal' && p.sourcePesertaId)
+            .map(p => p.sourcePesertaId)
+    );
+    const belum = activePeserta.filter(p => !sudahAdaIds.has(p.id)).length;
+    return { total: activePeserta.length, sudah: activePeserta.length - belum, belum };
+}
+
+function renderKuponMudhohiRingkasan() {
+    const box = document.getElementById('kuponMudhohiRingkasan');
+    if (!box) return;
+    const r = ringkasanKuponMudhohi();
+    if (r.total === 0) {
+        box.innerHTML = '<span style="color:var(--ink-faint);">Belum ada peserta terdaftar di Survey Sapi.</span>';
+        return;
+    }
+    box.innerHTML = r.belum > 0
+        ? `<span style="color:var(--ink-soft);">${r.sudah} dari ${r.total} peserta sudah punya kupon <span style="color:var(--brick); font-weight:600;">(${r.belum} belum dibuat)</span></span>`
+        : `<span style="color:var(--emerald-2); font-weight:600;">✓ Semua ${r.total} peserta sudah punya kupon</span>`;
+}
+
+async function generateKuponMudhohi() {
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    const sudahAdaIds = new Set(
+        appData.penerimaQR
+            .filter(p => p.kategori === 'mudhohi' && p.status !== 'batal' && p.sourcePesertaId)
+            .map(p => p.sourcePesertaId)
+    );
+    const belum = activePeserta.filter(p => !sudahAdaIds.has(p.id));
+
+    if (belum.length === 0) {
+        showAlert('Semua peserta sudah punya kupon Mudhohi.', 'info');
+        return;
+    }
+
+    const btn = document.getElementById('kuponMudhohiGenerateBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Membuat kupon…'; }
+
+    let sukses = 0, gagal = 0;
+    for (const p of belum) {
+        const survey = appData.surveySapi.find(s => s.id === p.surveyId);
+        if (!survey) { gagal++; continue; } // peserta yatim (grup sapinya sudah dihapus) - lewati
+
+        const k = computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan);
+        const kelompokSapi = `${surveyKode(survey)} · ${jenisSapiLabel(survey.jenisSapi)}${survey.supplier ? ' · ' + survey.supplier : ''}`;
+
+        const newId = appData.penerimaQR.length > 0
+            ? Math.max(...appData.penerimaQR.map(d => d.id)) + 1
+            : 1;
+
+        const record = {
+            id: newId,
+            alokasi: '',
+            nama: p.memberName,
+            noHp: p.phone || '',
+            alamat: '',
+            kodeTiket: generateKodeTiket(),
+            status: 'aktif',
+            diambil: 'tidak',
+            waktuAmbil: '',
+            kategori: 'mudhohi',
+            berat: Math.round(k.hakMudhohi * 100) / 100,
+            kelompokSapi: kelompokSapi,
+            sourcePesertaId: p.id,
+            created_date: new Date().toISOString()
+        };
+
+        // Sengaja satu-satu berurutan (bukan Promise.all) - lebih aman utk
+        // Google Sheets API (append banyak baris paralel rawan tabrakan) dan
+        // supaya appData.penerimaQR (dipakai generateKodeTiket() buat cek kode
+        // dobel) selalu update sebelum iterasi berikutnya.
+        const success = await appendSheetDB('PenerimaQR', record);
+        if (success) {
+            appData.penerimaQR.push({ ...record, diambil: false, lokasiLat: null, lokasiLng: null, hasFotoAmbil: false });
+            sukses++;
+        } else {
+            gagal++;
+        }
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = '🎫 Generate Kupon Mudhohi'; }
+
+    if (sukses > 0) {
+        showAlert(`${sukses} kupon Mudhohi berhasil dibuat${gagal > 0 ? `, ${gagal} gagal (coba generate ulang)` : ''}.`, gagal > 0 ? 'warning' : 'success');
+    } else {
+        showAlert('Gagal membuat kupon, coba lagi.', 'error');
+    }
+
+    renderKuponMudhohiRingkasan();
+    loadKuponMudhohiList();
+}
+
+function loadKuponMudhohiList() {
+    const tbody = document.getElementById('kuponMudhohiListBody');
+    if (!tbody) return;
+
+    renderKuponMudhohiRingkasan();
+
+    const rows = appData.penerimaQR
+        .filter(p => p.kategori === 'mudhohi' && p.status !== 'batal')
+        .slice()
+        .sort((a, b) => (a.kelompokSapi || '').localeCompare(b.kelompokSapi || '') || (a.nama || '').localeCompare(b.nama || ''));
+
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada kupon. Klik "Generate Kupon Mudhohi" di atas.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rows.map(p => {
+        const statusHtml = p.diambil
+            ? `<span style="color:var(--brick); font-weight:600;">✓ Sudah diambil</span>${p.waktuAmbil ? `<div style="font-size:11px; color:var(--ink-faint);">${new Date(p.waktuAmbil).toLocaleString('id-ID')}</div>` : ''}`
+            : `<span style="color:var(--emerald-2); font-weight:600;">Belum diambil</span>`;
+
+        return `
+            <tr>
+              <td>${p.nama || '—'}</td>
+              <td>${p.kelompokSapi || '—'}</td>
+              <td>${p.berat != null ? formatKg(p.berat) : '—'}</td>
               <td><code>${p.kodeTiket}</code></td>
               <td>${statusHtml}</td>
               <td style="white-space:nowrap;">
@@ -7055,13 +7226,17 @@ function lihatQrPenerima(id) {
               : `<div style="color:var(--ink-faint); font-size:13px; margin-top:6px;">📷 Tidak ada foto</div>`}
         </div>` : '';
 
-    title.textContent = `E-Tiket - ${p.nama}`;
+    const isMudhohi = p.kategori === 'mudhohi';
+    title.textContent = `${isMudhohi ? 'Kupon Mudhohi' : 'E-Tiket'} - ${p.nama}`;
     body.innerHTML = `
         <div style="text-align:center;">
           <div id="qrCodeContainer" style="display:inline-block; padding:16px; background:#fff; border:1px solid var(--border); border-radius:12px;"></div>
           <div style="margin-top:14px; font-family:var(--font-display); font-size:18px; font-weight:700;">${p.nama}</div>
-          <div style="color:var(--ink-soft); font-size:14px;">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
-          ${p.alamat ? `<div style="color:var(--ink-faint); font-size:13px;">${p.alamat}</div>` : ''}
+          ${isMudhohi
+              ? `<div style="color:var(--ink-soft); font-size:14px;">${p.kelompokSapi || '—'}</div>
+                 <div style="color:var(--ink-faint); font-size:13px;">Jatah daging: ${p.berat != null ? formatKg(p.berat) : '—'}</div>`
+              : `<div style="color:var(--ink-soft); font-size:14px;">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
+                 ${p.alamat ? `<div style="color:var(--ink-faint); font-size:13px;">${p.alamat}</div>` : ''}`}
           <div style="margin-top:6px; font-family:monospace; font-size:16px; letter-spacing:2px; font-weight:700;">${p.kodeTiket}</div>
           <div style="margin-top:6px;">${statusHtml}</div>
           <div class="actions" style="justify-content:center; margin-top:18px;">
@@ -7097,11 +7272,19 @@ function cetakTiketPenerima(id) {
     const w = window.open('', '_blank', 'width=420,height=640');
     if (!w) { showAlert('Popup diblokir browser, izinkan popup utk cetak tiket.', 'error'); return; }
 
+    const isMudhohi = p.kategori === 'mudhohi';
+    const labelAtas = isMudhohi ? 'KUPON MUDHOHI QURBAN' : 'E-TIKET DAGING QURBAN';
+    const subHtml = isMudhohi
+        ? `<div class="sub"><strong>${p.kelompokSapi || '—'}</strong></div>
+           <div class="sub">Jatah daging: ${p.berat != null ? formatKg(p.berat) : '—'}</div>`
+        : `<div class="sub">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
+           ${p.alamat ? `<div class="sub">${p.alamat}</div>` : ''}`;
+
     w.document.write(`
         <html>
         <head>
           <meta charset="utf-8">
-          <title>Tiket - ${p.nama}</title>
+          <title>${isMudhohi ? 'Kupon' : 'Tiket'} - ${p.nama}</title>
           <style>
             body{ font-family: Georgia, 'Times New Roman', serif; text-align:center; padding:28px; }
             .label{ font-size:13px; color:#888; letter-spacing:1px; }
@@ -7112,13 +7295,12 @@ function cetakTiketPenerima(id) {
           </style>
         </head>
         <body>
-          <div class="label">E-TIKET DAGING QURBAN</div>
+          <div class="label">${labelAtas}</div>
           <img src="${imgSrc}" style="width:220px; height:220px; margin-top:12px;">
           <div class="kode">${p.kodeTiket}</div>
           <div class="nama">${p.nama}</div>
-          <div class="sub">${p.alokasi}${p.noHp ? ' · ' + p.noHp : ''}</div>
-          ${p.alamat ? `<div class="sub">${p.alamat}</div>` : ''}
-          <div class="masjid">${APP_CONFIG.mosqueName} - Tabungan Qurban</div>
+          ${subHtml}
+          <div class="masjid">${APP_CONFIG.mosqueName} · Alur Qurban</div>
           <script>window.onload = function(){ window.print(); };<\/script>
         </body>
         </html>`);
