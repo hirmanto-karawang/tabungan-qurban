@@ -23,6 +23,12 @@
 //                         pengajuan masjid baru dari landing page). Opsional,
 //                         tapi tanpa ini endpoint list/approve pendaftaran
 //                         SELALU menolak (lihat blok "Super Admin" di bawah).
+//   BLOB_READ_WRITE_TOKEN - OTOMATIS ke-set oleh Vercel begitu store "Blob"
+//                         di-connect ke project (Vercel dashboard -> Storage
+//                         -> Create Database -> Blob). TIDAK diisi manual.
+//                         Tanpa ini, logo pendaftaran masjid tetap jalan tapi
+//                         fallback ke data URI base64 lama (lihat
+//                         uploadLogoToBlob()), bukan URL Blob asli.
 //
 // Endpoint & format request/response SENGAJA dibuat sama persis dengan Apps
 // Script lama, supaya frontend cuma perlu ganti SHEETDB_CONFIG.ENDPOINT.
@@ -70,9 +76,13 @@ const REGISTRY_SHEET_NAME = 'Registry';
 // Tab TERPISAH di Sheet Registry yang sama, isinya pengajuan "Ajukan work
 // order" dari landing page Alur Qurban (public/index.html) - BUKAN sheet
 // per-masjid manapun. Kolom: ref, namaMasjid, kota, jumlahJamaah, namaKontak,
-// posisiKontak, teleponKontak, emailKontak, paket, anggaran, target, modul,
-// catatan, status (pending/approved/rejected), created_date. Direview lewat
-// public/superadmin.html, dilindungi SUPERADMIN_PASSWORD.
+// posisiKontak, teleponKontak, emailKontak, bankName, bankAccountNumber,
+// bankAccountHolder, logoUrl, logoDataUrl, paket, anggaran, target, modul,
+// catatan, status (pending/approved/rejected), created_date. "logoUrl" WAJIB
+// DITAMBAH manual sbg kolom baru di header baris 1 (lihat uploadLogoToBlob())
+// - kalau kolom ini belum ada, URL Blob hasil upload logo cuma didiamkan
+// (tidak tersimpan, appendRow() generic & header-driven) sampai kolomnya
+// dibuat. Direview lewat public/superadmin.html, dilindungi SUPERADMIN_PASSWORD.
 const PENDAFTARAN_MASJID_SHEET = 'PendaftaranMasjid';
 const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || '';
 
@@ -89,6 +99,47 @@ const BANK_CODES = {
 function lookupBankCode(bankName) {
   return BANK_CODES[(bankName || '').toString().trim().toLowerCase()] || '';
 }
+
+// ===== VERCEL BLOB - upload logo masjid jadi URL gambar asli =====
+// Sebelumnya logo pendaftaran cuma disimpan sbg data URI base64 langsung di
+// sel Google Sheets (kolom logoFile/logoDataUrl) - jalan, tapi (a) boros sel
+// (limit Google Sheets ~50rb karakter/sel, makanya logo landing page dikompres
+// agresif jadi thumbnail kecil) dan (b) bukan URL gambar "asli" yang bebas
+// dipakai di tempat lain (og:image share, dst). Vercel Blob kasih URL publik
+// beneran, jadi kolom logoFile di Registry sekarang isinya URL
+// (https://...public.blob.vercel-storage.com/...) - kalau upload gagal/Blob
+// store belum di-setup, fallback otomatis ke data URI apa adanya (tidak
+// pernah gagal total, cuma tidak dapat URL asli).
+// WAJIB di Vercel dashboard: Storage tab -> Create Database -> Blob -> Connect
+// ke project ini. Env var BLOB_READ_WRITE_TOKEN ke-set OTOMATIS, tidak perlu
+// diisi manual.
+async function uploadLogoToBlob(dataUrl, filenameHint) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return '';
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return ''; // Blob store belum di-connect - caller fallback ke data URI
+  try {
+    // Dynamic import (bukan require) - jalan sama persis di CommonJS
+    // (public/api/sheets.js) maupun ES module (api/sheets.js root), jadi
+    // kedua file bisa tetap identik di bagian ini.
+    const { put } = await import('@vercel/blob');
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return '';
+    const mime = match[1] || 'image/png';
+    const buffer = Buffer.from(match[2], 'base64');
+    const ext = (mime.split('/')[1] || 'png').replace('jpeg', 'jpg').split('+')[0];
+    const safeName = (filenameHint || 'logo').toString().toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'logo';
+    const blob = await put(`logos/${safeName}-${Date.now()}.${ext}`, buffer, {
+      access: 'public',
+      contentType: mime,
+      addRandomSuffix: false
+    });
+    return blob.url || '';
+  } catch (err) {
+    console.error('[uploadLogoToBlob] gagal upload:', err && err.message ? err.message : err);
+    return ''; // caller fallback ke data URI
+  }
+}
+
 const REGISTRY_TTL_MS = 30000; // Registry jarang berubah, cache lebih lama dari bootstrap biasa
 let registryCache = null;
 let registryCacheAt = 0;
@@ -522,6 +573,14 @@ module.exports = async function handler(req, res) {
       // pengajuan di-approve (lihat aksi "approve" di bawah), supaya Super
       // Admin tidak perlu ketik ulang info rekening masjid baru secara manual.
       if (superadmin === 'submit') {
+        // Logo dikirim browser sebagai data URI (thumbnail terkompresi, lihat
+        // shrinkLogo() di index.html). Coba upload ke Vercel Blob dulu supaya
+        // dapat URL gambar ASLI (bukan data: URI ditumpuk di sel Sheet) - kalau
+        // Blob store belum di-connect atau upload gagal karena sebab apapun,
+        // uploadLogoToBlob() balikin '' dan kita fallback simpan data URI apa
+        // adanya (perilaku lama), jadi submit TIDAK PERNAH gagal gara-gara ini.
+        const logoDataUrlRaw = (saBody.logo && saBody.logo.dataUrl) || '';
+        const logoUrl = await uploadLogoToBlob(logoDataUrlRaw, saBody.namaOrg);
         const record = {
           ref: saBody.ref || '',
           namaMasjid: saBody.namaOrg || '',
@@ -533,10 +592,11 @@ module.exports = async function handler(req, res) {
           bankName: saBody.bankName || '',
           bankAccountNumber: saBody.bankAccountNumber || '',
           bankAccountHolder: saBody.bankAccountHolder || '',
-          // Logo dikirim browser sebagai thumbnail kecil (data URI, sudah
-          // dikompres muat 1 sel) - disimpan apa adanya, dipakai langsung
-          // isi kolom logoFile Registry pas di-approve (lihat aksi "approve").
-          logoDataUrl: (saBody.logo && saBody.logo.dataUrl) || '',
+          // logoUrl = URL asli hasil upload Blob (kosong kalau upload gagal/
+          // belum di-setup). logoDataUrl = fallback lama, cuma diisi kalau
+          // logoUrl KOSONG - supaya tidak dobel simpan gambar yang sama.
+          logoUrl,
+          logoDataUrl: logoUrl ? '' : logoDataUrlRaw,
           paket: saBody.paketPilih || '',
           anggaran: saBody.budget || '',
           target: saBody.timeline || '',
@@ -589,10 +649,12 @@ module.exports = async function handler(req, res) {
           status: 'pending_setup',
           mosqueName: row.namaMasjid || '',
           mosqueShortName: row.namaMasjid || '',
-          // Data URI thumbnail dari form pengajuan - img.src menerima data:
-          // URI langsung, jadi tidak perlu commit file statis baru ke repo
-          // buat logo masjid ini. Kosong kalau pemohon tidak upload logo.
-          logoFile: row.logoDataUrl || '',
+          // Utamakan URL Blob asli (row.logoUrl) - baru fallback ke data URI
+          // lama (row.logoDataUrl) kalau pengajuan ini belum pernah sukses
+          // upload ke Blob (mis. Blob store belum di-connect saat submit).
+          // img.src terima keduanya (URL http atau data: URI) tanpa beda kode
+          // di frontend. Kosong kalau pemohon tidak upload logo sama sekali.
+          logoFile: row.logoUrl || row.logoDataUrl || '',
           locationName: row.kota || '',
           prayerLocationId: '',
           bankName: row.bankName || '',
