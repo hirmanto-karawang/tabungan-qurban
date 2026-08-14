@@ -11,7 +11,13 @@
 // ENV VARS yang wajib diisi di Vercel (Project Settings -> Environment Variables):
 //   GOOGLE_CLIENT_ID
 //   GOOGLE_CLIENT_SECRET
-//   GOOGLE_REFRESH_TOKEN
+//   GOOGLE_REFRESH_TOKEN  - 1 akun Google (mode lama/default). BISA diganti
+//                         GOOGLE_REFRESH_TOKENS (jamak, dipisah koma) kalau
+//                         mau sharding kuota API ke beberapa akun Google
+//                         sekaligus - lihat komentar "SHARDING KUOTA API" di
+//                         dekat getAccessToken(). Opsional, cuma perlu kalau
+//                         jumlah masjid sudah banyak & mulai kena rate-limit
+//                         Google Sheets API (60 request/menit PER AKUN).
 //   GOOGLE_SHEET_ID     - ID Google Sheet single-tenant lama (fallback kalau
 //                         request tidak bawa ?tenant=, lihat panduan setup:
 //                         bagian antara /d/ dan /edit di URL spreadsheet Anda)
@@ -63,7 +69,14 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1UareCU-UMZianvrCKWVeI7_LHZlOgE
 //   slug | status | mosqueName | mosqueShortName | logoFile | locationName |
 //   prayerLocationId | bankName | bankCode | bankAccountNumber |
 //   bankAccountNumberDisplay | bankAccountHolder | qurbanTarget | sheetId |
-//   fonnteApiKey | createdDate
+//   credentialPool | fonnteApiKey | createdDate
+// "credentialPool" (angka, 0-based) = index akun Google mana (dari
+// GOOGLE_REFRESH_TOKENS) yang PUNYA/akses Sheet data tenant ini - dipakai
+// buat sharding kuota API (lihat komentar "SHARDING KUOTA API" dekat
+// getAccessToken()). Kosong/0 = akun utama (mode lama, tidak ada sharding).
+// WAJIB DITAMBAH manual sbg kolom baru di header baris 1 kalau belum ada -
+// kalau kolom ini belum ada, tenant baru SELALU dianggap pool 0 (aman, cuma
+// berarti sharding belum aktif, bukan error).
 // "slug" dipakai di path URL (mis. /dhafinul, /annurlam) buat nentuin masjid
 // mana yang sedang diakses. "sheetId" = ID Google Sheet DATA masjid itu
 // (skema persis sama dengan SHEET_NAMES di bawah - bukan Registry-nya).
@@ -258,19 +271,46 @@ function stripBuktiTransaksi(row) {
 // "status" tetap dipakai sebagai soft-delete ('batal'), sama pola dengan
 // sheet lain.
 
-// ----- Cache access token di memori (bertahan selama instance function masih "warm") -----
-let cachedAccessToken = null;
-let accessTokenExpiresAt = 0;
+// ===== SHARDING KUOTA API: pool banyak akun Google =====
+// Google Sheets API membatasi 60 request/menit PER AKUN Google (bukan per
+// project) - kalau SEMUA masjid platform ini pakai 1 akun Google yang sama,
+// mereka berebut jatah 60/menit yang SAMA, paling parah pas hari pelaksanaan
+// qurban (semua masjid scan tiket bersamaan di hari & jam yang sama persis).
+// Solusinya: GOOGLE_REFRESH_TOKENS (jamak, dipisah koma) - tiap token dari
+// akun Google BERBEDA, masing-masing dapat jatah 60/menit SENDIRI. Index 0
+// SELALU akun utama/lama (Registry & tenant lama/belum di-assign pool selalu
+// pakai ini) - kalau env var ini cuma diisi 1 token atau belum diisi sama
+// sekali (fallback ke GOOGLE_REFRESH_TOKEN tunggal, mode lama), semua
+// behavior PERSIS sama seperti sebelum fitur ini ada - tidak ada breaking
+// change buat deployment yang belum sempat setup akun tambahan.
+// Cara nambah akun ke pool: lihat komentar provisionTenantSpreadsheet() &
+// pickPoolIndexForNewTenant() di bawah, ulangi proses ambil refresh token
+// (OAuth Playground) pakai akun Google LAIN, lalu tambahkan hasilnya ke
+// GOOGLE_REFRESH_TOKENS dipisah koma (mis. "token1,token2,token3").
+const REFRESH_TOKENS = (process.env.GOOGLE_REFRESH_TOKENS || process.env.GOOGLE_REFRESH_TOKEN || '')
+  .split(',').map(t => t.trim()).filter(Boolean);
+const CREDENTIAL_POOL_SIZE = REFRESH_TOKENS.length || 1;
 
-async function getAccessToken() {
-  if (cachedAccessToken && Date.now() < accessTokenExpiresAt - 60000) {
-    return cachedAccessToken;
+// ----- Cache access token di memori, PER POOL INDEX (bertahan selama instance
+// function masih "warm") - beda dari sebelumnya yang cuma 1 token global. -----
+let cachedAccessTokens = {}; // { [poolIndex]: { token, expiresAt } }
+
+async function getAccessToken(poolIndex) {
+  const idx = (Number.isInteger(poolIndex) && poolIndex >= 0 && poolIndex < REFRESH_TOKENS.length) ? poolIndex : 0;
+  const cached = cachedAccessTokens[idx];
+  if (cached && Date.now() < cached.expiresAt - 60000) {
+    return cached.token;
+  }
+
+  const refreshToken = REFRESH_TOKENS[idx];
+  if (!refreshToken) {
+    throw new Error(`GOOGLE_REFRESH_TOKEN(S) belum diset (pool index ${idx})`);
   }
 
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
     client_secret: process.env.GOOGLE_CLIENT_SECRET,
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+    refresh_token: refreshToken,
     grant_type: 'refresh_token'
   });
 
@@ -282,13 +322,12 @@ async function getAccessToken() {
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error('Gagal refresh access token: ' + errText);
+    throw new Error(`Gagal refresh access token (pool index ${idx}): ` + errText);
   }
 
   const data = await resp.json();
-  cachedAccessToken = data.access_token;
-  accessTokenExpiresAt = Date.now() + (data.expires_in * 1000);
-  return cachedAccessToken;
+  cachedAccessTokens[idx] = { token: data.access_token, expiresAt: Date.now() + (data.expires_in * 1000) };
+  return data.access_token;
 }
 
 // ----- Cache hasil bootstrap di memori, TTL pendek (mirip CacheService di Apps Script) -----
@@ -553,6 +592,26 @@ async function provisionTenantSpreadsheet(title, accessToken) {
   return spreadsheetId;
 }
 
+// Load-balancing sederhana buat sharding: pilih pool (akun Google) dgn JUMLAH
+// TENANT PALING SEDIKIT saat ini (bukan round-robin murni berdasar urutan -
+// self-correcting kalau distribusinya pernah timpang, mis. gara-gara 1 pool
+// sempat gagal provisioning beberapa kali). Kalau GOOGLE_REFRESH_TOKENS cuma
+// diisi 1 token (atau belum diisi sama sekali), CREDENTIAL_POOL_SIZE = 1,
+// fungsi ini SELALU balikin 0 - tidak ada efek apapun sampai akun tambahan
+// benar-benar di-setup.
+function pickPoolIndexForNewTenant(registryRows) {
+  const counts = new Array(CREDENTIAL_POOL_SIZE).fill(0);
+  registryRows.forEach(r => {
+    const idx = parseInt(r.credentialPool) || 0;
+    if (idx >= 0 && idx < CREDENTIAL_POOL_SIZE) counts[idx]++;
+  });
+  let best = 0;
+  for (let i = 1; i < CREDENTIAL_POOL_SIZE; i++) {
+    if (counts[i] < counts[best]) best = i;
+  }
+  return best;
+}
+
 // Generik: ambil isi 1 kolom (biasanya base64 foto/file) dari 1 baris (dicari
 // via kolom "id") di sheet manapun. Dipakai baik oleh Savings!fileData maupun
 // SurveySapi!foto1..foto5 - keduanya sama-sama "kolom berat" yang sengaja
@@ -587,7 +646,11 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const accessToken = await getAccessToken();
+    // Pool index 0 = akun utama - dipakai buat Registry & superadmin (SELALU
+    // pool 0, tidak pernah di-shard) dan default sblm tenant di-resolve.
+    // "let" (bukan "const") karena bisa di-reassign ke pool lain setelah
+    // tenant diketahui - lihat blok "Resolve tenant" di bawah.
+    let accessToken = await getAccessToken(0);
     const { sheet, bootstrap, getFile, action, col, tenant, config, superadmin, findMasjid } = req.query;
 
     // ----- Pencarian masjid publik (tombol "Masuk" di landing page, buat
@@ -716,12 +779,22 @@ module.exports = async function handler(req, res) {
           n++;
         }
 
+        // Pilih pool (akun Google) buat masjid baru ini - load-balancing
+        // sederhana berdasar jumlah tenant per pool saat ini (lihat
+        // pickPoolIndexForNewTenant()). Kalau belum ada akun tambahan di-
+        // setup (GOOGLE_REFRESH_TOKENS cuma 1 token), ini SELALU balik 0,
+        // sama seperti sebelum fitur sharding ada.
+        const chosenPool = pickPoolIndexForNewTenant(registryRows);
+
         let newSheetId = '';
         let tenantStatus = 'pending_setup';
         let provisionError = '';
+        let assignedPool = 0;
         try {
-          newSheetId = await provisionTenantSpreadsheet(row.namaMasjid || slug, accessToken);
+          const poolToken = await getAccessToken(chosenPool);
+          newSheetId = await provisionTenantSpreadsheet(row.namaMasjid || slug, poolToken);
           tenantStatus = 'aktif';
+          assignedPool = chosenPool;
         } catch (err) {
           provisionError = (err && err.message) ? err.message : String(err);
           console.error('[provisionTenantSpreadsheet] gagal, fallback ke pending_setup manual:', provisionError);
@@ -747,6 +820,7 @@ module.exports = async function handler(req, res) {
           bankAccountHolder: row.bankAccountHolder || '',
           qurbanTarget: 0,
           sheetId: newSheetId,
+          credentialPool: assignedPool,
           fonnteApiKey: '',
           createdDate: new Date().toISOString()
         }, accessToken);
@@ -758,6 +832,7 @@ module.exports = async function handler(req, res) {
           slug,
           sheetId: newSheetId,
           tenantStatus,
+          credentialPool: assignedPool,
           // Dikirim ke frontend cuma kalau provisioning gagal, supaya Super
           // Admin tahu perlu setup manual (bukan diam-diam nyangkut pending).
           provisionError: provisionError || undefined
@@ -792,6 +867,17 @@ module.exports = async function handler(req, res) {
         return res.status(500).json({ error: `Masjid "${tenant}" belum punya Sheet data (kolom sheetId kosong di Registry)` });
       }
       targetSheetId = tenantRow.sheetId;
+
+      // SHARDING: kalau tenant ini di-assign ke pool lain (kolom
+      // credentialPool di Registry, diisi otomatis pas provisioning - lihat
+      // pickPoolIndexForNewTenant()), ganti accessToken ke akun Google pool
+      // itu buat SEMUA operasi baca/tulis Sheet data tenant ini di bawah -
+      // supaya kuota 60 request/menit-nya terpisah dari tenant di pool lain.
+      // Tenant lama/belum di-assign (kolom kosong) tetap pool 0, tidak ganti.
+      const poolIndex = parseInt(tenantRow.credentialPool) || 0;
+      if (poolIndex > 0) {
+        accessToken = await getAccessToken(poolIndex);
+      }
     }
     const cacheKey = tenant || 'default';
 
