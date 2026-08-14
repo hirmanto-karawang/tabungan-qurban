@@ -156,6 +156,14 @@ function waLinkTo(phone, msg){
   if (!p) return '';
   return `https://wa.me/${p}?text=${encodeURIComponent(msg)}`;
 }
+// Rumus SAMA PERSIS dengan baseSlug di superadmin=approve (public/api/sheets.js)
+// - dipakai buat nebak slug SEBELUM approve beneran selesai (lihat listener
+// tombol Setujui). Kalau backend nambah akhiran -2/-3 karena tabrakan nama,
+// hasil di sini bakal beda dari slug asli - itu dicek & dikoreksi manual.
+function slugifyMasjid(name){
+  let s = (name || '').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return s || ('masjid-' + Date.now());
+}
 // Status-aware: sebelum diputuskan pakai pesan tanya umum, sesudah
 // approved/rejected otomatis ganti ke pesan notifikasi yang sesuai (dengan
 // link slug utk yang approved, kalau sudah ada di row.slug - lihat listener
@@ -242,17 +250,34 @@ function render(){
       const row = rows.find(r => r.ref === ref);
       $$('.btn', card).forEach(b => b.disabled = true);
 
-      // CATATAN: SENGAJA TIDAK pakai window.open()/waWin.location.href lagi
-      // di sini. Pola lama (buka tab kosong sebelum await, baru diarahkan ke
-      // link WA setelah request selesai) DIAM-DIAM diblokir sebagian browser
-      // mobile (terutama Chrome Android) begitu ada jeda async sebelum
-      // .location di-set - tab kebuka tapi nyangkut "about:blank" selamanya,
-      // notifikasi WA tidak pernah terkirim walau data sudah tersimpan sukses
-      // ke Sheet. Sekarang link WA cukup dirender sbg <a> biasa (lihat
-      // waLinkFor() & render() di atas) yang di-tap manual oleh admin -
-      // klik asli selalu jalan di semua browser, tidak pernah diblokir.
       try {
         if (status === 'approved') {
+          // Buka tab WA SEBELUM await callApi() - persis pola yang sudah
+          // terbukti jalan di index.html pas kirim work order (window.open
+          // dipanggil sinkron di dalam gesture klik, TANPA jeda async di
+          // depannya). Semua data buat pesan WA (nama masjid, No. HP Ketua,
+          // slug, password) bisa dihitung duluan di sisi client sebelum
+          // approve beneran dikirim ke server, jadi tidak perlu nunggu
+          // response dulu - inilah yang bikin kirim WA di form pengajuan
+          // "auto", sementara approve dulu HARUS nunggu API (baru boleh
+          // window.open) sehingga kena blokir gesture-timeout di browser
+          // mobile (tab nyangkut "about:blank").
+          //
+          // Slug dihitung optimis pakai rumus SAMA PERSIS dgn backend
+          // (lihat superadmin=approve di api/sheets.js) - cuma beda kalau
+          // ada TABRAKAN nama masjid (baru ditambah akhiran -2, -3 dst di
+          // server), yang jarang terjadi. Kalau ternyata beda, ada
+          // pengecekan & alert koreksi setelah await di bawah.
+          const optimisticSlug = slugifyMasjid(row?.namaMasjid);
+          const sharedPw = (row?.teleponKontak || '').toString().replace(/\D/g, '').slice(-4).padStart(4, '0');
+          const optimisticAccounts = [
+            { username: 'ketua1', password: sharedPw },
+            { username: 'bendum2', password: sharedPw },
+            { username: 'sekre3', password: sharedPw }
+          ];
+          const optimisticMsg = waApprovedMsg({ ...row, adminAccounts: optimisticAccounts }, optimisticSlug);
+          window.open(waLinkTo(row?.teleponKontak, optimisticMsg), '_blank', 'noopener');
+
           // "approve" (bukan updateStatus biasa) - backend sekaligus bikin
           // baris baru di Registry dari data pengajuan ini (nama, kota, bank).
           const result = await callApi('approve', { ref });
@@ -260,23 +285,18 @@ function render(){
             row.status = 'approved';
             row.slug = result.slug || row.slug;
             // Kredensial 3 akun pengurus (auto-seed ke tab Members: Ketua/
-            // Bendahara/Sekretaris) - dipakai waApprovedMsg() di bawah supaya
-            // masjid langsung dapat login, tidak perlu chat susulan terpisah.
+            // Bendahara/Sekretaris) - versi ASLI dari server, dipakai kalau
+            // admin perlu resend WA manual lewat kartu (link di render()).
             row.adminAccounts = result.adminAccounts || [];
           }
           // Backend coba auto-provisioning (bikin Sheet data masjid + langsung
-          // 'aktif'). Kalau gagal, tenant tetap kebuat tapi 'pending_setup' &
-          // sheetId kosong - kasih tahu admin di sini supaya tidak nyangka
-          // semuanya beres, padahal masih perlu dilengkapi manual di Registry.
+          // 'aktif'). Kalau gagal, WA yang tadi sudah kebuka isinya jadi
+          // TIDAK AKURAT (bilang aktif padahal belum) - kasih tahu admin
+          // supaya follow-up manual, bukan diam-diam nyangka semua beres.
           if (result.provisionError) {
-            alert(`Masjid disetujui, TAPI auto-buat Sheet data gagal:\n\n${result.provisionError}\n\nStatus tenant masih "pending_setup" - lengkapi kolom sheetId di Registry manual, baru ubah status ke "aktif".`);
-          } else {
-            // PENTING: approve TIDAK otomatis mengirim WA (lihat catatan di
-            // atas soal kenapa auto window.open dihindari - diblokir browser
-            // mobile). Jadi wajib diingatkan supaya admin tidak lupa tap link
-            // WA-nya sendiri, kalau tidak masjid tidak akan pernah tahu
-            // mereka sudah disetujui.
-            alert(`Masjid disetujui & aplikasi sudah aktif ✅\n\nJangan lupa: klik tombol "Kirim notifikasi Disetujui →" di kartu ini untuk kirim link + akun login ke masjid lewat WhatsApp. Notifikasi TIDAK terkirim otomatis.`);
+            alert(`PERHATIAN: WA notifikasi tadi sudah kebuka & isinya bilang "sudah aktif", TAPI auto-buat Sheet data GAGAL:\n\n${result.provisionError}\n\nStatus tenant masih "pending_setup" - lengkapi kolom sheetId di Registry manual, baru ubah status ke "aktif", lalu kabari ulang masjidnya kalau perlu.`);
+          } else if (result.slug && result.slug !== optimisticSlug) {
+            alert(`Slug asli masjid ini ternyata "${result.slug}" (beda dari dugaan awal "${optimisticSlug}", kemungkinan ada nama masjid yang mirip). WA tadi kebuka dengan link yang KURANG TEPAT - klik tombol "Kirim notifikasi Disetujui →" di kartu ini untuk kirim ulang link yang benar.`);
           }
         } else {
           await callApi('updateStatus', { ref, status });
