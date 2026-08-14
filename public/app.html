@@ -4236,6 +4236,54 @@ function normalizePhone(phone) {
     return s;
 }
 
+// ===== WHATSAPP: buka wa.me MANUAL, BUKAN kirim otomatis via Fonnte =====
+// Semua notifikasi WA (pendaftaran anggota baru, approval/reject anggota,
+// upload bukti transfer, approval/reject transfer) SENGAJA tidak lagi
+// dikirim otomatis lewat Fonnte - kirim otomatis via API pihak ketiga
+// beresiko nomor WA masjid kena banned kalau volumenya dianggap
+// mencurigakan oleh WhatsApp. Sebagai gantinya, dipakai link wa.me: pesan
+// sudah terisi otomatis, tapi manusia (anggota/pengurus) tetap yang harus
+// tekan tombol Kirim di WhatsApp itu sendiri.
+//
+// PENTING soal timing: window.open() di sini HARUS dipanggil SINKRON,
+// sedekat mungkin dengan event klik/submit asli, TANPA ada `await` di
+// depannya dalam alur eksekusi yang sama - begitu ada jeda async (fetch,
+// dsb) sebelum window.open() dipanggil, sebagian browser (terutama mobile)
+// DIAM-DIAM memblokirnya (tab kebuka tapi nyangkut/nggak jalan). Karena itu
+// di tiap pemanggil, data buat pesan WA diusahakan sudah lengkap SEBELUM
+// baris await pertama. Kalau datanya baru bisa diketahui SETELAH await
+// (misal ID anggota baru yang butuh refresh server dulu), dipakai pola
+// confirm()-gate: window.open() dipanggil tepat setelah confirm()/prompt()
+// di-resolve user, karena itu juga terhitung gesture baru yang sah.
+function toWaNumber(phone) {
+    let p = String(phone || '').replace(/\D/g, '');
+    if (p.startsWith('0')) p = '62' + p.slice(1);
+    return p;
+}
+function waMeLink(phone, message) {
+    const p = toWaNumber(phone);
+    if (!p) return '';
+    return `https://wa.me/${p}?text=${encodeURIComponent(message)}`;
+}
+function openWaTo(phone, message) {
+    const link = waMeLink(phone, message);
+    if (!link) return false;
+    window.open(link, '_blank', 'noopener');
+    return true;
+}
+// Cari nomor HP pengurus tertentu dari daftar Members - coba id yang
+// diprioritaskan dulu (mis. 'bendum2' = Bendahara), baru fallback ke admin
+// manapun yang punya nomor HP (buat tenant lama yang belum pakai skema
+// id ketua1/bendum2/sekre3, mis. Dhafinul/An-Nurlam).
+function findOfficerPhone(members, preferredIds) {
+    for (const id of (preferredIds || [])) {
+        const m = (members || []).find(mm => mm.id === id && mm.phone);
+        if (m) return m.phone;
+    }
+    const anyAdmin = (members || []).find(mm => (mm.role || '').toLowerCase() === 'admin' && mm.phone);
+    return anyAdmin ? anyAdmin.phone : '';
+}
+
 async function fetchSheetDBTable(tableName) {
     try {
         const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}${tenantParam()}`;
@@ -4728,10 +4776,27 @@ async function handleRegistration() {
     // Generate password dari 4 digit terakhir no hape
     const password = phone.slice(-4);
 
+    // ===== Notif WA ke Bendahara: SEBELUM await apapun kalau bisa =====
+    // Kalau appData.members sudah ke-cache (biasanya sudah, hasil prefetch
+    // pas halaman dibuka), nomor Bendahara sudah diketahui SEKARANG - buka
+    // WA langsung di sini, sinkron, supaya tidak diblokir browser mobile.
+    const adminMsgFor = () => `Assalamu'alaikum Bendahara, ada calon anggota baru mendaftar! 👤
+
+Nama: ${name}
+Alamat: RT ${rt}, Blok ${blok}, No ${no}
+WhatsApp: ${phone}
+Alasan: ${reason}
+
+Periksa menu "Approval Anggota Baru" di aplikasi untuk proses lebih lanjut.`;
+    let bendaharaPhone = (appData.members && appData.members.length > 0)
+        ? findOfficerPhone(appData.members, ['bendum2', 'ketua1'])
+        : '';
+    if (bendaharaPhone) openWaTo(bendaharaPhone, adminMsgFor());
+
     // Ambil data pendaftaran & member TERBARU langsung dari sheet.
     // Jangan andalkan appData.pendaftaran/appData.members: kalau form ini
     // dibuka tanpa login (guest), array itu masih kosong/belum ke-load,
-    // sehingga id selalu jadi 1 (bug lama) dan notif admin gagal terkirim.
+    // sehingga id selalu jadi 1 (bug lama).
     const existingPendaftaran = await fetchSheetDBTable('Pendaftaran');
     const existingMembers = await fetchSheetDBTable('Members');
 
@@ -4764,35 +4829,22 @@ async function handleRegistration() {
     appData.pendaftaran = existingPendaftaran;
     appData.pendaftaran.push(registration);
 
-    // Kirim notif ke admin
-    // Ketua = kontak admin utama sistem. Dulu id admin selalu angka 1, tapi
-    // sekarang id Ketua = string 'ketua1' (lihat loadDataFromSheets()) -
-    // cocokkan ke keduanya supaya tenant lama (id numerik 1) & baru (id
-    // 'ketua1') sama-sama dapat notifikasi ini.
-    const adminPhone = existingMembers.find(m => m.id === 'ketua1' || m.id === 1)?.phone;
-    if (adminPhone) {
-        const adminMsg = `Admin, ada calon anggota baru! 👤
-
-Nama: ${name}
-Alamat: RT ${rt}, Blok ${blok}, No ${no}
-WhatsApp: ${phone}
-Alasan: ${reason}
-
-Periksa menu "Approval Anggota Baru" di aplikasi.`;
-        await sendFontneMessage(adminPhone, adminMsg);
+    // Fallback: nomor Bendahara belum ke-cache di awal (jarang - mis. guest
+    // yang baru buka halaman & belum ada prefetch). Coba lagi pakai data
+    // yang baru saja di-fetch. window.open() di sini SUDAH lewat 3 await di
+    // atas, jadi ADA KEMUNGKINAN diblokir browser (terutama mobile) - tapi
+    // tetap dicoba drpd tidak sama sekali; pendaftaran sendiri tetap
+    // tersimpan normal walau notifikasi WA ini gagal kebuka.
+    if (!bendaharaPhone) {
+        bendaharaPhone = findOfficerPhone(existingMembers, ['bendum2', 'ketua1']);
+        if (bendaharaPhone) openWaTo(bendaharaPhone, adminMsgFor());
     }
 
-    // Kirim notif ke calon
-    const candidateMsg = `Assalamu'alaikum ${name}! 👋
-
-Terima kasih telah mendaftar menjadi anggota Tabungan Qurban ${APP_CONFIG.mosqueName}.
-
-Admin kami akan me-review data Anda dalam 1-2 jam kerja. Anda akan menerima ID dan password melalui WhatsApp.
-
-Barakallahu fiik! 🤲
-
-Admin ${APP_CONFIG.mosqueName}`;
-    await sendFontneMessage(phone, candidateMsg);
+    // Catatan: notif konfirmasi ke CALON pendaftar sendiri (dulu via Fonnte)
+    // sengaja dihapus - membuka 2 tab WA sekaligus (1 ke Bendahara, 1 ke
+    // calon) beresiko tab ke-2 diblokir browser sebagai popup ganda. Cukup
+    // 1 notifikasi WA (ke Bendahara) + alert sukses di dalam aplikasi
+    // (di bawah) sebagai konfirmasi ke pendaftar.
 
     // Bersihkan form & tampilkan notifikasi sukses di menu daftar (tidak pindah tab)
     document.getElementById('regName').value = '';
@@ -5516,6 +5568,23 @@ async function submitUpload() {
         return;
     }
 
+    // Notif WA ke Bendahara SEBELUM await simpan manapun (sinkron, lihat
+    // catatan panjang di openWaTo()) - semua data pesan (nominal, tanggal,
+    // bank, nama pengirim) sudah diketahui dari form ini, tidak perlu
+    // nunggu server. Bendahara yang tekan Kirim sendiri di WhatsApp-nya.
+    const bendaharaPhone = findOfficerPhone(appData.members, ['bendum2', 'ketua1']);
+    if (bendaharaPhone) {
+        const uploadMsg = `Assalamu'alaikum Bendahara, ada bukti transfer baru! 💰
+
+Dari: ${currentUser.name}
+Nominal: Rp ${amount.toLocaleString('id-ID')}
+Tanggal transfer: ${date}
+Bank: ${bank}
+
+Periksa menu "Verifikasi Tabungan" di aplikasi untuk proses lebih lanjut.`;
+        openWaTo(bendaharaPhone, uploadMsg);
+    }
+
     btn.disabled = true;
     btn.textContent = 'Mengirim…';
 
@@ -5546,18 +5615,12 @@ async function submitUpload() {
 
     if (success) {
         appData.savings.push(savingData);
-        
-        // Hitung total saldo jamaah
-        const memberSavings = appData.savings.filter(s => s.memberId === currentUser.id && s.status === 'APPROVED');
-        const totalSaldo = memberSavings.reduce((sum, s) => sum + s.amount, 0);
 
-        // Kirim notifikasi WhatsApp
-        const member = appData.members.find(m => m.id === currentUser.id);
-        if (member) {
-            const waOk = await sendNotificationUpload(member, amount, totalSaldo);
-            if (!waOk) {
-                showAlert(`Bukti dikirim, tapi notifikasi WhatsApp gagal (${member.phone || 'no phone'})`, 'warning');
-            }
+        // Notifikasi WA ke Bendahara sudah dibuka di atas (sebelum simpan) -
+        // di sini cukup catatan kalau ternyata nomornya tidak ketemu sama
+        // sekali (bukan error kirim, tapi memang belum ada Bendahara terdaftar).
+        if (!bendaharaPhone) {
+            console.warn('Nomor Bendahara/admin tidak ditemukan - notifikasi WA upload tidak terkirim');
         }
 
         showAlert(`Bukti transfer Rp ${amount.toLocaleString('id-ID')} berhasil dikirim untuk verifikasi`, 'success');
@@ -9047,6 +9110,23 @@ async function processVerification(saving, action, reason) {
     loadVerifyData();
     updateDashboard();
 
+    // ===== Notifikasi WA ke jamaah: SEKARANG, sebelum await simpan =====
+    // Semua data pesan (nominal, total saldo, alasan tolak) sudah diketahui
+    // sinkron dari sini (saving.status sudah di-flip di atas, appData.savings
+    // sudah reflect perubahan ini) - tidak perlu nunggu server dulu, jadi
+    // window.open() tetap dalam gesture klik/confirm() asli, aman dari
+    // blokir browser mobile (lihat catatan panjang di openWaTo()).
+    const memberForWa = appData.members.find(m => m.id === saving.memberId);
+    if (memberForWa && memberForWa.phone) {
+        if (action === 'APPROVED') {
+            const memberSavings = appData.savings.filter(s => s.memberId === memberForWa.id && s.status === 'APPROVED');
+            const totalSaldo = memberSavings.reduce((sum, s) => sum + s.amount, 0);
+            openWaTo(memberForWa.phone, buildApprovedMsg(memberForWa, saving.amount, totalSaldo));
+        } else if (action === 'REJECTED') {
+            openWaTo(memberForWa.phone, buildRejectedMsg(memberForWa, saving.amount, reason));
+        }
+    }
+
     const written = await updateSheetDB('Savings', 'id', saving.id, {
         status: action,
         approvedAt: now,
@@ -9075,19 +9155,8 @@ async function processVerification(saving, action, reason) {
     const logged = await appendSheetDB('Verifications', verification);
     if (logged) appData.verifications.push(verification);
 
-    // Kirim notifikasi WhatsApp ke jamaah
-    const member = appData.members.find(m => m.id === saving.memberId);
-    if (member) {
-        if (action === 'APPROVED') {
-            // Hitung total saldo setelah di-approve
-            // ✅ saving.status sudah di-update di line 2479, jadi filter APPROVED sudah include transaksi ini
-            const memberSavings = appData.savings.filter(s => s.memberId === member.id && s.status === 'APPROVED');
-            const totalSaldo = memberSavings.reduce((sum, s) => sum + s.amount, 0); // ✅ Jangan tambah saving.amount lagi!
-            await sendNotificationApproved(member, saving.amount, totalSaldo);
-        } else if (action === 'REJECTED') {
-            await sendNotificationRejected(member, saving.amount, reason);
-        }
-    }
+    // (Notifikasi WA ke jamaah sudah dibuka di atas, sebelum simpan ke
+    // Sheets - lihat blok openWaTo() di dekat optimistic update)
 
     showAlert(
         action === 'APPROVED'
@@ -10405,34 +10474,10 @@ function copyRekening(btn) {
     }
 }
 
-// ===== WHATSAPP NOTIFICATIONS =====
-async function sendNotificationUpload(member, amount, totalSaldo) {
-    if (!member.phone) {
-        console.warn(`Member ${member.name} tidak punya nomor WhatsApp`);
-        return false;
-    }
-
-    const message = `Assalamu'alaikum ${member.name}! 👋
-
-Terima kasih telah mengunggah bukti transfer Qurban sebesar Rp ${amount.toLocaleString('id-ID')}.
-
-📊 Status: MENUNGGU VERIFIKASI ADMIN
-💰 Total Saldo Anda: Rp ${totalSaldo.toLocaleString('id-ID')}
-⏱️ Proses verifikasi: 1-2 jam kerja
-
-Kami akan notifikasi Anda saat sudah di-review.
-
-Barakallahu fiik! 🤲
-
-Admin ${APP_CONFIG.mosqueName}`;
-
-    return await sendFontneMessage(member.phone, message);
-}
-
-async function sendNotificationApproved(member, amount, totalSaldo) {
-    if (!member.phone) return false;
-
-    const message = `Alhamdulillah, ${member.name}! 🎉
+// ===== WHATSAPP NOTIFICATIONS (bangun teks pesan - pengirimannya lewat
+// openWaTo()/wa.me manual, BUKAN lagi Fonnte, lihat catatan di openWaTo()) =====
+function buildApprovedMsg(member, amount, totalSaldo) {
+    return `Alhamdulillah, ${member.name}! 🎉
 
 Tabungan Qurban Anda sebesar Rp ${amount.toLocaleString('id-ID')} telah DISETUJUI ✅
 
@@ -10446,14 +10491,10 @@ Terima kasih atas kepercayaan dan ketulusan Anda. Semoga Allah menerima amal kit
 Barakallahu fiik! 🤲
 
 Admin ${APP_CONFIG.mosqueName}`;
-
-    return await sendFontneMessage(member.phone, message);
 }
 
-async function sendNotificationRejected(member, amount, reason) {
-    if (!member.phone) return false;
-
-    const message = `Assalamu'alaikum ${member.name},
+function buildRejectedMsg(member, amount, reason) {
+    return `Assalamu'alaikum ${member.name},
 
 Mohon maaf, tabungan Qurban Anda sebesar Rp ${amount.toLocaleString('id-ID')} belum dapat kami verifikasi.
 
@@ -10464,8 +10505,6 @@ Mohon maaf, tabungan Qurban Anda sebesar Rp ${amount.toLocaleString('id-ID')} be
 Terima kasih atas pengertian dan kesabaran Anda.
 
 Admin ${APP_CONFIG.mosqueName}`;
-
-    return await sendFontneMessage(member.phone, message);
 }
 
 // ===== PREVIEW BUKTI TRANSFER =====
@@ -11350,7 +11389,23 @@ async function approveCandidate(pendaftaranId) {
 
     appData.members.push(newMember);
 
-    // 4. Kirim notif ke calon dengan credentials dan informasi sapi
+    // 4. Update local data
+    pendaftar.status = 'APPROVED';
+    pendaftar.approved_at = now;
+    pendaftar.approved_by = currentUser.name;
+
+    showAlert(`Selamat! ${pendaftar.name} (ID ${idInfo.id}, Sapi #${idInfo.sapi}) berhasil disetujui.`, 'success');
+    loadApprovalData();
+
+    // 5. Notifikasi WA kredensial login ke anggota baru.
+    // TIDAK bisa dibuka sinkron dari awal fungsi ini - ID & nomor Sapi baru
+    // diketahui SETELAH loadDataFromSheets() di atas (sengaja nunggu data
+    // terbaru dari server dulu, demi akurasi nomor urut/sapi, hindari
+    // tabrakan kalau ada approval lain berbarengan). Karena itu dipasang di
+    // belakang confirm() sendiri: klik OK di confirm() ini terhitung
+    // gesture baru yang sah buat window.open(), jadi tetap aman dari blokir
+    // browser walau sudah lewat beberapa `await` duluan (lihat catatan
+    // panjang soal timing di openWaTo()).
     const credMsg = `Alhamdulillah, ${pendaftar.name}! 🎉
 
 Pendaftaran Anda sebagai anggota Tabungan Qurban telah DISETUJUI ✅
@@ -11375,15 +11430,9 @@ Barakallahu fiik! 🤲
 
 Admin ${APP_CONFIG.mosqueName}`;
 
-    await sendFontneMessage(pendaftar.phone, credMsg);
-
-    // 5. Update local data
-    pendaftar.status = 'APPROVED';
-    pendaftar.approved_at = now;
-    pendaftar.approved_by = currentUser.name;
-
-    showAlert(`Selamat! ${pendaftar.name} (ID ${idInfo.id}, Sapi #${idInfo.sapi}) berhasil disetujui.`, 'success');
-    loadApprovalData();
+    if (confirm(`Buka WhatsApp sekarang untuk kirim ID & password ke ${pendaftar.name} (${pendaftar.phone})?`)) {
+        openWaTo(pendaftar.phone, credMsg);
+    }
 }
 
 async function rejectCandidate(pendaftaranId) {
@@ -11393,20 +11442,9 @@ async function rejectCandidate(pendaftaranId) {
     const reason = prompt(`Alasan penolakan untuk ${pendaftar.name}:`, 'Data tidak lengkap');
     if (reason === null) return;
 
-    const now = new Date().toISOString();
-    
-    const updated = await updateSheetDB('Pendaftaran', 'id', pendaftaranId, {
-        status: 'REJECTED',
-        approved_at: now,
-        approved_by: currentUser.name
-    });
-
-    if (!updated) {
-        showAlert('Gagal menyimpan penolakan', 'error');
-        return;
-    }
-
-    // Kirim notif ke pendaftar
+    // Notif WA ke pendaftar - SINKRON di sini (sebelum await simpan di
+    // bawah), karena alasan penolakan sudah diketahui dari prompt() di atas,
+    // tidak perlu nunggu server dulu (lihat catatan timing di openWaTo()).
     const rejectMsg = `Assalamu'alaikum ${pendaftar.name},
 
 Terima kasih telah mendaftar menjadi anggota Tabungan Qurban.
@@ -11420,8 +11458,20 @@ Silakan hubungi kami melalui WhatsApp untuk diskusi lebih lanjut, atau coba daft
 Terima kasih atas pengertian Anda.
 
 Admin ${APP_CONFIG.mosqueName}`;
+    openWaTo(pendaftar.phone, rejectMsg);
 
-    await sendFontneMessage(pendaftar.phone, rejectMsg);
+    const now = new Date().toISOString();
+
+    const updated = await updateSheetDB('Pendaftaran', 'id', pendaftaranId, {
+        status: 'REJECTED',
+        approved_at: now,
+        approved_by: currentUser.name
+    });
+
+    if (!updated) {
+        showAlert('Gagal menyimpan penolakan', 'error');
+        return;
+    }
 
     pendaftar.status = 'REJECTED';
     pendaftar.approved_at = now;
@@ -11469,32 +11519,13 @@ function describeRecipientMode(mode) {
     return mode || '-';
 }
 
-// Sama seperti sendFonnteMessage() - dipertahankan karena dipakai di banyak
-// tempat lain di kode ini (nama historis, ada typo "Fontne" vs "Fonnte").
-async function sendFontneMessage(phoneNumber, message) {
-    try {
-        const response = await fetch('/api/wa-send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target: phoneNumber, message })
-        });
-
-        if (!response.ok) {
-            console.error(`WA send error for ${phoneNumber}:`, response.status);
-            return false;
-        }
-        const result = await response.json().catch(() => null);
-        if (result && result.success === false) {
-            console.error(`WA send rejected for ${phoneNumber}:`, result);
-            return false;
-        }
-
-        return true;
-    } catch (error) {
-        console.error(`Error sending to ${phoneNumber}:`, error);
-        return false;
-    }
-}
+// (sendFontneMessage() - fungsi kirim WA otomatis via Fonnte utk pendaftaran/
+// approval/upload/verifikasi transfer - SUDAH DIHAPUS. Semua flow itu sekarang
+// pakai openWaTo()/wa.me manual, lihat catatan panjang di dekat definisi
+// openWaTo(). sendFonnteMessage() (beda fungsi, EJAAN BENAR) masih dipakai
+// khusus utk fitur Broadcast admin - itu memang sengaja tetap otomatis
+// karena fiturnya sendiri untuk kirim massal, sudah ada jeda acak antar
+// pesan supaya tidak dianggap spam oleh WhatsApp.)
 
 // ===== EXPORT =====
 function exportCSV() {
