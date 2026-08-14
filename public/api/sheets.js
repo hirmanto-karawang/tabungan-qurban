@@ -790,11 +790,48 @@ module.exports = async function handler(req, res) {
         let tenantStatus = 'pending_setup';
         let provisionError = '';
         let assignedPool = 0;
+        let adminAccounts = []; // [{username, password}, ...]
         try {
           const poolToken = await getAccessToken(chosenPool);
           newSheetId = await provisionTenantSpreadsheet(row.namaMasjid || slug, poolToken);
           tenantStatus = 'aktif';
           assignedPool = chosenPool;
+
+          // Auto-seed 3 akun pengurus inti (Ketua/Bendahara/Sekretaris)
+          // supaya masjid bisa langsung login sebagai admin, tanpa Super
+          // Admin harus buka Sheet-nya dan isi baris manual. Password ke-3
+          // akun SAMA, dari 4 digit terakhir No. HP kontak pengajuan (dianggap
+          // No. HP Ketua) - masing-masing pengurus ganti sendiri ke No. HP
+          // mereka via menu Profil setelah bisa akses (auto-update password
+          // ikut No. HP baru, lihat handleProfileUpdate() di app.html).
+          // id 1 SENGAJA dipakai utk Ketua - beberapa notifikasi WA admin
+          // (mis. calon anggota baru) masih hardcode ambil phone dari id=1.
+          try {
+            const phoneDigits = (row.teleponKontak || '').toString().replace(/\D/g, '');
+            const sharedPassword = phoneDigits.slice(-4).padStart(4, '0');
+            const seedRows = [
+              { id: 1, name: 'ketua1', phone: row.teleponKontak || '' },
+              { id: 2, name: 'bendum2', phone: '' },
+              { id: 3, name: 'sekre3', phone: '' }
+            ];
+            for (const seed of seedRows) {
+              await appendRow(newSheetId, 'Members', {
+                id: seed.id,
+                name: seed.name,
+                phone: seed.phone,
+                status: 'aktif',
+                created_date: new Date().toISOString(),
+                password: sharedPassword,
+                role: 'admin'
+              }, poolToken);
+              adminAccounts.push({ username: seed.name, password: sharedPassword });
+            }
+          } catch (seedErr) {
+            // Sheet tetap dibuat & aktif walau seeding admin gagal sebagian/
+            // semua - Super Admin cukup lengkapi manual di tab Members kalau
+            // ini terjadi (adminAccounts yang berhasil dibuat tetap dikirim).
+            console.error('[seedAdminAccounts] gagal isi akun pengurus:', seedErr && seedErr.message);
+          }
         } catch (err) {
           provisionError = (err && err.message) ? err.message : String(err);
           console.error('[provisionTenantSpreadsheet] gagal, fallback ke pending_setup manual:', provisionError);
@@ -835,7 +872,11 @@ module.exports = async function handler(req, res) {
           credentialPool: assignedPool,
           // Dikirim ke frontend cuma kalau provisioning gagal, supaya Super
           // Admin tahu perlu setup manual (bukan diam-diam nyangkut pending).
-          provisionError: provisionError || undefined
+          provisionError: provisionError || undefined,
+          // Kredensial 3 akun pengurus (Ketua/Bendahara/Sekretaris) - dipakai
+          // frontend buat isi pesan WA ke masjid. Array kosong kalau seeding
+          // gagal total (lihat log [seedAdminAccounts]).
+          adminAccounts: adminAccounts.length ? adminAccounts : undefined
         });
       }
 

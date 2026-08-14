@@ -169,6 +169,17 @@ function waLinkFor(r){
 }
 function waApprovedMsg(r, slug){
   const link = slug ? `tabungan-qurban-orpin.vercel.app/${slug}` : '(link menyusul)';
+  // Kalau auto-provisioning + auto-seed 3 akun pengurus sukses (r.adminAccounts
+  // ada isinya), aplikasi sudah benar-benar siap pakai saat ini juga - kasih
+  // login langsung ke semua akun. Kalau tidak (fallback pending_setup /
+  // seeding gagal), pakai pesan lama yang bilang "kami hubungi lagi".
+  if (Array.isArray(r.adminAccounts) && r.adminAccounts.length){
+    const roleLabel = { ketua1: 'Ketua', bendum2: 'Bendahara', sekre3: 'Sekretaris' };
+    const akunList = r.adminAccounts.map(a =>
+      `- ${roleLabel[a.username] || a.username}: username *${a.username}*, password *${a.password}*`
+    ).join('\n');
+    return `Assalamu'alaikum ${r.namaKontak || ''}, kabar baik! Pengajuan *${r.namaMasjid || ''}* untuk bergabung dengan *Alur Qurban* sudah kami *SETUJUI* ✅\n\nRef: ${r.ref || '-'}\nAplikasi masjid Anda sudah aktif dan siap dipakai:\nLink: ${link}\n\nAkun pengurus (password sama dulu, dari 4 digit terakhir No. HP Ketua):\n${akunList}\n\nSetelah login, masing-masing pengurus mohon segera buka menu *Profil* untuk ganti No. HP ke nomor pribadi. Di situ juga tersedia opsi *Password Khusus* kalau mau pakai password sendiri yang unik & rahasia (tidak ikut nomor HP). Terima kasih!`;
+  }
   return `Assalamu'alaikum ${r.namaKontak || ''}, kabar baik! Pengajuan *${r.namaMasjid || ''}* untuk bergabung dengan *Alur Qurban* sudah kami *SETUJUI* ✅\n\nRef: ${r.ref || '-'}\nAplikasi masjid Anda nanti aktif di: ${link}\n\nKami akan hubungi lagi untuk kelengkapan setup (data, logo, dll) sebelum link ini bisa dipakai. Terima kasih!`;
 }
 function waRejectedMsg(r){
@@ -245,7 +256,14 @@ function render(){
           // "approve" (bukan updateStatus biasa) - backend sekaligus bikin
           // baris baru di Registry dari data pengajuan ini (nama, kota, bank).
           const result = await callApi('approve', { ref });
-          if (row) { row.status = 'approved'; row.slug = result.slug || row.slug; }
+          if (row) {
+            row.status = 'approved';
+            row.slug = result.slug || row.slug;
+            // Kredensial 3 akun pengurus (auto-seed ke tab Members: Ketua/
+            // Bendahara/Sekretaris) - dipakai waApprovedMsg() di bawah supaya
+            // masjid langsung dapat login, tidak perlu chat susulan terpisah.
+            row.adminAccounts = result.adminAccounts || [];
+          }
           // Backend coba auto-provisioning (bikin Sheet data masjid + langsung
           // 'aktif'). Kalau gagal, tenant tetap kebuat tapi 'pending_setup' &
           // sheetId kosong - kasih tahu admin di sini supaya tidak nyangka

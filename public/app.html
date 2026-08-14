@@ -3735,6 +3735,19 @@
               <small class="field-hint">Password otomatis mengikuti 4 digit terakhir nomor HP</small>
             </div>
 
+            <div class="field-group" id="profileAdminPasswordSection" style="display:none;">
+              <label>Password Khusus (opsional)</label>
+              <div class="input-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <input type="password" id="profileNewPassword" placeholder="Kosongkan jika tidak ingin ganti" autocomplete="new-password">
+              </div>
+              <div class="input-icon-wrap" style="margin-top:8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <input type="password" id="profileNewPasswordConfirm" placeholder="Ulangi password baru" autocomplete="new-password">
+              </div>
+              <small class="field-hint">Khusus admin: isi kalau mau password sendiri yang unik &amp; rahasia (tidak ikut nomor HP). Kosongkan kalau tidak mau ganti.</small>
+            </div>
+
             <div class="form-section-title">Alamat</div>
             <div class="profile-address-grid">
               <div class="field-group">
@@ -11516,7 +11529,15 @@ function loadProfileData() {
     document.getElementById('profileBlok').value = member.blok || '';
     document.getElementById('profileNo').value = member.no || '';
     document.getElementById('profileSapi').textContent = `#${member.sapi} · Urutan ${member.urutan}`;
-    
+
+    // Password khusus (custom, lepas dari nomor HP) cuma relevan buat admin.
+    // Field selalu dikosongkan tiap buka Profil - tidak pernah prefill
+    // password lama (baik demi keamanan maupun karena memang tidak perlu).
+    const isAdmin = (member.role || '').toLowerCase() === 'admin';
+    document.getElementById('profileAdminPasswordSection').style.display = isAdmin ? '' : 'none';
+    document.getElementById('profileNewPassword').value = '';
+    document.getElementById('profileNewPasswordConfirm').value = '';
+
     document.getElementById('profileMessage').innerHTML = '';
 }
 
@@ -11553,30 +11574,61 @@ async function handleProfileUpdate(event) {
         return;
     }
     
+    // Password: member biasa tetap pakai behavior lama (selalu auto = 4
+    // digit terakhir HP, gampang diingat). Admin bisa pilih pakai password
+    // custom sendiri (unik/rahasia, lepas dari HP) via 2 field tambahan yang
+    // cuma muncul untuk role admin - kalau dikosongkan, password LAMA tidak
+    // disentuh sama sekali (tidak diam-diam ke-reset ke digit HP baru cuma
+    // gara-gara admin update alamat/nama).
+    const memberBeforeSave = appData.members.find(m => m.id === currentUser.id);
+    const isAdminAccount = memberBeforeSave && (memberBeforeSave.role || '').toLowerCase() === 'admin';
+    const newPwField = document.getElementById('profileNewPassword');
+    const newPwConfirmField = document.getElementById('profileNewPasswordConfirm');
+    const customPw = isAdminAccount ? newPwField.value.trim() : '';
+    const customPwConfirm = isAdminAccount ? newPwConfirmField.value.trim() : '';
+
+    if (isAdminAccount && customPw) {
+        if (customPw.length < 4) {
+            showAlert('Password baru minimal 4 karakter', 'error');
+            return;
+        }
+        if (customPw !== customPwConfirm) {
+            showAlert('Konfirmasi password baru tidak cocok', 'error');
+            return;
+        }
+    }
+
     const msgEl = document.getElementById('profileMessage');
     msgEl.innerHTML = '<div class="profile-msg loading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Menyimpan perubahan...</div>';
-    
+
     const now = new Date().toISOString();
-    
-    // ✅ Generate password baru dari 4 digit terakhir nomor HP
-    const newPassword = phone.slice(-4);
-    
-    // Update ke Sheets (INCLUDE password!)
-    const updated = await updateSheetDB('Members', 'id', currentUser.id, {
-        name: name,
-        phone: phone,
-        rt: rt,
-        blok: blok,
-        no: no,
-        password: newPassword  // ← NEW! Auto-generate dari nomor baru
-    });
-    
+
+    // passwordChanged=false berarti kolom password TIDAK ikut dikirim ke
+    // Sheets sama sekali (updateRows cuma nyentuh key yang ada di object),
+    // jadi password lama tetap aman walau field lain diubah.
+    let passwordChanged = true;
+    let newPassword;
+    if (isAdminAccount && customPw) {
+        newPassword = customPw; // admin set password sendiri
+    } else if (isAdminAccount) {
+        passwordChanged = false; // admin, tidak isi field baru -> jangan sentuh
+        newPassword = memberBeforeSave.password;
+    } else {
+        newPassword = phone.slice(-4); // member biasa: tetap auto dari HP
+    }
+
+    const sheetUpdates = { name, phone, rt, blok, no };
+    if (passwordChanged) sheetUpdates.password = newPassword;
+
+    // Update ke Sheets
+    const updated = await updateSheetDB('Members', 'id', currentUser.id, sheetUpdates);
+
     if (!updated) {
         msgEl.innerHTML = '<div class="profile-msg error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>Gagal menyimpan. Coba lagi.</div>';
         return;
     }
-    
-    // Update local data (INCLUDE password!)
+
+    // Update local data
     const member = appData.members.find(m => m.id === currentUser.id);
     if (member) {
         member.name = name;
@@ -11584,9 +11636,16 @@ async function handleProfileUpdate(event) {
         member.rt = rt;
         member.blok = blok;
         member.no = no;
-        member.password = newPassword;  // ← NEW! Update local juga
+        if (passwordChanged) member.password = newPassword;
         currentUser.name = name;
         currentUser.phone = phone;
+    }
+
+    // Kosongkan field password custom setelah tersimpan - jangan biarkan
+    // tertinggal di layar/DOM.
+    if (isAdminAccount) {
+        newPwField.value = '';
+        newPwConfirmField.value = '';
     }
     
     // Update sidebar
@@ -11597,21 +11656,29 @@ async function handleProfileUpdate(event) {
     document.getElementById('profileHeaderAvatar').textContent = name.charAt(0).toUpperCase();
     document.getElementById('profileHeaderName').textContent = name;
     
-    msgEl.innerHTML = '<div class="profile-msg success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><span>Perubahan berhasil disimpan &middot; Password baru: <strong>' + newPassword + '</strong></span></div>';
-    
+    const pwMsgHtml = passwordChanged
+        ? ' &middot; Password baru: <strong>' + newPassword + '</strong>'
+        : ' &middot; Password tidak berubah';
+    msgEl.innerHTML = '<div class="profile-msg success"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg><span>Perubahan berhasil disimpan' + pwMsgHtml + '</span></div>';
+
     // Auto-clear message
     setTimeout(() => {
         msgEl.innerHTML = '';
     }, 3000);
-    
-    
-    // Kirim notif ke member dengan password baru
+
+
+    // Kirim notif ke member - baris password cuma disertakan kalau memang
+    // ikut berubah (admin yang tidak isi field password baru tidak perlu
+    // dikirimi ulang password lama).
+    const pwLineWa = passwordChanged
+        ? `\\n\\n🔐 Password Baru:\\n└─ ${newPassword}${isAdminAccount ? ' (custom, disimpan sendiri)' : ' (dari 4 digit terakhir nomor HP)'}`
+        : '';
     await fetch('/api/wa-send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             target: phone,
-            message: `Assalamu'alaikum ${name}!\\n\\n✅ Data pribadi Anda telah diperbarui:\\n\\n📋 Informasi Terbaru:\\n├─ Nama: ${name}\\n├─ WhatsApp: ${phone}\\n├─ Alamat: RT ${rt}, Blok ${blok}, No ${no}\\n\\n🔐 Password Baru:\\n└─ ${newPassword} (dari 4 digit terakhir nomor HP)\\n\\nJika ada yang tidak sesuai, hubungi admin.\\n\\nBarakallahu fiik!\\n\\nAdmin ${APP_CONFIG.mosqueName}`
+            message: `Assalamu'alaikum ${name}!\\n\\n✅ Data pribadi Anda telah diperbarui:\\n\\n📋 Informasi Terbaru:\\n├─ Nama: ${name}\\n├─ WhatsApp: ${phone}\\n├─ Alamat: RT ${rt}, Blok ${blok}, No ${no}${pwLineWa}\\n\\nJika ada yang tidak sesuai, hubungi admin.\\n\\nBarakallahu fiik!\\n\\nAdmin ${APP_CONFIG.mosqueName}`
         })
     }).catch(err => console.log('Notif sent'));
 }
