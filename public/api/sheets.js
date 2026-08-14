@@ -483,6 +483,76 @@ async function updateRows(sheetId, sheetName, keyColumn, keyValue, updates, acce
   return { success: true, updated: updatedCount };
 }
 
+// ===== AUTO-PROVISIONING: bikin Google Sheet data masjid baru otomatis =====
+// Header PERSIS harus sama dgn field yang dipakai appendSheetDB/updateSheetDB
+// di app.html (readSheet/appendRow/updateRows semua header-driven by NAME,
+// bukan posisi) - kolom yang tidak ada di header manapun cuma didiamkan diam-
+// diam (tidak error, tapi datanya hilang). Daftar ini disusun dari 2 sumber:
+// tabungan_qurban_template.xlsx (7 sheet dasar/lama) + hasil audit semua
+// pemanggilan appendSheetDB()/updateSheetDB() di app.html (9 sheet fitur
+// baru: SurveySapi dst). Kalau nanti ada field baru ditambah di app.html,
+// WAJIB ditambah juga di sini - kalau tidak, tenant baru hasil auto-
+// provisioning bakal kehilangan kolom itu (sama seperti kasus manual dulu).
+const TENANT_SHEET_TEMPLATE = {
+  Members: ['id', 'name', 'phone', 'status', 'created_date', 'password', 'rt', 'blok', 'no', 'sapi', 'urutan', 'role'],
+  Savings: ['id', 'memberId', 'amount', 'transferDate', 'bankSource', 'accountName', 'fileUrl', 'fileData', 'status', 'uploadedAt', 'approvedAt', 'approvedBy', 'notes'],
+  Verifications: ['id', 'savingsId', 'adminId', 'action', 'reason', 'timestamp'],
+  Pesan: ['id', 'type', 'recipients', 'title', 'message', 'scheduledTime', 'status', 'sentAt', 'createdBy', 'notes'],
+  Pendaftaran: ['id', 'name', 'rt', 'blok', 'no', 'phone', 'reason', 'password', 'status', 'applied_at', 'approved_at', 'approved_by'],
+  Templates: ['key', 'title', 'message'],
+  LoginLog: ['id', 'memberId', 'memberName', 'role', 'loginAt'],
+  SurveySapi: ['id', 'tanggal', 'supplier', 'latitude', 'longitude', 'alamat', 'jenisSapi', 'berat', 'harga', 'biayaPengolahan', 'foto1', 'foto2', 'foto3', 'foto4', 'foto5', 'createdBy', 'created_date'],
+  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date'],
+  DistribusiDaging: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
+  RencanaDistribusi: ['id', 'alokasi', 'berat', 'qty', 'wo', 'status', 'created_date'],
+  WorkOrderAktual: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
+  PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'created_date'],
+  PosBudget: ['id', 'nama', 'jenisPos', 'jumlahAnggaran', 'keterangan', 'status', 'created_date'],
+  TransaksiKeuangan: ['id', 'posId', 'tanggal', 'jumlah', 'keterangan', 'status', 'created_date', 'bukti'],
+  KemasanInventaris: ['id', 'namaItem', 'kategori', 'basisHitung', 'rasioPerUnit', 'kebutuhanManual', 'stokTersedia', 'catatan', 'status', 'created_date']
+};
+
+// Bikin 1 Google Spreadsheet BARU (isinya SEMUA tab modul di atas, sudah ada
+// baris header, siap dipakai langsung) - dipakai superadmin=approve supaya
+// tenant baru bisa langsung 'aktif' tanpa Super Admin harus bikin/duplikat
+// sheet secara manual. Spreadsheet baru otomatis dimiliki akun Google yang
+// sama dengan GOOGLE_REFRESH_TOKEN (pemilik semua sheet platform ini) - jadi
+// langsung kelihatan di Drive akun itu, tidak perlu di-share manual.
+// Return spreadsheetId kalau sukses, throw kalau gagal (caller WAJIB
+// menangkap & fallback ke alur manual lama - lihat pemakaian di "approve").
+async function provisionTenantSpreadsheet(title, accessToken) {
+  const tabNames = Object.keys(TENANT_SHEET_TEMPLATE);
+
+  const createResp = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      properties: { title: `TQ Data - ${title}` },
+      sheets: tabNames.map(name => ({ properties: { title: name } }))
+    })
+  });
+  if (!createResp.ok) {
+    throw new Error(`Gagal bikin spreadsheet baru (${createResp.status}): ${await createResp.text()}`);
+  }
+  const created = await createResp.json();
+  const spreadsheetId = created.spreadsheetId;
+  if (!spreadsheetId) throw new Error('Spreadsheet baru dibuat tapi spreadsheetId tidak ada di respons');
+
+  // Isi baris header (baris 1) semua tab sekaligus dalam 1 batchUpdate.
+  await sheetsFetch(spreadsheetId, `/values:batchUpdate`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      valueInputOption: 'RAW',
+      data: tabNames.map(name => ({
+        range: `${name}!A1`,
+        values: [TENANT_SHEET_TEMPLATE[name]]
+      }))
+    })
+  });
+
+  return spreadsheetId;
+}
+
 // Generik: ambil isi 1 kolom (biasanya base64 foto/file) dari 1 baris (dicari
 // via kolom "id") di sheet manapun. Dipakai baik oleh Savings!fileData maupun
 // SurveySapi!foto1..foto5 - keduanya sama-sama "kolom berat" yang sengaja
@@ -621,10 +691,12 @@ module.exports = async function handler(req, res) {
 
       // Approve = tandai pengajuan "approved" DAN langsung bikin baris baru
       // di Registry (tab "Registry") dari data pengajuan - supaya Super Admin
-      // tidak perlu ketik ulang manual. Status tenant baru sengaja BUKAN
-      // 'aktif' (dipakai 'pending_setup') karena "sheetId" (Sheet data masjid
-      // itu sendiri, terpisah dari Registry) belum ada - masih harus dibuatkan
-      // manual, baru status diubah ke 'aktif' kalau semua sudah siap.
+      // tidak perlu ketik ulang manual. Sekalian coba AUTO-PROVISIONING: bikin
+      // Google Sheet data masjid baru (provisionTenantSpreadsheet(), semua tab
+      // + header lengkap) supaya status bisa langsung 'aktif' - tanpa Super
+      // Admin harus bikin/duplikat sheet manual. Kalau provisioning gagal
+      // (mis. Sheets API error/kuota), fallback ke perilaku lama: status
+      // 'pending_setup' & sheetId kosong, Super Admin lengkapi manual.
       if (superadmin === 'approve') {
         const { ref } = saBody;
         if (!ref) return res.status(400).json({ error: 'ref wajib diisi' });
@@ -644,9 +716,20 @@ module.exports = async function handler(req, res) {
           n++;
         }
 
+        let newSheetId = '';
+        let tenantStatus = 'pending_setup';
+        let provisionError = '';
+        try {
+          newSheetId = await provisionTenantSpreadsheet(row.namaMasjid || slug, accessToken);
+          tenantStatus = 'aktif';
+        } catch (err) {
+          provisionError = (err && err.message) ? err.message : String(err);
+          console.error('[provisionTenantSpreadsheet] gagal, fallback ke pending_setup manual:', provisionError);
+        }
+
         await appendRow(REGISTRY_SHEET_ID, REGISTRY_SHEET_NAME, {
           slug,
-          status: 'pending_setup',
+          status: tenantStatus,
           mosqueName: row.namaMasjid || '',
           mosqueShortName: row.namaMasjid || '',
           // Utamakan URL Blob asli (row.logoUrl) - baru fallback ke data URI
@@ -663,14 +746,22 @@ module.exports = async function handler(req, res) {
           bankAccountNumberDisplay: row.bankAccountNumber || '',
           bankAccountHolder: row.bankAccountHolder || '',
           qurbanTarget: 0,
-          sheetId: '',
+          sheetId: newSheetId,
           fonnteApiKey: '',
           createdDate: new Date().toISOString()
         }, accessToken);
         registryCache = null; // biar baris baru ini langsung kebaca, tidak nunggu TTL cache
 
         await updateRows(REGISTRY_SHEET_ID, PENDAFTARAN_MASJID_SHEET, 'ref', ref, { status: 'approved' }, accessToken);
-        return res.status(200).json({ success: true, slug });
+        return res.status(200).json({
+          success: true,
+          slug,
+          sheetId: newSheetId,
+          tenantStatus,
+          // Dikirim ke frontend cuma kalau provisioning gagal, supaya Super
+          // Admin tahu perlu setup manual (bukan diam-diam nyangkut pending).
+          provisionError: provisionError || undefined
+        });
       }
 
       if (superadmin === 'updateStatus') {

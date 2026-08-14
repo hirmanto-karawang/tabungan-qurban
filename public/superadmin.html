@@ -246,6 +246,13 @@ function render(){
           // baris baru di Registry dari data pengajuan ini (nama, kota, bank).
           const result = await callApi('approve', { ref });
           if (row) { row.status = 'approved'; row.slug = result.slug || row.slug; }
+          // Backend coba auto-provisioning (bikin Sheet data masjid + langsung
+          // 'aktif'). Kalau gagal, tenant tetap kebuat tapi 'pending_setup' &
+          // sheetId kosong - kasih tahu admin di sini supaya tidak nyangka
+          // semuanya beres, padahal masih perlu dilengkapi manual di Registry.
+          if (result.provisionError) {
+            alert(`Masjid disetujui, TAPI auto-buat Sheet data gagal:\n\n${result.provisionError}\n\nStatus tenant masih "pending_setup" - lengkapi kolom sheetId di Registry manual, baru ubah status ke "aktif".`);
+          }
         } else {
           await callApi('updateStatus', { ref, status });
           if (row) row.status = status;
