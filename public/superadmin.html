@@ -156,7 +156,14 @@ function waLinkTo(phone, msg){
   if (!p) return '';
   return `https://wa.me/${p}?text=${encodeURIComponent(msg)}`;
 }
+// Status-aware: sebelum diputuskan pakai pesan tanya umum, sesudah
+// approved/rejected otomatis ganti ke pesan notifikasi yang sesuai (dengan
+// link slug utk yang approved, kalau sudah ada di row.slug - lihat listener
+// tombol Setujui/Tolak di bawah).
 function waLinkFor(r){
+  const st = (r.status || 'pending').toLowerCase();
+  if (st === 'approved') return waLinkTo(r.teleponKontak, waApprovedMsg(r, r.slug));
+  if (st === 'rejected') return waLinkTo(r.teleponKontak, waRejectedMsg(r));
   const msg = `Assalamu'alaikum ${r.namaKontak || ''}, terkait pengajuan Alur Qurban untuk ${r.namaMasjid || 'masjid Anda'} (Ref: ${r.ref || '-'}).`;
   return waLinkTo(r.teleponKontak, msg);
 }
@@ -184,6 +191,7 @@ function render(){
     const badgeLabel = st === 'approved' ? 'Disetujui' : st === 'rejected' ? 'Ditolak' : 'Pending';
     const modul = String(r.modul || '').split(',').map(m => m.trim()).filter(Boolean);
     const wa = waLinkFor(r);
+    const waLabel = st === 'approved' ? 'Kirim notifikasi Disetujui →' : st === 'rejected' ? 'Kirim notifikasi Ditolak →' : 'Chat WhatsApp →';
     const tgl = r.created_date ? new Date(r.created_date).toLocaleString('id-ID') : '-';
     return `
     <div class="card" data-ref="${esc(r.ref)}">
@@ -198,7 +206,7 @@ function render(){
         <div class="f"><div class="k">Kota</div><div class="v">${esc(r.kota || '-')}</div></div>
         <div class="f"><div class="k">Perkiraan jamaah</div><div class="v">${esc(r.jumlahJamaah || '-')}</div></div>
         <div class="f"><div class="k">Nama kontak</div><div class="v">${esc(r.namaKontak || '-')} (${esc(r.posisiKontak || '-')})</div></div>
-        <div class="f"><div class="k">WhatsApp</div><div class="v">${esc(r.teleponKontak || '-')}${wa ? `<br><a class="wa-link" href="${wa}" target="_blank" rel="noopener">Chat WhatsApp →</a>` : ''}</div></div>
+        <div class="f"><div class="k">WhatsApp</div><div class="v">${esc(r.teleponKontak || '-')}${wa ? `<br><a class="wa-link" href="${wa}" target="_blank" rel="noopener">${waLabel}</a>` : ''}</div></div>
         <div class="f"><div class="k">Bank rekening masjid</div><div class="v">${esc(r.bankName || '-')}</div></div>
         <div class="f"><div class="k">No. Rekening (a.n.)</div><div class="v">${esc(r.bankAccountNumber || '-')} (${esc(r.bankAccountHolder || '-')})</div></div>
         <div class="f"><div class="k">Paket diminati</div><div class="v">${esc(r.paket || '-')}</div></div>
@@ -223,29 +231,27 @@ function render(){
       const row = rows.find(r => r.ref === ref);
       $$('.btn', card).forEach(b => b.disabled = true);
 
-      // Buka tab kosong DULU (masih dalam konteks klik user) supaya browser
-      // tidak blokir popup - baru diisi link WA-nya setelah request selesai.
-      // Kalau nomor WA kontak tidak valid, ditutup lagi tanpa isi apa-apa.
-      const wantsWa = (status === 'approved' || status === 'rejected') && row && normalizeWaNumber(row.teleponKontak);
-      const waWin = wantsWa ? window.open('', '_blank') : null;
-
+      // CATATAN: SENGAJA TIDAK pakai window.open()/waWin.location.href lagi
+      // di sini. Pola lama (buka tab kosong sebelum await, baru diarahkan ke
+      // link WA setelah request selesai) DIAM-DIAM diblokir sebagian browser
+      // mobile (terutama Chrome Android) begitu ada jeda async sebelum
+      // .location di-set - tab kebuka tapi nyangkut "about:blank" selamanya,
+      // notifikasi WA tidak pernah terkirim walau data sudah tersimpan sukses
+      // ke Sheet. Sekarang link WA cukup dirender sbg <a> biasa (lihat
+      // waLinkFor() & render() di atas) yang di-tap manual oleh admin -
+      // klik asli selalu jalan di semua browser, tidak pernah diblokir.
       try {
         if (status === 'approved') {
           // "approve" (bukan updateStatus biasa) - backend sekaligus bikin
           // baris baru di Registry dari data pengajuan ini (nama, kota, bank).
           const result = await callApi('approve', { ref });
-          if (row) row.status = 'approved';
-          render();
-          if (waWin) waWin.location.href = waLinkTo(row.teleponKontak, waApprovedMsg(row, result.slug));
+          if (row) { row.status = 'approved'; row.slug = result.slug || row.slug; }
         } else {
           await callApi('updateStatus', { ref, status });
           if (row) row.status = status;
-          render();
-          if (waWin && status === 'rejected') waWin.location.href = waLinkTo(row.teleponKontak, waRejectedMsg(row));
-          else if (waWin) waWin.close();
         }
+        render();
       } catch (e) {
-        if (waWin) waWin.close();
         alert('Gagal menyimpan perubahan. Coba lagi.');
         $$('.btn', card).forEach(b => b.disabled = false);
       }
