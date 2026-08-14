@@ -802,17 +802,23 @@ module.exports = async function handler(req, res) {
           // Admin harus buka Sheet-nya dan isi baris manual. Password ke-3
           // akun SAMA, dari 4 digit terakhir No. HP kontak pengajuan (dianggap
           // No. HP Ketua) - masing-masing pengurus ganti sendiri ke No. HP
-          // mereka via menu Profil setelah bisa akses (auto-update password
-          // ikut No. HP baru, lihat handleProfileUpdate() di app.html).
-          // id 1 SENGAJA dipakai utk Ketua - beberapa notifikasi WA admin
-          // (mis. calon anggota baru) masih hardcode ambil phone dari id=1.
+          // mereka (atau pakai Password Khusus) via menu Profil setelah bisa
+          // akses (lihat handleProfileUpdate() di app.html).
+          //
+          // id = 'ketua1'/'bendum2'/'sekre3' (TEKS, bukan angka) - ini SEKALIGUS
+          // jadi username login (app.html cocokkan username ke id ATAU name).
+          // name = label peran ('Ketua'/'Bendahara'/'Sekretaris') buat
+          // ditampilkan di UI. app.html!loadDataFromSheets() SENGAJA tidak
+          // parseInt() id kalau bukan string angka murni, supaya id teks ini
+          // tidak collapse jadi 0/tabrakan - jangan ubah balik ke id angka
+          // tanpa cek ulang bagian itu.
           try {
             const phoneDigits = (row.teleponKontak || '').toString().replace(/\D/g, '');
             const sharedPassword = phoneDigits.slice(-4).padStart(4, '0');
             const seedRows = [
-              { id: 1, name: 'ketua1', phone: row.teleponKontak || '' },
-              { id: 2, name: 'bendum2', phone: '' },
-              { id: 3, name: 'sekre3', phone: '' }
+              { id: 'ketua1', name: 'Ketua', phone: row.teleponKontak || '' },
+              { id: 'bendum2', name: 'Bendahara', phone: '' },
+              { id: 'sekre3', name: 'Sekretaris', phone: '' }
             ];
             for (const seed of seedRows) {
               await appendRow(newSheetId, 'Members', {
@@ -824,7 +830,7 @@ module.exports = async function handler(req, res) {
                 password: sharedPassword,
                 role: 'admin'
               }, poolToken);
-              adminAccounts.push({ username: seed.name, password: sharedPassword });
+              adminAccounts.push({ username: seed.id, password: sharedPassword });
             }
           } catch (seedErr) {
             // Sheet tetap dibuat & aktif walau seeding admin gagal sebagian/

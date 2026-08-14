@@ -270,12 +270,30 @@ function render(){
           // semuanya beres, padahal masih perlu dilengkapi manual di Registry.
           if (result.provisionError) {
             alert(`Masjid disetujui, TAPI auto-buat Sheet data gagal:\n\n${result.provisionError}\n\nStatus tenant masih "pending_setup" - lengkapi kolom sheetId di Registry manual, baru ubah status ke "aktif".`);
+          } else {
+            // PENTING: approve TIDAK otomatis mengirim WA (lihat catatan di
+            // atas soal kenapa auto window.open dihindari - diblokir browser
+            // mobile). Jadi wajib diingatkan supaya admin tidak lupa tap link
+            // WA-nya sendiri, kalau tidak masjid tidak akan pernah tahu
+            // mereka sudah disetujui.
+            alert(`Masjid disetujui & aplikasi sudah aktif ✅\n\nJangan lupa: klik tombol "Kirim notifikasi Disetujui →" di kartu ini untuk kirim link + akun login ke masjid lewat WhatsApp. Notifikasi TIDAK terkirim otomatis.`);
           }
         } else {
           await callApi('updateStatus', { ref, status });
           if (row) row.status = status;
         }
         render();
+        // Scroll + highlight sebentar ke kartu yang baru diproses, biar admin
+        // langsung lihat tombol WA-nya tanpa harus cari-cari di daftar.
+        requestAnimationFrame(() => {
+          const freshCard = document.querySelector(`.card[data-ref="${CSS.escape(ref)}"]`);
+          if (freshCard) {
+            freshCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            freshCard.style.outline = '3px solid #B6893A';
+            freshCard.style.outlineOffset = '2px';
+            setTimeout(() => { freshCard.style.outline = ''; freshCard.style.outlineOffset = ''; }, 2500);
+          }
+        });
       } catch (e) {
         alert('Gagal menyimpan perubahan. Coba lagi.');
         $$('.btn', card).forEach(b => b.disabled = false);

@@ -4357,7 +4357,14 @@ async function loadDataFromSheets() {
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
-        id: parseInt(row.id) || 0,
+        // Anggota biasa: id murni angka (11, 21, dst) -> tetap di-parseInt
+        // seperti sebelumnya (dipakai buat sort/grouping per sapi). Akun
+        // pengurus (admin) sengaja pakai id TEKS ('ketua1'/'bendum2'/'sekre3'
+        // - lihat provisionTenantSpreadsheet()/seed di public/api/sheets.js)
+        // supaya jadi username login yang gampang diingat, jadi id itu TIDAK
+        // di-parseInt (kalau di-parseInt jadi NaN->0, 3 admin bakal tabrakan
+        // id yang sama). /^\d+$/ pastikan cuma string angka murni yang di-parse.
+        id: /^\d+$/.test(String(row.id || '').trim()) ? parseInt(row.id) : String(row.id || '').trim(),
         name: row.name || '',
         phone: row.phone || '',
         status: row.status || 'active',
@@ -4758,7 +4765,11 @@ async function handleRegistration() {
     appData.pendaftaran.push(registration);
 
     // Kirim notif ke admin
-    const adminPhone = existingMembers.find(m => parseInt(m.id) === 1)?.phone;
+    // Ketua = kontak admin utama sistem. Dulu id admin selalu angka 1, tapi
+    // sekarang id Ketua = string 'ketua1' (lihat loadDataFromSheets()) -
+    // cocokkan ke keduanya supaya tenant lama (id numerik 1) & baru (id
+    // 'ketua1') sama-sama dapat notifikasi ini.
+    const adminPhone = existingMembers.find(m => m.id === 'ketua1' || m.id === 1)?.phone;
     if (adminPhone) {
         const adminMsg = `Admin, ada calon anggota baru! 👤
 
@@ -4990,8 +5001,9 @@ function showApp() {
         kemasanTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';  // Admin bisa lihat laporan
 
-        // Hide menu anggota
-        profileTabBtn.style.display = 'none';
+        // Profil TETAP tampil untuk admin - dipakai buat ganti No. HP &
+        // Password Khusus sendiri (menu Profil bukan cuma buat anggota).
+        profileTabBtn.style.display = 'flex';
         uploadTabBtn.style.display = 'none';
         historyTabBtn.style.display = 'none';
 
