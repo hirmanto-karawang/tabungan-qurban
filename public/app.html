@@ -3366,6 +3366,22 @@
                   <tfoot id="surveySapiDistribusiFoot"></tfoot>
                 </table>
               </div>
+
+              <!-- Kalkulator distribusi bagian sapi (non-daging) - lihat
+                   computeSurveyKalkulasi() utk rumus & sumber persentase tiap
+                   bagian. Terpisah dari tabel Estimasi Daging di atas (yang
+                   sengaja TIDAK diubah). -->
+              <h3 style="margin-top:26px;">Estimasi Bagian Lain (Non-Daging)</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Perkiraan kasar bagian selain daging - berguna buat rencana penyaluran tulang/jeroan/kulit/kepala/kaki/buntut, bukan hasil timbang aktual.
+              </p>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Survey</th><th>Berat</th><th>Tulang</th><th>Jeroan</th><th>Kulit</th><th>Kepala</th><th>Kaki</th><th>Buntut</th></tr></thead>
+                  <tbody id="surveyBagianLainBody"><tr><td colspan="8" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="surveyBagianLainFoot"></tfoot>
+                </table>
+              </div>
             </div>
 
             <div id="rencanaTab" class="sub-tab-content" style="display:none;">
@@ -3457,6 +3473,18 @@
                   <thead><tr><th>Survey</th><th>Berat</th><th>Estimasi Daging</th><th>Peserta</th><th>Hak Mudhohi</th><th>Share Warga</th></tr></thead>
                   <tbody id="surveySapiDistribusiBodyMember"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
                   <tfoot id="surveySapiDistribusiFootMember"></tfoot>
+                </table>
+              </div>
+
+              <h3 style="margin-top:26px;">Estimasi Bagian Lain (Non-Daging)</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Perkiraan kasar bagian selain daging - bukan hasil timbang aktual.
+              </p>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Survey</th><th>Berat</th><th>Tulang</th><th>Jeroan</th><th>Kulit</th><th>Kepala</th><th>Kaki</th><th>Buntut</th></tr></thead>
+                  <tbody id="surveyBagianLainBodyMember"><tr><td colspan="8" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="surveyBagianLainFootMember"></tfoot>
                 </table>
               </div>
             </div>
@@ -5986,10 +6014,12 @@ function runTabDataLoaders(tabName) {
         if (memberSection) memberSection.style.display = isAdminView ? 'none' : '';
         if (isAdminView) {
             loadSurveySapiDistribusi();
+            loadSurveySapiBagianLain();
             loadRencanaDistribusiGlobal('rencanaDistribusiBody', 'rencanaDistribusiFoot', true);
             loadWorkOrderList('workOrderListAdmin', true);
         } else {
             loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
+            loadSurveySapiBagianLain('surveyBagianLainBodyMember', 'surveyBagianLainFootMember');
             loadRencanaDistribusiGlobal('rencanaDistribusiBodyMember', 'rencanaDistribusiFootMember', false);
             loadWorkOrderList('workOrderListMember', false);
         }
@@ -6485,6 +6515,22 @@ function captureSurveyLocation() {
 //   Estimasi Daging     = Berat sapi x 0,5 (karkas) x 0,6 (daging dari karkas)
 //   Hak Mudhohi         = (Estimasi Daging / 3) / 7   -> per 1/7 bagian
 //   Share Warga         = (Estimasi Daging / 3) x 2
+//
+// Estimasi bagian LAIN (non-daging) - "kalkulator distribusi bagian sapi".
+// Persentase dari BERAT HIDUP sapi, dirujuk dari sumber Dinas Pertanian
+// (dispertan.bantenprov.go.id, "Cara Praktis Menghitung Daging Qurban") utk
+// tulang/jeroan/kepala/buntut, dan estimasi umum industri utk kulit (tidak
+// ada rujukan qurban spesifik). SEMUA ini estimasi kasar (bukan hasil
+// timbang aktual) - dipakai sbg perkiraan perencanaan panitia, sama
+// semangatnya dgn Estimasi Daging di atas yang juga rumus perkiraan, BUKAN
+// diubah/dikurangi dari Estimasi Daging yang sudah ada (tetap dihitung
+// terpisah/independen, sesuai permintaan "daging tetep seperti sekarang").
+//   Tulang   = Berat sapi x 0,15  (karkas 50% - daging resmi 35% = tulang 15%)
+//   Jeroan   = Berat sapi x 0,05  (10% dari karkas 50%)
+//   Kulit    = Berat sapi x 0,07  (estimasi umum industri kulit sapi 6-8%)
+//   Kepala   = Berat sapi x 0,04
+//   Kaki     = Berat sapi x 0,013 (4 kaki, ~4,5kg utk sapi 350kg)
+//   Buntut   = Berat sapi x 0,007
 function computeSurveyKalkulasi(berat, harga, biayaPengolahan) {
     const b = Number(berat) || 0;
     const h = Number(harga) || 0;
@@ -6493,7 +6539,16 @@ function computeSurveyKalkulasi(berat, harga, biayaPengolahan) {
     const estimasiDaging = b * 0.5 * 0.6;
     const hakMudhohi = (estimasiDaging / 3) / 7;
     const shareWarga = (estimasiDaging / 3) * 2;
-    return { iuran, estimasiDaging, hakMudhohi, shareWarga };
+    const estimasiTulang = b * 0.15;
+    const estimasiJeroan = b * 0.05;
+    const estimasiKulit = b * 0.07;
+    const estimasiKepala = b * 0.04;
+    const estimasiKaki = b * 0.013;
+    const estimasiBuntut = b * 0.007;
+    return {
+        iuran, estimasiDaging, hakMudhohi, shareWarga,
+        estimasiTulang, estimasiJeroan, estimasiKulit, estimasiKepala, estimasiKaki, estimasiBuntut
+    };
 }
 
 function formatKg(n) {
@@ -7019,6 +7074,63 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
               <td>${totalPeserta} peserta</td>
               <td>Rata-rata ${formatKg(rataMudhohi)}</td>
               <td>${formatKg(totalShareWarga)}</td>
+            </tr>`;
+    }
+}
+
+// Estimasi bagian LAIN (non-daging): Tulang/Jeroan/Kulit/Kepala/Kaki/Buntut
+// per sapi hasil survey - "kalkulator distribusi bagian sapi", pelengkap
+// Estimasi Daging di atas (yang TIDAK diubah, tetap rumus lama). Sama pola
+// parameterisasi tbodyId/tfootId dgn loadSurveySapiDistribusi() supaya bisa
+// dipakai ulang di tabel versi Admin & versi Anggota.
+function loadSurveySapiBagianLain(tbodyId, tfootId) {
+    const tbody = document.getElementById(tbodyId || 'surveyBagianLainBody');
+    const tfoot = document.getElementById(tfootId || 'surveyBagianLainFoot');
+    if (!tbody) return;
+
+    if (appData.surveySapi.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="loading">Belum ada data survey</td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
+        return;
+    }
+
+    let totalTulang = 0, totalJeroan = 0, totalKulit = 0, totalKepala = 0, totalKaki = 0, totalBuntut = 0;
+
+    tbody.innerHTML = appData.surveySapi.map(s => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+
+        totalTulang += k.estimasiTulang;
+        totalJeroan += k.estimasiJeroan;
+        totalKulit += k.estimasiKulit;
+        totalKepala += k.estimasiKepala;
+        totalKaki += k.estimasiKaki;
+        totalBuntut += k.estimasiBuntut;
+
+        return `
+            <tr>
+              <td><strong>${surveyKode(s)}</strong></td>
+              <td>${s.berat ? s.berat + ' kg' : '—'}</td>
+              <td>${formatKg(k.estimasiTulang)}</td>
+              <td>${formatKg(k.estimasiJeroan)}</td>
+              <td>${formatKg(k.estimasiKulit)}</td>
+              <td>${formatKg(k.estimasiKepala)}</td>
+              <td>${formatKg(k.estimasiKaki)}</td>
+              <td>${formatKg(k.estimasiBuntut)}</td>
+            </tr>`;
+    }).join('');
+
+    if (tfoot) {
+        const jumlahSurvey = appData.surveySapi.length;
+        tfoot.innerHTML = `
+            <tr style="background:var(--sand); font-weight:700;">
+              <td>Total (${jumlahSurvey} sapi)</td>
+              <td>—</td>
+              <td>${formatKg(totalTulang)}</td>
+              <td>${formatKg(totalJeroan)}</td>
+              <td>${formatKg(totalKulit)}</td>
+              <td>${formatKg(totalKepala)}</td>
+              <td>${formatKg(totalKaki)}</td>
+              <td>${formatKg(totalBuntut)}</td>
             </tr>`;
     }
 }
