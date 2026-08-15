@@ -2267,8 +2267,8 @@
        juga butuh print sendiri). */
     .tab-content{ display:none !important; }
     .tab-content.print-target{ display:block !important; }
-    #laporan .sub-tab-content{ display:none !important; }
-    #laporan .sub-tab-content.print-active{ display:block !important; }
+    #laporan .sub-tab-content, #laporanIuran .sub-tab-content{ display:none !important; }
+    #laporan .sub-tab-content.print-active, #laporanIuran .sub-tab-content.print-active{ display:block !important; }
     .report-card{ box-shadow:none !important; border:none !important; padding:0 !important; }
     .report-chart-box{ break-inside:avoid; page-break-inside:avoid; }
     .table-container{ overflow:visible !important; }
@@ -2542,6 +2542,10 @@
       <button class="tab-btn" id="laporanTabBtn" data-group="tabungan" onclick="switchTab('laporan')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h9l6 6v9a1 1 0 01-1 1H5a1 1 0 01-1-1z"/><path d="M14 4v6h6"/></svg>
         Laporan Tabungan
+      </button>
+      <button class="tab-btn" id="laporanIuranTabBtn" data-group="tabungan" onclick="switchTab('laporanIuran')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        Laporan Iuran Qurban
       </button>
 
       <div class="nav-section-label" data-group="operasional" style="display:none;">Operasional Qurban</div>
@@ -4152,6 +4156,197 @@
         </div>
       </div>
 
+      <!-- Tab: Laporan Iuran Qurban - struktur & pola SAMA PERSIS dengan tab
+           "Laporan Tabungan" (#laporan) di atas, tapi base data-nya peserta
+           Survey Sapi (appData.surveyPeserta), bukan Members/Savings. Setiap
+           peserta (baik tipe 'tabungan' maupun 'instan'/Daftar Langsung)
+           punya kebutuhan iuran (dari computeSurveyKalkulasi per grup sapi)
+           dan jumlah terkumpul (tabungan disetujui utk tipe 'tabungan', atau
+           iuran penuh kalau statusBayar='lunas' utk tipe 'instan'). Lihat
+           getIuranStatistics() utk logika hitung terpusatnya. -->
+      <div id="laporanIuran" class="tab-content">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div class="dashboard-logo-wrap">
+            <img src="logo-masjid.jpg" alt="Masjid Dhafinul Jariyah" class="dashboard-logo js-brand-logo">
+          </div>
+        </div>
+        <div class="report-hero">
+          <div class="report-hero-label">Total Iuran Qurban Terkumpul</div>
+          <div class="report-hero-total" id="iuranGrandTotal">Rp 0</div>
+          <div class="report-hero-stats">
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">Total Peserta</div>
+              <div class="report-hero-stat-value" id="iuranTotalPeserta">0</div>
+            </div>
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">Grup Sapi</div>
+              <div class="report-hero-stat-value" id="iuranTotalGrup">0</div>
+            </div>
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">Rata-rata/Peserta</div>
+              <div class="report-hero-stat-value" id="iuranAverage">Rp 0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="card report-card">
+          <div class="report-tabs">
+            <button class="report-tab-btn active" onclick="switchLaporanIuranTab('overview', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h1a1 1 0 011 1v14M11 19V9a1 1 0 011-1h1a1 1 0 011 1v10M18 19v-6a1 1 0 011-1h1a1 1 0 011 1v6"/></svg>
+              <span>Ringkasan</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchLaporanIuranTab('grup', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+              <span>Per Grup Sapi</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchLaporanIuranTab('peserta', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h9l6 6v9a1 1 0 01-1 1H5a1 1 0 01-1-1z"/><path d="M14 4v6h6"/></svg>
+              <span>Detail Peserta</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchLaporanIuranTab('analisis', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 019 9h-9V3z"/></svg>
+              <span>Analisis</span>
+            </button>
+          </div>
+
+          <!-- TAB 1: OVERVIEW -->
+          <div id="iuranOverviewTab" class="sub-tab-content">
+            <h3>Progress Iuran per Grup Sapi</h3>
+            <div class="report-chart-box">
+              <canvas id="iuranGrupChart"></canvas>
+            </div>
+
+            <h3>Ringkasan per Grup Sapi</h3>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Grup</th><th>Jumlah Peserta</th><th>Total Terkumpul</th><th>Rata-rata/Peserta</th><th>Progress</th></tr></thead>
+                <tbody id="topGrupIuranTable"><tr><td colspan="5" class="loading">Memuat…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 2: PER GRUP SAPI DETAIL -->
+          <div id="iuranGrupTab" class="sub-tab-content" style="display:none;">
+            <div class="report-filter-item" style="max-width:280px;margin-bottom:20px;">
+              <label>Pilih Grup Sapi</label>
+              <select id="iuranGrupFilter" onchange="loadIuranGrupDetail()">
+                <option value="">Semua Grup</option>
+              </select>
+            </div>
+
+            <div id="iuranGrupDetailCard" class="report-sapi-detail" style="display:none;">
+              <div class="report-sapi-stat">
+                <div class="report-sapi-stat-label">Total Peserta</div>
+                <div class="report-sapi-stat-value" id="iuranGrupPesertaCount" style="color:var(--emerald);">0</div>
+              </div>
+              <div class="report-sapi-stat">
+                <div class="report-sapi-stat-label">Total Terkumpul</div>
+                <div class="report-sapi-stat-value" id="iuranGrupTotal" style="color:var(--gold);">Rp 0</div>
+              </div>
+              <div class="report-sapi-stat">
+                <div class="report-sapi-stat-label">Kekurangan</div>
+                <div class="report-sapi-stat-value" id="iuranGrupKurang" style="color:var(--sage);">Rp 0</div>
+              </div>
+            </div>
+
+            <h3 id="iuranGrupDetailTitle">Detail Peserta</h3>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Nama</th><th>Tipe</th><th>Terkumpul</th><th>Iuran</th><th>Status</th></tr></thead>
+                <tbody id="iuranGrupPesertaTable"><tr><td colspan="5" class="loading">Memuat…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 3: DETAIL PESERTA -->
+          <div id="iuranDetailTab" class="sub-tab-content" style="display:none;">
+            <div class="report-filter-grid">
+              <div class="report-filter-item">
+                <label>Filter Grup</label>
+                <select id="iuranPesertaGrupFilter" onchange="renderIuranPesertaTable()">
+                  <option value="">Semua Grup</option>
+                </select>
+              </div>
+              <div class="report-filter-item">
+                <label>Filter Tipe</label>
+                <select id="iuranPesertaTipeFilter" onchange="renderIuranPesertaTable()">
+                  <option value="">Semua Tipe</option>
+                  <option value="tabungan">Tabungan</option>
+                  <option value="instan">Daftar Langsung</option>
+                </select>
+              </div>
+              <div class="report-filter-item">
+                <label>Filter Status</label>
+                <select id="iuranPesertaStatusFilter" onchange="renderIuranPesertaTable()">
+                  <option value="">Semua Status</option>
+                  <option value="lunas">Lunas</option>
+                  <option value="belum">Belum Lunas</option>
+                </select>
+              </div>
+              <div class="report-filter-item report-filter-btn">
+                <button class="btn btn-primary" onclick="exportIuranPesertaCSV()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;"><path d="M12 15V3M12 15l-4-4M12 15l4-4"/><path d="M4 17v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+                  Export Excel
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Grup</th><th>Nama</th><th>Tipe</th><th>Terkumpul</th><th>Iuran</th><th>Status</th></tr></thead>
+                <tbody id="iuranPesertaTable"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 4: ANALISIS -->
+          <div id="iuranAnalisisTab" class="sub-tab-content" style="display:none;">
+            <h3>Distribusi Terkumpul per Grup Sapi</h3>
+            <div class="report-chart-box">
+              <canvas id="iuranDistributionChart"></canvas>
+            </div>
+
+            <h3>Peserta: Tabungan vs Daftar Langsung</h3>
+            <div class="report-chart-box">
+              <canvas id="iuranTipeChart"></canvas>
+            </div>
+
+            <h3>Statistik Peserta</h3>
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Metrik</th><th>Nilai</th></tr></thead>
+                <tbody id="iuranStatsTable">
+                  <tr><td>Total Peserta Aktif</td><td id="iuran-stat-active">0</td></tr>
+                  <tr><td>Peserta Tipe Tabungan</td><td id="iuran-stat-tabungan">0</td></tr>
+                  <tr><td>Peserta Daftar Langsung</td><td id="iuran-stat-instan">0</td></tr>
+                  <tr><td>Peserta Sudah Lunas</td><td id="iuran-stat-lunas">0</td></tr>
+                  <tr><td>Peserta Belum Lunas</td><td id="iuran-stat-belum">0</td></tr>
+                  <tr><td>Rata-rata Iuran/Peserta</td><td id="iuran-stat-avg">Rp 0</td></tr>
+                  <tr><td>Total Kekurangan</td><td id="iuran-stat-kurang">Rp 0</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- EXPORT ACTIONS -->
+          <div class="report-export-actions">
+            <button class="report-export-btn primary" onclick="exportLaporanIuranPDF(event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h9l6 6v9a1 1 0 01-1 1H5a1 1 0 01-1-1z"/><path d="M14 4v6h6"/></svg>
+              Download PDF
+            </button>
+            <button class="report-export-btn success" onclick="exportLaporanIuranExcel(event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16"/></svg>
+              Download Excel
+            </button>
+            <button class="report-export-btn" onclick="printLaporanIuran()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a1 1 0 01-1-1v-5a1 1 0 011-1h16a1 1 0 011 1v5a1 1 0 01-1 1h-2M6 14h12v7H6v-7z"/></svg>
+              Print
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Tab: LPJ (Laporan Pertanggungjawaban) - ringkasan LINTAS SEMUA
            modul (Tabungan, Survey/Peserta, Distribusi Daging, Keuangan,
            Penerima & Penyaluran) supaya siapa saja - termasuk publik/guest
@@ -5498,6 +5693,7 @@ function showApp() {
     const uploadTabBtn = document.getElementById('uploadTabBtn');
     const historyTabBtn = document.getElementById('historyTabBtn');
     const laporanTabBtn = document.getElementById('laporanTabBtn');
+    const laporanIuranTabBtn = document.getElementById('laporanIuranTabBtn');
     const lpjTabBtn = document.getElementById('lpjTabBtn');
 
     // LPJ tampil utk SEMUA role (admin/anggota/guest) - lihat komentar di
@@ -5519,6 +5715,7 @@ function showApp() {
         keuanganTabBtn.style.display = 'flex';
         kemasanTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';  // Admin bisa lihat laporan
+        laporanIuranTabBtn.style.display = 'flex';
 
         // Profil TETAP tampil untuk admin - dipakai buat ganti No. HP &
         // Password Khusus sendiri (menu Profil bukan cuma buat anggota).
@@ -5536,6 +5733,7 @@ function showApp() {
         uploadTabBtn.style.display = 'none';
         historyTabBtn.style.display = 'none';
         laporanTabBtn.style.display = 'flex';
+        laporanIuranTabBtn.style.display = 'flex';
         surveySapiTabBtn.style.display = 'flex';
 
         // Hide menu admin
@@ -5557,6 +5755,7 @@ function showApp() {
         uploadTabBtn.style.display = 'flex';
         historyTabBtn.style.display = 'flex';
         laporanTabBtn.style.display = 'flex';
+        laporanIuranTabBtn.style.display = 'flex';
 
         // Hide menu admin
         verifyTabBtn.style.display = 'none';
@@ -5618,6 +5817,7 @@ const TAB_META = {
     kemasan: { title: 'Kemasan & Inventaris', crumb: 'Pelaksanaan' },
     history: { title: 'Riwayat', crumb: 'Tabungan' },
     laporan: { title: 'Laporan Tabungan', crumb: 'Tabungan' },
+    laporanIuran: { title: 'Laporan Iuran Qurban', crumb: 'Qurban' },
     lpj: { title: 'Laporan Pertanggungjawaban (LPJ)', crumb: 'Transparansi' }
 };
 
@@ -5652,7 +5852,7 @@ async function switchTab(tabName) {
     // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
     // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
     // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
-    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima', 'keuangan', 'kemasan', 'lpj'];
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'laporanIuran', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima', 'keuangan', 'kemasan', 'lpj'];
     if (needsFreshData.includes(tabName)) {
         await ensureDataLoaded();
     }
@@ -5671,6 +5871,7 @@ function runTabDataLoaders(tabName) {
     if (tabName === 'activityLog') loadActivityLog();
     if (tabName === 'history') loadHistory();
     if (tabName === 'laporan') loadLaporan();
+    if (tabName === 'laporanIuran') loadLaporanIuran();
     if (tabName === 'lpj') loadLPJ();
     if (tabName === 'surveySapi') {
         // Admin lihat form input + tabel riwayat lengkap; Anggota lihat versi
@@ -10702,6 +10903,746 @@ function preparePrintView() {
 function printLaporan() {
     preparePrintView();
     window.print();
+}
+
+// ===== LAPORAN IURAN QURBAN =====
+// Sama semangat & struktur dgn Laporan Tabungan (#laporan) di atas, tapi base
+// data-nya peserta Survey Sapi (appData.surveyPeserta) - baik yang ikut lewat
+// Tabungan (tipe 'tabungan') maupun Daftar Langsung/Qurban Instan (tipe
+// 'instan'). "Terkumpul" per peserta: tipe 'tabungan' = total tabungan
+// disetujui (memberApprovedSavings), tipe 'instan' = iuran penuh KALAU
+// statusBayar='lunas' (0 kalau belum) - dua-duanya dibandingkan thd
+// "kebutuhan" (iuranPerOrang dari computeSurveyKalkulasi grup sapinya) supaya
+// satu tabel bisa gabungkan dua jalur pendaftaran secara adil.
+function getIuranStatistics() {
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    const bySurvey = {};
+    let totalTerkumpul = 0, totalKebutuhan = 0, totalPeserta = 0;
+
+    appData.surveySapi.forEach(s => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        const iuranPerOrang = Math.round(k.iuran);
+        const peserta = activePeserta
+            .filter(p => p.surveyId === s.id)
+            .map(p => {
+                const terkumpul = p.tipe === 'instan'
+                    ? (p.statusBayar === 'lunas' ? iuranPerOrang : 0)
+                    : memberApprovedSavings(p.memberId);
+                const kurang = Math.max(iuranPerOrang - terkumpul, 0);
+                return Object.assign({}, p, { terkumpul, iuran: iuranPerOrang, kurang, lunas: kurang === 0 });
+            });
+
+        const grupTerkumpul = peserta.reduce((sum, p) => sum + p.terkumpul, 0);
+        const grupKebutuhan = iuranPerOrang * peserta.length;
+
+        bySurvey[s.id] = {
+            survey: s,
+            iuranPerOrang,
+            peserta,
+            totalTerkumpul: grupTerkumpul,
+            totalKebutuhan: grupKebutuhan,
+            totalKurang: Math.max(grupKebutuhan - grupTerkumpul, 0),
+            average: peserta.length > 0 ? Math.round(grupTerkumpul / peserta.length) : 0
+        };
+
+        totalTerkumpul += grupTerkumpul;
+        totalKebutuhan += grupKebutuhan;
+        totalPeserta += peserta.length;
+    });
+
+    return {
+        bySurvey,
+        totalTerkumpul,
+        totalKebutuhan,
+        totalKurang: Math.max(totalKebutuhan - totalTerkumpul, 0),
+        totalPeserta,
+        totalGrup: appData.surveySapi.length,
+        average: totalPeserta > 0 ? Math.round(totalTerkumpul / totalPeserta) : 0
+    };
+}
+
+let laporanIuranCharts = {};
+
+function loadLaporanIuran() {
+    const stats = getIuranStatistics();
+    const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
+    animateCountUp(document.getElementById('iuranGrandTotal'), 0, stats.totalTerkumpul, rupiah);
+    animateCountUp(document.getElementById('iuranTotalPeserta'), 0, stats.totalPeserta, v => `${v}`);
+    animateCountUp(document.getElementById('iuranTotalGrup'), 0, stats.totalGrup, v => `${v}`);
+    animateCountUp(document.getElementById('iuranAverage'), 0, stats.average, rupiah);
+
+    loadIuranOverviewTab();
+}
+
+const IURAN_TAB_PANEL_IDS = { overview: 'iuranOverviewTab', grup: 'iuranGrupTab', peserta: 'iuranDetailTab', analisis: 'iuranAnalisisTab' };
+function switchLaporanIuranTab(tabName, btn) {
+    document.querySelectorAll('#laporanIuran .sub-tab-content').forEach(tab => tab.style.display = 'none');
+    document.getElementById(IURAN_TAB_PANEL_IDS[tabName]).style.display = 'block';
+
+    document.querySelectorAll('#laporanIuran .report-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    setTimeout(() => {
+        if (tabName === 'overview') loadIuranOverviewTab();
+        if (tabName === 'grup') loadIuranGrupTab();
+        if (tabName === 'peserta') loadIuranPesertaTab();
+        if (tabName === 'analisis') loadIuranAnalisisTab();
+    }, 100);
+}
+
+function loadIuranOverviewTab() {
+    loadTopGrupIuran();
+    drawIuranGrupChart();
+}
+
+function loadTopGrupIuran() {
+    const stats = getIuranStatistics();
+    const sorted = Object.values(stats.bySurvey).sort((a, b) => b.totalTerkumpul - a.totalTerkumpul);
+    const tbody = document.getElementById('topGrupIuranTable');
+    if (!tbody) return;
+
+    if (sorted.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">Belum ada data survey</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = sorted.map(g => {
+        const pct = g.totalKebutuhan > 0 ? Math.min((g.totalTerkumpul / g.totalKebutuhan) * 100, 100).toFixed(1) : 0;
+        return `
+            <tr>
+                <td style="font-weight:600;">
+                    <span style="display:inline-flex;align-items:center;gap:6px;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg, var(--gold-soft), var(--gold));display:inline-block;"></span>
+                        ${surveyKode(g.survey)}
+                    </span>
+                </td>
+                <td>${g.peserta.length}/${SURVEY_MAX_PESERTA}</td>
+                <td style="color:var(--emerald);font-weight:700;font-family:var(--font-mono);">Rp ${g.totalTerkumpul.toLocaleString('id-ID')}</td>
+                <td style="font-family:var(--font-mono);">Rp ${g.average.toLocaleString('id-ID')}</td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="flex:1;height:9px;background:var(--sand);border-radius:5px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.06);">
+                            <div style="height:100%;width:${pct}%;background:linear-gradient(90deg, var(--emerald-2), var(--emerald));border-radius:5px;box-shadow:0 0 8px rgba(14,59,52,.4);"></div>
+                        </div>
+                        <span style="font-size:12px;color:var(--ink-faint);font-weight:600;min-width:36px;text-align:right;">${pct}%</span>
+                    </div>
+                </td>
+            </tr>`;
+    }).join('');
+}
+
+function drawIuranGrupChart() {
+    const stats = getIuranStatistics();
+    const sorted = Object.values(stats.bySurvey);
+    const labels = sorted.map(g => surveyKode(g.survey));
+    const data = sorted.map(g => g.totalTerkumpul);
+
+    const canvas = document.getElementById('iuranGrupChart');
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
+
+    if (laporanIuranCharts.grup) laporanIuranCharts.grup.destroy();
+
+    laporanIuranCharts.grup = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Terkumpul',
+                data: data,
+                backgroundColor: (context) => {
+                    const { ctx, chartArea } = context.chart;
+                    return makeVerticalGradient(ctx, chartArea, REPORT_COLORS.emerald2, REPORT_COLORS.emerald);
+                },
+                hoverBackgroundColor: REPORT_COLORS.gold,
+                borderRadius: { topLeft: 8, topRight: 8, bottomLeft: 0, bottomRight: 0 },
+                borderSkipped: false,
+                maxBarThickness: 56
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: items => items[0].label,
+                        label: ctx => `Rp ${ctx.parsed.y.toLocaleString('id-ID')}`
+                    }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { weight: '600' } } },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: REPORT_COLORS.border, drawBorder: false },
+                    ticks: { callback: v => `${(v/1000000).toFixed(1)}M` }
+                }
+            }
+        }
+    });
+}
+
+function loadIuranGrupTab() {
+    const stats = getIuranStatistics();
+    const select = document.getElementById('iuranGrupFilter');
+    select.innerHTML = '<option value="">-- Semua Grup --</option>';
+
+    Object.values(stats.bySurvey).forEach(g => {
+        const option = document.createElement('option');
+        option.value = g.survey.id;
+        option.textContent = surveyKode(g.survey);
+        select.appendChild(option);
+    });
+
+    loadIuranGrupDetail();
+}
+
+function loadIuranGrupDetail() {
+    const selectedId = document.getElementById('iuranGrupFilter')?.value || '';
+    const stats = getIuranStatistics();
+
+    if (!selectedId) {
+        document.getElementById('iuranGrupDetailCard').style.display = 'none';
+        document.getElementById('iuranGrupDetailTitle').textContent = 'Semua Peserta';
+        renderIuranGrupTable(Object.values(stats.bySurvey).flatMap(g => g.peserta));
+    } else {
+        const g = stats.bySurvey[selectedId];
+        document.getElementById('iuranGrupDetailCard').style.display = 'grid';
+        document.getElementById('iuranGrupPesertaCount').textContent = g.peserta.length;
+        document.getElementById('iuranGrupTotal').textContent = `Rp ${g.totalTerkumpul.toLocaleString('id-ID')}`;
+        document.getElementById('iuranGrupKurang').textContent = `Rp ${g.totalKurang.toLocaleString('id-ID')}`;
+        document.getElementById('iuranGrupDetailTitle').textContent = `Peserta ${surveyKode(g.survey)}`;
+        renderIuranGrupTable(g.peserta);
+    }
+}
+
+function renderIuranGrupTable(pesertaList) {
+    const tbody = document.getElementById('iuranGrupPesertaTable');
+    tbody.innerHTML = '';
+
+    if (pesertaList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">Belum ada peserta</td></tr>';
+        return;
+    }
+
+    pesertaList.forEach(p => {
+        const nama = p.tipe === 'instan' ? (p.atasNama || p.memberName) : p.memberName;
+        const tipeLabel = p.tipe === 'instan' ? '<span class="badge-instan">Langsung</span>' : 'Tabungan';
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td style="font-weight:600;">${nama}</td>
+            <td>${tipeLabel}</td>
+            <td style="color:var(--emerald);font-weight:600;">Rp ${p.terkumpul.toLocaleString('id-ID')}</td>
+            <td>Rp ${p.iuran.toLocaleString('id-ID')}</td>
+            <td><span class="badge ${p.lunas ? 'approved' : 'pending'}">${p.lunas ? 'Lunas' : 'Rp ' + p.kurang.toLocaleString('id-ID') + ' kurang'}</span></td>
+        `;
+    });
+}
+
+function loadIuranPesertaTab() {
+    const stats = getIuranStatistics();
+    const select = document.getElementById('iuranPesertaGrupFilter');
+    select.innerHTML = '<option value="">-- Semua Grup --</option>';
+
+    Object.values(stats.bySurvey).forEach(g => {
+        const option = document.createElement('option');
+        option.value = g.survey.id;
+        option.textContent = surveyKode(g.survey);
+        select.appendChild(option);
+    });
+
+    renderIuranPesertaTable();
+}
+
+function getFilteredIuranPeserta() {
+    const stats = getIuranStatistics();
+    const selGrup = document.getElementById('iuranPesertaGrupFilter')?.value || '';
+    const selTipe = document.getElementById('iuranPesertaTipeFilter')?.value || '';
+    const selStatus = document.getElementById('iuranPesertaStatusFilter')?.value || '';
+
+    let rows = [];
+    Object.values(stats.bySurvey).forEach(g => {
+        if (selGrup && String(g.survey.id) !== selGrup) return;
+        g.peserta.forEach(p => rows.push(Object.assign({}, p, { survey: g.survey })));
+    });
+    if (selTipe) rows = rows.filter(p => p.tipe === selTipe);
+    if (selStatus) rows = rows.filter(p => (selStatus === 'lunas' ? p.lunas : !p.lunas));
+    return rows;
+}
+
+function renderIuranPesertaTable() {
+    const rows = getFilteredIuranPeserta();
+    const tbody = document.getElementById('iuranPesertaTable');
+    tbody.innerHTML = '';
+
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada peserta</td></tr>';
+        return;
+    }
+
+    rows.forEach(p => {
+        const nama = p.tipe === 'instan' ? (p.atasNama || p.memberName) : p.memberName;
+        const tipeLabel = p.tipe === 'instan' ? '<span class="badge-instan">Langsung</span>' : 'Tabungan';
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td><strong>${surveyKode(p.survey)}</strong></td>
+            <td>${nama}</td>
+            <td>${tipeLabel}</td>
+            <td style="color:var(--emerald);font-weight:600;">Rp ${p.terkumpul.toLocaleString('id-ID')}</td>
+            <td>Rp ${p.iuran.toLocaleString('id-ID')}</td>
+            <td><span class="badge ${p.lunas ? 'approved' : 'pending'}">${p.lunas ? 'Lunas' : 'Belum Lunas'}</span></td>
+        `;
+    });
+}
+
+// Export CSV sederhana (mirip exportTransactionCSV() di Laporan Tabungan) -
+// dipakai tombol "Export Excel" di tab Detail Peserta, hormat filter yang
+// sedang aktif.
+function exportIuranPesertaCSV() {
+    const rows = getFilteredIuranPeserta();
+    const headers = ['Grup', 'Nama', 'Tipe', 'Terkumpul', 'Iuran', 'Status'];
+    const data = rows.map(p => [
+        surveyKode(p.survey),
+        p.tipe === 'instan' ? (p.atasNama || p.memberName) : p.memberName,
+        p.tipe === 'instan' ? 'Daftar Langsung' : 'Tabungan',
+        p.terkumpul, p.iuran, p.lunas ? 'Lunas' : 'Belum Lunas'
+    ]);
+    downloadExcel([headers, ...data], 'Laporan_Iuran_Qurban_Peserta');
+}
+
+function loadIuranAnalisisTab() {
+    drawIuranDistributionChart();
+    drawIuranTipeChart();
+    loadIuranStatistics();
+}
+
+function drawIuranDistributionChart() {
+    const stats = getIuranStatistics();
+    const sorted = Object.values(stats.bySurvey);
+    const labels = sorted.map(g => surveyKode(g.survey));
+    const data = sorted.map(g => g.totalTerkumpul);
+    const grandTotal = data.reduce((sum, v) => sum + v, 0);
+
+    const ctx = document.getElementById('iuranDistributionChart')?.getContext('2d');
+    if (!ctx) return;
+
+    if (laporanIuranCharts.distribution) laporanIuranCharts.distribution.destroy();
+
+    laporanIuranCharts.distribution = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: REPORT_PALETTE,
+                hoverOffset: 14,
+                borderColor: '#fff',
+                borderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            cutout: '68%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { usePointStyle: true, pointStyle: 'circle', padding: 16, font: { weight: '600', size: 12.5 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const pct = grandTotal > 0 ? ((ctx.parsed / grandTotal) * 100).toFixed(1) : 0;
+                            return `Rp ${ctx.parsed.toLocaleString('id-ID')} (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function drawIuranTipeChart() {
+    const stats = getIuranStatistics();
+    const allPeserta = Object.values(stats.bySurvey).flatMap(g => g.peserta);
+    const tabunganCount = allPeserta.filter(p => p.tipe !== 'instan').length;
+    const instanCount = allPeserta.filter(p => p.tipe === 'instan').length;
+
+    const ctx = document.getElementById('iuranTipeChart')?.getContext('2d');
+    if (!ctx) return;
+
+    if (laporanIuranCharts.tipe) laporanIuranCharts.tipe.destroy();
+
+    laporanIuranCharts.tipe = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Tabungan', 'Daftar Langsung'],
+            datasets: [{
+                label: 'Jumlah Peserta',
+                data: [tabunganCount, instanCount],
+                backgroundColor: [REPORT_COLORS.emerald2, REPORT_COLORS.gold],
+                borderRadius: 8,
+                maxBarThickness: 70
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: REPORT_COLORS.border, drawBorder: false }, ticks: { stepSize: 1 } },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function loadIuranStatistics() {
+    const stats = getIuranStatistics();
+    const allPeserta = Object.values(stats.bySurvey).flatMap(g => g.peserta);
+    const tabunganCount = allPeserta.filter(p => p.tipe !== 'instan').length;
+    const instanCount = allPeserta.filter(p => p.tipe === 'instan').length;
+    const lunasCount = allPeserta.filter(p => p.lunas).length;
+    const belumCount = allPeserta.length - lunasCount;
+
+    document.getElementById('iuran-stat-active').textContent = allPeserta.length;
+    document.getElementById('iuran-stat-tabungan').textContent = `${tabunganCount} orang`;
+    document.getElementById('iuran-stat-instan').textContent = `${instanCount} orang`;
+    document.getElementById('iuran-stat-lunas').textContent = `${lunasCount} orang`;
+    document.getElementById('iuran-stat-belum').textContent = `${belumCount} orang`;
+    document.getElementById('iuran-stat-avg').textContent = `Rp ${stats.average.toLocaleString('id-ID')}`;
+    document.getElementById('iuran-stat-kurang').textContent = `Rp ${stats.totalKurang.toLocaleString('id-ID')}`;
+}
+
+// Export Excel "premium" (ExcelJS, sama pola dgn exportLaporanExcel()) - 2
+// sheet: Ringkasan (per grup + gambar chart) dan Peserta (semua baris detail).
+async function exportLaporanIuranExcel(evt) {
+    const btn = evt?.currentTarget || evt?.target;
+    const originalHTML = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
+    try {
+        const c = REPORT_COLORS;
+        const argb = hex => 'FF' + hex.replace('#', '').toUpperCase();
+        const headerFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(c.emerald) } };
+        const headerFont = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+        const stats = getIuranStatistics();
+        const sortedGrup = Object.values(stats.bySurvey).sort((a, b) => b.totalTerkumpul - a.totalTerkumpul);
+
+        const wb = new ExcelJS.Workbook();
+        wb.creator = `Tabungan Qurban - ${APP_CONFIG.mosqueName}`;
+        wb.created = new Date();
+
+        // ===== SHEET 1: RINGKASAN =====
+        const ws = wb.addWorksheet('Ringkasan', { views: [{ showGridLines: false }] });
+        ws.columns = [{ width: 22 }, { width: 20 }, { width: 20 }, { width: 20 }, { width: 16 }];
+
+        ws.mergeCells('A1:E1');
+        ws.getCell('A1').value = 'LAPORAN IURAN QURBAN';
+        ws.getCell('A1').font = { bold: true, size: 16, color: { argb: argb(c.emerald) } };
+        ws.getCell('A1').alignment = { horizontal: 'center' };
+
+        ws.mergeCells('A2:E2');
+        ws.getCell('A2').value = APP_CONFIG.mosqueName;
+        ws.getCell('A2').font = { italic: true, size: 11, color: { argb: argb(c.inkFaint) } };
+        ws.getCell('A2').alignment = { horizontal: 'center' };
+
+        ws.mergeCells('A4:E4');
+        const heroCell = ws.getCell('A4');
+        heroCell.value = `TOTAL IURAN TERKUMPUL: Rp ${stats.totalTerkumpul.toLocaleString('id-ID')}`;
+        heroCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+        heroCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(c.emerald) } };
+        heroCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(4).height = 28;
+
+        ws.addRow([]);
+        const statHeaderRow = ws.addRow(['Total Peserta', 'Total Grup Sapi', 'Rata-rata/Peserta']);
+        statHeaderRow.eachCell(cell => {
+            cell.font = { bold: true, color: { argb: argb(c.inkSoft) } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(c.emeraldTint) } };
+        });
+        const statValRow = ws.addRow([stats.totalPeserta, stats.totalGrup, stats.average]);
+        statValRow.getCell(3).numFmt = '"Rp" #,##0';
+
+        ws.addRow([]);
+        const perGrupTitleRow = ws.addRow(['PER GRUP SAPI']);
+        perGrupTitleRow.getCell(1).font = { bold: true, size: 12, color: { argb: argb(c.gold) } };
+
+        const grupHeaderRow = ws.addRow(['Grup', 'Jumlah Peserta', 'Total Terkumpul', 'Kebutuhan', 'Kekurangan']);
+        grupHeaderRow.eachCell(cell => { cell.font = headerFont; cell.fill = headerFill; });
+
+        sortedGrup.forEach(g => {
+            const row = ws.addRow([surveyKode(g.survey), g.peserta.length, g.totalTerkumpul, g.totalKebutuhan, g.totalKurang]);
+            row.getCell(3).numFmt = '"Rp" #,##0';
+            row.getCell(4).numFmt = '"Rp" #,##0';
+            row.getCell(5).numFmt = '"Rp" #,##0';
+        });
+
+        if (laporanIuranCharts.grup && typeof laporanIuranCharts.grup.toBase64Image === 'function') {
+            const imgId = wb.addImage({ base64: laporanIuranCharts.grup.toBase64Image(), extension: 'png' });
+            const startRow = ws.lastRow.number + 2;
+            ws.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 560, height: 260 } });
+        }
+
+        // ===== SHEET 2: Peserta =====
+        const wsPeserta = wb.addWorksheet('Peserta');
+        wsPeserta.columns = [
+            { header: 'Grup', key: 'grup', width: 14 }, { header: 'Nama', key: 'nama', width: 24 },
+            { header: 'Tipe', key: 'tipe', width: 16 }, { header: 'Terkumpul', key: 'terkumpul', width: 16 },
+            { header: 'Iuran', key: 'iuran', width: 16 }, { header: 'Status', key: 'status', width: 14 }
+        ];
+        wsPeserta.getRow(1).eachCell(cell => { cell.font = headerFont; cell.fill = headerFill; });
+        sortedGrup.forEach(g => {
+            g.peserta.forEach(p => {
+                wsPeserta.addRow({
+                    grup: surveyKode(g.survey),
+                    nama: p.tipe === 'instan' ? (p.atasNama || p.memberName) : p.memberName,
+                    tipe: p.tipe === 'instan' ? 'Daftar Langsung' : 'Tabungan',
+                    terkumpul: p.terkumpul, iuran: p.iuran, status: p.lunas ? 'Lunas' : 'Belum Lunas'
+                });
+            });
+        });
+        wsPeserta.getColumn('terkumpul').numFmt = '"Rp" #,##0';
+        wsPeserta.getColumn('iuran').numFmt = '"Rp" #,##0';
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Laporan_Iuran_Qurban_${new Date().toISOString().slice(0,10)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('Export Excel Iuran gagal:', err);
+        alert('Gagal membuat file Excel: ' + (err && err.message ? err.message : err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }
+}
+
+// Print - sama pola dgn preparePrintView()/printLaporan(), cuma target
+// #laporanIuran (CSS sub-tab-content-nya sudah digeneralisir, lihat @media
+// print di <style>).
+function prepareLaporanIuranPrintView() {
+    const tab = document.getElementById('laporanIuran');
+    if (tab) tab.classList.add('print-target');
+
+    const activeTab = document.querySelector('#laporanIuran .sub-tab-content:not([style*="display: none"]):not([style*="display:none"])');
+    if (activeTab) activeTab.classList.add('print-active');
+
+    const cleanup = () => {
+        if (tab) tab.classList.remove('print-target');
+        if (activeTab) activeTab.classList.remove('print-active');
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 4000);
+}
+
+function printLaporanIuran() {
+    prepareLaporanIuranPrintView();
+    window.print();
+}
+
+// PDF sederhana (jsPDF murni, sama pola dgn exportLaporanPDF()) - hero + tabel
+// ringkas per grup sapi + tabel semua peserta (nama/tipe/terkumpul/status).
+function exportLaporanIuranPDF(evt) {
+    const btn = evt?.currentTarget || evt?.target;
+    const originalHTML = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
+
+    try {
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            throw new Error('Library PDF belum termuat. Coba refresh halaman lalu ulangi.');
+        }
+        const { jsPDF } = window.jspdf;
+        const c = REPORT_COLORS;
+        const rgb = hex => {
+            const h = hex.replace('#', '');
+            return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)];
+        };
+        const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
+
+        const stats = getIuranStatistics();
+        const sortedGrup = Object.values(stats.bySurvey).sort((a, b) => b.totalTerkumpul - a.totalTerkumpul);
+
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const marginX = 15;
+        const usableW = pageW - marginX * 2;
+        let y = 18;
+
+        const checkPageBreak = (needed) => {
+            if (y + needed > pageH - 15) {
+                doc.addPage();
+                y = 18;
+            }
+        };
+
+        // Header
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...rgb(c.gold));
+        doc.text(APP_CONFIG.mosqueName.toUpperCase(), pageW / 2, y, { align: 'center' });
+        y += 7;
+        doc.setFontSize(17);
+        doc.setTextColor(...rgb(c.emerald));
+        doc.text('Laporan Iuran Qurban', pageW / 2, y, { align: 'center' });
+        y += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...rgb(c.inkFaint));
+        doc.text(`Dicetak ${new Date().toLocaleString('id-ID')}`, pageW / 2, y, { align: 'center' });
+        y += 10;
+
+        // Hero card
+        const heroH = 38;
+        checkPageBreak(heroH + 5);
+        doc.setFillColor(...rgb(c.emerald));
+        doc.roundedRect(marginX, y, usableW, heroH, 3, 3, 'F');
+        doc.setFillColor(...rgb(c.gold));
+        doc.rect(marginX, y, usableW, 1.2, 'F');
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...rgb(c.goldSoft));
+        doc.text('TOTAL IURAN TERKUMPUL', marginX + 8, y + 10);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(255, 255, 255);
+        doc.text(rupiah(stats.totalTerkumpul), marginX + 8, y + 20);
+
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.15);
+        doc.line(marginX + 8, y + 25, marginX + usableW - 8, y + 25);
+
+        const statColW = (usableW - 16) / 3;
+        [['Total Peserta', String(stats.totalPeserta)], ['Grup Sapi', String(stats.totalGrup)], ['Rata-rata/Peserta', rupiah(stats.average)]]
+            .forEach((s, i) => {
+                const sx = marginX + 8 + i * statColW;
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7);
+                doc.setTextColor(225, 225, 225);
+                doc.text(s[0], sx, y + 31);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(255, 255, 255);
+                doc.text(s[1], sx, y + 36);
+            });
+        y += heroH + 10;
+
+        const drawSectionTitle = (text) => {
+            checkPageBreak(12);
+            doc.setFillColor(...rgb(c.gold));
+            doc.rect(marginX, y, 1.2, 5, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11.5);
+            doc.setTextColor(...rgb(c.emerald));
+            doc.text(text, marginX + 4, y + 4);
+            y += 9;
+        };
+
+        // ===== TABEL RINGKASAN PER GRUP =====
+        drawSectionTitle('Ringkasan per Grup Sapi');
+        {
+            const cx = { grup: marginX + 3, peserta: marginX + usableW * 0.30, terkumpul: marginX + usableW * 0.50, kebutuhan: marginX + usableW * 0.72, kurang: marginX + usableW * 0.90 };
+            const rH = 8;
+            checkPageBreak(rH * 2);
+            doc.setFillColor(...rgb(c.emeraldTint));
+            doc.rect(marginX, y, usableW, rH, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...rgb(c.inkSoft));
+            doc.text('GRUP', cx.grup, y + 5.3);
+            doc.text('PESERTA', cx.peserta, y + 5.3);
+            doc.text('TERKUMPUL', cx.terkumpul, y + 5.3);
+            doc.text('KEBUTUHAN', cx.kebutuhan, y + 5.3);
+            doc.text('KURANG', cx.kurang, y + 5.3);
+            y += rH;
+
+            if (sortedGrup.length === 0) {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...rgb(c.inkFaint));
+                doc.text('Belum ada data survey', cx.grup, y + 5.5);
+                y += rH;
+            } else {
+                sortedGrup.forEach(g => {
+                    checkPageBreak(rH + 2);
+                    doc.setDrawColor(...rgb(c.border)); doc.setLineWidth(0.1);
+                    doc.line(marginX, y + rH, marginX + usableW, y + rH);
+
+                    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...rgb(c.ink));
+                    doc.text(surveyKode(g.survey), cx.grup, y + 5.3);
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(`${g.peserta.length}/${SURVEY_MAX_PESERTA}`, cx.peserta, y + 5.3);
+                    doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(c.emerald));
+                    doc.text(rupiah(g.totalTerkumpul), cx.terkumpul, y + 5.3);
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(rupiah(g.totalKebutuhan), cx.kebutuhan, y + 5.3);
+                    doc.setTextColor(...rgb(g.totalKurang > 0 ? c.brick : c.emerald2));
+                    doc.text(g.totalKurang > 0 ? rupiah(g.totalKurang) : 'Lunas', cx.kurang, y + 5.3);
+
+                    y += rH;
+                });
+            }
+            y += 8;
+        }
+
+        // ===== TABEL DETAIL PESERTA =====
+        drawSectionTitle('Detail Peserta');
+        {
+            const cx = { grup: marginX + 3, nama: marginX + usableW * 0.16, tipe: marginX + usableW * 0.52, terkumpul: marginX + usableW * 0.70, status: marginX + usableW * 0.90 };
+            const rH = 8;
+            const allRows = sortedGrup.flatMap(g => g.peserta.map(p => Object.assign({}, p, { survey: g.survey })));
+
+            checkPageBreak(rH * 2);
+            doc.setFillColor(...rgb(c.emeraldTint));
+            doc.rect(marginX, y, usableW, rH, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...rgb(c.inkSoft));
+            doc.text('GRUP', cx.grup, y + 5.3);
+            doc.text('NAMA', cx.nama, y + 5.3);
+            doc.text('TIPE', cx.tipe, y + 5.3);
+            doc.text('TERKUMPUL', cx.terkumpul, y + 5.3);
+            doc.text('STATUS', cx.status, y + 5.3);
+            y += rH;
+
+            if (allRows.length === 0) {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...rgb(c.inkFaint));
+                doc.text('Belum ada peserta', cx.grup, y + 5.5);
+                y += rH;
+            } else {
+                allRows.forEach(p => {
+                    checkPageBreak(rH + 2);
+                    doc.setDrawColor(...rgb(c.border)); doc.setLineWidth(0.1);
+                    doc.line(marginX, y + rH, marginX + usableW, y + rH);
+
+                    const nama = p.tipe === 'instan' ? (p.atasNama || p.memberName) : p.memberName;
+                    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...rgb(c.ink));
+                    doc.text(surveyKode(p.survey), cx.grup, y + 5.3);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(String(nama || '-').substring(0, 26), cx.nama, y + 5.3);
+                    doc.setTextColor(...rgb(c.inkSoft));
+                    doc.text(p.tipe === 'instan' ? 'Daftar Langsung' : 'Tabungan', cx.tipe, y + 5.3);
+                    doc.setFont('helvetica', 'bold'); doc.setTextColor(...rgb(c.emerald));
+                    doc.text(rupiah(p.terkumpul), cx.terkumpul, y + 5.3);
+                    doc.setFont('helvetica', 'normal'); doc.setTextColor(...rgb(p.lunas ? c.emerald2 : c.brick));
+                    doc.text(p.lunas ? 'Lunas' : 'Belum Lunas', cx.status, y + 5.3);
+
+                    y += rH;
+                });
+            }
+        }
+
+        downloadPdfDoc(doc, `Laporan_Iuran_Qurban_${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch (err) {
+        console.error('Export PDF Iuran gagal:', err);
+        alert('Gagal membuat PDF: ' + (err && err.message ? err.message : err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }
 }
 
 // Sama pola dengan preparePrintView(), versi tab LPJ - LPJ tidak punya
