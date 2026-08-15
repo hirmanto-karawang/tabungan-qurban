@@ -2158,8 +2158,12 @@
     .sidebar, .sidebar-overlay, .topbar, .report-tabs, .report-export-actions,
     .bottom-nav, .fab, button, .card:not(.report-card){ display:none !important; }
     .main-area{ margin:0 !important; padding:0 !important; width:100% !important; }
+    /* Generik: tab-content mana pun yang di-tandai '.print-target' (lihat
+       preparePrintView()/prepareLpjPrintView()) yang ditampilkan saat print -
+       supaya tidak hardcode ke #laporan saja (dulu begitu, sekarang tab LPJ
+       juga butuh print sendiri). */
     .tab-content{ display:none !important; }
-    #laporan{ display:block !important; }
+    .tab-content.print-target{ display:block !important; }
     #laporan .sub-tab-content{ display:none !important; }
     #laporan .sub-tab-content.print-active{ display:block !important; }
     .report-card{ box-shadow:none !important; border:none !important; padding:0 !important; }
@@ -2396,6 +2400,15 @@
       <button class="tab-btn active" onclick="switchTab('dashboard')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
         Dashboard
+      </button>
+      <!-- LPJ sengaja TIDAK dikelompokkan, sama seperti Profil - ini
+           ringkasan LINTAS SEMUA modul (tabungan, survey/peserta, distribusi
+           daging, keuangan, penerima), bukan bagian dari 1 produk tertentu.
+           Tampil utk SEMUA role termasuk guest/publik (lihat showApp()) -
+           tujuannya transparansi & kepercayaan publik. -->
+      <button class="tab-btn" id="lpjTabBtn" onclick="switchTab('lpj')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/></svg>
+        LPJ
       </button>
       <button class="tab-btn" id="uploadTabBtn" onclick="switchTab('upload')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
@@ -4029,6 +4042,170 @@
         </div>
       </div>
 
+      <!-- Tab: LPJ (Laporan Pertanggungjawaban) - ringkasan LINTAS SEMUA
+           modul (Tabungan, Survey/Peserta, Distribusi Daging, Keuangan,
+           Penerima & Penyaluran) supaya siapa saja - termasuk publik/guest
+           yang belum login - gampang lihat akuntabilitas pelaksanaan qurban.
+           Beda dari "Laporan Tabungan" yang cuma soal tabungan, LPJ ini
+           tujuannya transparansi & kepercayaan publik lintas kegiatan.
+           Lihat loadLPJ() utk logika hitungnya, dan appData.lpjNarasi utk
+           narasi/kata pengantar yang bisa diedit admin (tersimpan di sheet
+           "LPJNarasi" via appendSheetDB/updateSheetDB generik). -->
+      <div id="lpj" class="tab-content">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div class="dashboard-logo-wrap">
+            <img src="logo-masjid.jpg" alt="Masjid" class="dashboard-logo js-brand-logo">
+          </div>
+        </div>
+        <div class="report-hero">
+          <div class="report-hero-label">📋 Laporan Pertanggungjawaban Qurban</div>
+          <div class="report-hero-total" id="lpjHeroTotal">Rp 0</div>
+          <div class="report-hero-stats">
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">Total Anggota</div>
+              <div class="report-hero-stat-value" id="lpjStatAnggota">0</div>
+            </div>
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">Peserta Qurban</div>
+              <div class="report-hero-stat-value" id="lpjStatPeserta">0</div>
+            </div>
+            <div class="report-hero-stat">
+              <div class="report-hero-stat-label">Penerima Manfaat</div>
+              <div class="report-hero-stat-value" id="lpjStatPenerima">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- NARASI / KATA PENGANTAR - bisa diedit admin, tampil apa adanya
+             (read-only) utk anggota & guest/publik. -->
+        <div class="card report-card">
+          <h3>📝 Kata Pengantar</h3>
+          <div id="lpjNarasiView" style="white-space:pre-line;line-height:1.75;color:var(--ink-soft);font-size:14.5px;">Memuat…</div>
+          <textarea id="lpjNarasiEdit" style="display:none;width:100%;min-height:160px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius-md);font-family:inherit;font-size:14px;line-height:1.6;resize:vertical;" placeholder="Tulis kata pengantar / ringkasan pelaksanaan qurban tahun ini - mis. jumlah sapi, tanggal pelaksanaan, ucapan terima kasih ke jamaah/donatur..."></textarea>
+          <div id="lpjNarasiMeta" style="font-size:11.5px;color:var(--ink-faint);margin-top:8px;"></div>
+          <div id="lpjNarasiAdminActions" style="display:none;margin-top:14px;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="lpjNarasiEditBtn" onclick="toggleLpjNarasiEdit(true)">Edit Narasi</button>
+            <button class="btn btn-primary" id="lpjNarasiSaveBtn" style="display:none;" onclick="saveLpjNarasi()">Simpan</button>
+            <button class="btn" id="lpjNarasiCancelBtn" style="display:none;" onclick="toggleLpjNarasiEdit(false)">Batal</button>
+          </div>
+        </div>
+
+        <!-- RINGKASAN TABUNGAN -->
+        <div class="card report-card">
+          <h3>💰 Tabungan Qurban</h3>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <label>Total Anggota Aktif</label>
+              <div class="value" id="lpjTabunganAnggota">0</div>
+            </div>
+            <div class="stat-box success">
+              <label>Total Setoran Disetujui</label>
+              <div class="value" id="lpjTabunganTotal">Rp 0</div>
+            </div>
+            <div class="stat-box">
+              <label>Jumlah Kelompok Sapi</label>
+              <div class="value" id="lpjTabunganKelompok">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RINGKASAN SURVEY & PESERTA -->
+        <div class="card report-card">
+          <h3>🐄 Survey Sapi & Peserta</h3>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <label>Sapi Disurvei</label>
+              <div class="value" id="lpjSurveySapi">0</div>
+            </div>
+            <div class="stat-box">
+              <label>Peserta Ikut Qurban</label>
+              <div class="value" id="lpjSurveyPeserta">0</div>
+            </div>
+            <div class="stat-box">
+              <label>Total Berat Sapi</label>
+              <div class="value" id="lpjSurveyBerat">0 kg</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RINGKASAN DISTRIBUSI DAGING (Rencana vs Aktual - lihat loadLPJ()
+             utk cara hitung, gabungan RencanaDistribusi + WorkOrderAktual) -->
+        <div class="card report-card">
+          <h3>🥩 Distribusi Daging</h3>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <label>Rencana Distribusi (Qty)</label>
+              <div class="value" id="lpjDistribusiRencana">0</div>
+            </div>
+            <div class="stat-box success">
+              <label>Realisasi Aktual (Qty)</label>
+              <div class="value" id="lpjDistribusiAktual">0</div>
+            </div>
+            <div class="stat-box">
+              <label>Persentase Realisasi</label>
+              <div class="value" id="lpjDistribusiPersen">0%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RINGKASAN KEUANGAN (pakai hitungRealisasiPos() yg sama dgn tab
+             Keuangan, supaya angkanya selalu konsisten dgn tab aslinya) -->
+        <div class="card report-card">
+          <h3>🧾 Keuangan Pelaksanaan</h3>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <label>Total Anggaran</label>
+              <div class="value" id="lpjKeuanganAnggaran">Rp 0</div>
+            </div>
+            <div class="stat-box success">
+              <label>Realisasi Pemasukan</label>
+              <div class="value" id="lpjKeuanganMasuk">Rp 0</div>
+            </div>
+            <div class="stat-box warning">
+              <label>Realisasi Pengeluaran</label>
+              <div class="value" id="lpjKeuanganKeluar">Rp 0</div>
+            </div>
+          </div>
+          <div class="stats-grid" style="margin-top:14px;">
+            <div class="stat-box">
+              <label>Saldo Kas Akhir</label>
+              <div class="value" id="lpjKeuanganSaldo">Rp 0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RINGKASAN PENERIMA & PENYALURAN -->
+        <div class="card report-card">
+          <h3>🎟️ Penerima & Penyaluran</h3>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <label>Total Penerima Terdaftar</label>
+              <div class="value" id="lpjPenerimaTotal">0</div>
+            </div>
+            <div class="stat-box success">
+              <label>Sudah Diambil</label>
+              <div class="value" id="lpjPenerimaSudah">0</div>
+            </div>
+            <div class="stat-box">
+              <label>Persentase Tersalurkan</label>
+              <div class="value" id="lpjPenerimaPersen">0%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- EXPORT ACTIONS -->
+        <div class="report-export-actions">
+          <button class="report-export-btn primary" onclick="exportLPJPDF(event)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h9l6 6v9a1 1 0 01-1 1H5a1 1 0 01-1-1z"/><path d="M14 4v6h6"/></svg>
+            Download PDF
+          </button>
+          <button class="report-export-btn" onclick="printLPJ()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a1 1 0 01-1-1v-5a1 1 0 011-1h16a1 1 0 011 1v5a1 1 0 01-1 1h-2M6 14h12v7H6v-7z"/></svg>
+            Print
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -4201,7 +4378,10 @@ let appData = {
     penerimaQR: [],
     posBudget: [],
     transaksiKeuangan: [],
-    kemasanInventaris: []
+    kemasanInventaris: [],
+    // Bukan array - LPJNarasi cuma 1 baris config (narasi/kata pengantar tab
+    // LPJ), jadi disimpan sbg object langsung, lihat loadDataFromSheets().
+    lpjNarasi: { narasi: '', updatedBy: '', updatedDate: '' }
 };
 
 let currentUser = null;
@@ -4446,6 +4626,7 @@ async function loadDataFromSheets() {
     const posBudgetRows = bootstrap ? (bootstrap.PosBudget || []) : await fetchSheetDBTable('PosBudget');
     const transaksiKeuanganRows = bootstrap ? (bootstrap.TransaksiKeuangan || []) : await fetchSheetDBTable('TransaksiKeuangan');
     const kemasanInventarisRows = bootstrap ? (bootstrap.KemasanInventaris || []) : await fetchSheetDBTable('KemasanInventaris');
+    const lpjNarasiRows = bootstrap ? (bootstrap.LPJNarasi || []) : await fetchSheetDBTable('LPJNarasi');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -4711,6 +4892,18 @@ async function loadDataFromSheets() {
         status: row.status || 'aktif',
         created_date: row.created_date || ''
     })).filter(d => d.id);
+
+    // Parse LPJNarasi (satu baris config, id tetap 'lpj') - narasi/kata
+    // pengantar yang bisa ditulis admin di tab LPJ. Kalau sheet belum ada
+    // atau belum pernah diisi, appData.lpjNarasi tetap object kosong (lihat
+    // definisi awal di atas) supaya tab LPJ tetap tampil normal (cuma narasi
+    // kosong), bukan error.
+    const lpjNarasiRow = lpjNarasiRows.find(r => String(r.id || '').trim() === 'lpj') || lpjNarasiRows[0] || null;
+    appData.lpjNarasi = {
+        narasi: lpjNarasiRow ? (lpjNarasiRow.narasi || '') : '',
+        updatedBy: lpjNarasiRow ? (lpjNarasiRow.updatedBy || '') : '',
+        updatedDate: lpjNarasiRow ? (lpjNarasiRow.updatedDate || '') : ''
+    };
 
     lastDataLoadTime = Date.now();
 
@@ -5083,6 +5276,13 @@ function showApp() {
     const uploadTabBtn = document.getElementById('uploadTabBtn');
     const historyTabBtn = document.getElementById('historyTabBtn');
     const laporanTabBtn = document.getElementById('laporanTabBtn');
+    const lpjTabBtn = document.getElementById('lpjTabBtn');
+
+    // LPJ tampil utk SEMUA role (admin/anggota/guest) - lihat komentar di
+    // atas tombolnya di sidebar. Di-set sekali di sini di luar cabang
+    // role di bawah supaya tidak perlu diulang 3x & tidak gampang lupa
+    // kalau nanti ada role baru.
+    if (lpjTabBtn) lpjTabBtn.style.display = 'flex';
 
     if (currentUser.role === 'admin') {
         // Tampilkan menu admin
@@ -5193,7 +5393,8 @@ const TAB_META = {
     keuangan: { title: 'Keuangan', crumb: 'Keuangan' },
     kemasan: { title: 'Kemasan & Inventaris', crumb: 'Pelaksanaan' },
     history: { title: 'Riwayat', crumb: 'Tabungan' },
-    laporan: { title: 'Laporan Tabungan', crumb: 'Tabungan' }
+    laporan: { title: 'Laporan Tabungan', crumb: 'Tabungan' },
+    lpj: { title: 'Laporan Pertanggungjawaban (LPJ)', crumb: 'Transparansi' }
 };
 
 async function switchTab(tabName) {
@@ -5227,7 +5428,7 @@ async function switchTab(tabName) {
     // upload tabungan, daftar baru, dsb). ensureDataLoaded() otomatis skip fetch
     // kalau data masih segar (<5 detik) atau kalau ada fetch lain yang sedang
     // berjalan (dipakai bareng, tidak dobel request) - jadi terasa instan.
-    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima', 'keuangan', 'kemasan'];
+    const needsFreshData = ['dashboard', 'verify', 'approval', 'activityLog', 'history', 'laporan', 'surveySapi', 'distribusiDaging', 'woAktual', 'penerima', 'keuangan', 'kemasan', 'lpj'];
     if (needsFreshData.includes(tabName)) {
         await ensureDataLoaded();
     }
@@ -5246,6 +5447,7 @@ function runTabDataLoaders(tabName) {
     if (tabName === 'activityLog') loadActivityLog();
     if (tabName === 'history') loadHistory();
     if (tabName === 'laporan') loadLaporan();
+    if (tabName === 'lpj') loadLPJ();
     if (tabName === 'surveySapi') {
         // Admin lihat form input + tabel riwayat lengkap; Anggota lihat versi
         // read-only + tombol Ikut (lihat surveySapiAdminSection/MemberSection).
@@ -10000,10 +10202,14 @@ async function exportLaporanExcel(evt) {
 // otomatis disembunyikan oleh CSS), lalu otomatis bersih-bersih lagi setelah
 // dialog print/save ditutup.
 function preparePrintView() {
+    const laporanTab = document.getElementById('laporan');
+    if (laporanTab) laporanTab.classList.add('print-target');
+
     const activeTab = document.querySelector('#laporan .sub-tab-content:not([style*="display: none"]):not([style*="display:none"])');
     if (activeTab) activeTab.classList.add('print-active');
 
     const cleanup = () => {
+        if (laporanTab) laporanTab.classList.remove('print-target');
         if (activeTab) activeTab.classList.remove('print-active');
         window.removeEventListener('afterprint', cleanup);
     };
@@ -10014,6 +10220,394 @@ function preparePrintView() {
 function printLaporan() {
     preparePrintView();
     window.print();
+}
+
+// Sama pola dengan preparePrintView(), versi tab LPJ - LPJ tidak punya
+// sub-tab (satu halaman panjang berisi semua ringkasan), jadi cukup tandai
+// #lpj sendiri sbg '.print-target', tidak perlu logic sub-tab-content.
+function prepareLpjPrintView() {
+    const lpjTab = document.getElementById('lpj');
+    if (lpjTab) lpjTab.classList.add('print-target');
+
+    const cleanup = () => {
+        if (lpjTab) lpjTab.classList.remove('print-target');
+        window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 4000);
+}
+
+function printLPJ() {
+    prepareLpjPrintView();
+    window.print();
+}
+
+// ===== LPJ (LAPORAN PERTANGGUNGJAWABAN) =====
+// Beda dari loadLaporan() (tabungan saja), loadLPJ() menggabungkan angka dari
+// SEMUA modul yang sudah dimuat ke appData - sengaja pakai ulang logika hitung
+// yang SAMA dengan tab aslinya masing-masing (mis. hitungRealisasiPos() dari
+// tab Keuangan) supaya angka LPJ tidak pernah selisih dengan tab sumbernya.
+function loadLPJ() {
+    const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
+    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+    // ----- Tabungan Qurban -----
+    const membersNonAdmin = appData.members.filter(m => m.role !== 'admin' && m.id);
+    const totalMembers = membersNonAdmin.length;
+    const approvedSavings = appData.savings.filter(s => s.status === 'APPROVED');
+    const totalTabungan = approvedSavings.reduce((sum, s) => sum + s.amount, 0);
+    const kelompokSapiTabungan = new Set(membersNonAdmin.filter(m => m.sapi > 0).map(m => m.sapi)).size;
+
+    // ----- Survey Sapi & Peserta -----
+    const totalSapiSurvei = appData.surveySapi.length;
+    const pesertaAktif = appData.surveyPeserta.filter(p => p.status === 'aktif');
+    const totalPesertaUnik = new Set(pesertaAktif.map(p => p.memberId)).size;
+    const totalBeratSapi = appData.surveySapi.reduce((sum, s) => sum + (s.berat || 0), 0);
+
+    // ----- Distribusi Daging (Rencana Umum vs Aktual hari-H) -----
+    const rencanaAktif = appData.rencanaDistribusi.filter(d => d.status !== 'batal');
+    const totalRencanaQty = rencanaAktif.reduce((sum, d) => sum + d.qty, 0);
+    const aktualAktif = appData.workOrderAktual.filter(d => d.status !== 'batal');
+    const totalAktualQty = aktualAktif.reduce((sum, d) => sum + d.qty, 0);
+    const persenDistribusi = totalRencanaQty > 0 ? Math.round((totalAktualQty / totalRencanaQty) * 100) : 0;
+
+    // ----- Keuangan (persis sama caranya dgn renderKeuanganRingkasan()) -----
+    const posAktif = appData.posBudget.filter(p => p.status !== 'batal');
+    let totalAnggaranKeluar = 0, totalRealisasiMasuk = 0, totalRealisasiKeluar = 0;
+    posAktif.forEach(pos => {
+        const realisasi = hitungRealisasiPos(pos.id);
+        if (pos.jenisPos === 'pemasukan') {
+            totalRealisasiMasuk += realisasi;
+        } else {
+            totalRealisasiKeluar += realisasi;
+            totalAnggaranKeluar += pos.jumlahAnggaran;
+        }
+    });
+    const saldoKas = totalRealisasiMasuk - totalRealisasiKeluar;
+
+    // ----- Penerima & Penyaluran -----
+    const penerimaAktif = appData.penerimaQR.filter(d => d.status !== 'batal');
+    const totalPenerima = penerimaAktif.length;
+    const sudahDiambil = penerimaAktif.filter(d => d.diambil).length;
+    const persenPenerima = totalPenerima > 0 ? Math.round((sudahDiambil / totalPenerima) * 100) : 0;
+
+    // ----- Hero -----
+    const heroTotalEl = document.getElementById('lpjHeroTotal');
+    if (heroTotalEl) animateCountUp(heroTotalEl, 0, totalTabungan, rupiah);
+    const heroAnggotaEl = document.getElementById('lpjStatAnggota');
+    if (heroAnggotaEl) animateCountUp(heroAnggotaEl, 0, totalMembers, v => `${v}`);
+    const heroPesertaEl = document.getElementById('lpjStatPeserta');
+    if (heroPesertaEl) animateCountUp(heroPesertaEl, 0, totalPesertaUnik, v => `${v}`);
+    const heroPenerimaEl = document.getElementById('lpjStatPenerima');
+    if (heroPenerimaEl) animateCountUp(heroPenerimaEl, 0, totalPenerima, v => `${v}`);
+
+    // ----- Tabungan -----
+    setText('lpjTabunganAnggota', totalMembers.toLocaleString('id-ID'));
+    setText('lpjTabunganTotal', rupiah(totalTabungan));
+    setText('lpjTabunganKelompok', kelompokSapiTabungan.toLocaleString('id-ID'));
+
+    // ----- Survey & Peserta -----
+    setText('lpjSurveySapi', totalSapiSurvei.toLocaleString('id-ID'));
+    setText('lpjSurveyPeserta', totalPesertaUnik.toLocaleString('id-ID'));
+    setText('lpjSurveyBerat', `${totalBeratSapi.toLocaleString('id-ID')} kg`);
+
+    // ----- Distribusi -----
+    setText('lpjDistribusiRencana', totalRencanaQty.toLocaleString('id-ID'));
+    setText('lpjDistribusiAktual', totalAktualQty.toLocaleString('id-ID'));
+    setText('lpjDistribusiPersen', `${persenDistribusi}%`);
+
+    // ----- Keuangan -----
+    setText('lpjKeuanganAnggaran', rupiah(totalAnggaranKeluar));
+    setText('lpjKeuanganMasuk', rupiah(totalRealisasiMasuk));
+    setText('lpjKeuanganKeluar', rupiah(totalRealisasiKeluar));
+    setText('lpjKeuanganSaldo', rupiah(saldoKas));
+
+    // ----- Penerima & Penyaluran -----
+    setText('lpjPenerimaTotal', totalPenerima.toLocaleString('id-ID'));
+    setText('lpjPenerimaSudah', sudahDiambil.toLocaleString('id-ID'));
+    setText('lpjPenerimaPersen', `${persenPenerima}%`);
+
+    renderLpjNarasi();
+}
+
+// Narasi/kata pengantar LPJ - read-only utk anggota/guest, editable utk admin
+// (tersimpan ke sheet "LPJNarasi" lewat appendSheetDB/updateSheetDB generik -
+// tidak butuh endpoint backend khusus).
+function renderLpjNarasi() {
+    const viewEl = document.getElementById('lpjNarasiView');
+    const editEl = document.getElementById('lpjNarasiEdit');
+    const metaEl = document.getElementById('lpjNarasiMeta');
+    const adminActions = document.getElementById('lpjNarasiAdminActions');
+    const editBtn = document.getElementById('lpjNarasiEditBtn');
+    const saveBtn = document.getElementById('lpjNarasiSaveBtn');
+    const cancelBtn = document.getElementById('lpjNarasiCancelBtn');
+    if (!viewEl || !editEl) return;
+
+    const isAdmin = !!(currentUser && currentUser.role === 'admin');
+    const narasi = (appData.lpjNarasi && appData.lpjNarasi.narasi) || '';
+
+    viewEl.textContent = narasi || (isAdmin
+        ? 'Belum ada kata pengantar. Klik "Edit Narasi" untuk menambahkan.'
+        : 'Belum ada kata pengantar dari pengurus.');
+    editEl.value = narasi;
+
+    const updatedBy = appData.lpjNarasi && appData.lpjNarasi.updatedBy;
+    const updatedDate = appData.lpjNarasi && appData.lpjNarasi.updatedDate;
+    if (metaEl) {
+        const parsedDate = updatedDate ? new Date(updatedDate) : null;
+        const dateText = (parsedDate && !isNaN(parsedDate)) ? parsedDate.toLocaleString('id-ID') : '';
+        metaEl.textContent = (updatedBy || dateText)
+            ? `Terakhir diperbarui${updatedBy ? ' oleh ' + updatedBy : ''}${dateText ? ' - ' + dateText : ''}`
+            : '';
+    }
+
+    // Selalu balik ke mode tampil (bukan edit) tiap kali data di-refresh -
+    // dan tombol edit cuma kelihatan utk admin, anggota/guest read-only.
+    viewEl.style.display = 'block';
+    editEl.style.display = 'none';
+    if (adminActions) adminActions.style.display = isAdmin ? 'flex' : 'none';
+    if (editBtn) editBtn.style.display = 'inline-flex';
+    if (saveBtn) saveBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+function toggleLpjNarasiEdit(isEditing) {
+    const viewEl = document.getElementById('lpjNarasiView');
+    const editEl = document.getElementById('lpjNarasiEdit');
+    const editBtn = document.getElementById('lpjNarasiEditBtn');
+    const saveBtn = document.getElementById('lpjNarasiSaveBtn');
+    const cancelBtn = document.getElementById('lpjNarasiCancelBtn');
+    if (!viewEl || !editEl) return;
+
+    if (isEditing) {
+        editEl.value = (appData.lpjNarasi && appData.lpjNarasi.narasi) || '';
+        viewEl.style.display = 'none';
+        editEl.style.display = 'block';
+        if (editBtn) editBtn.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = 'inline-flex';
+        if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+        editEl.focus();
+    } else {
+        renderLpjNarasi();
+    }
+}
+
+async function saveLpjNarasi() {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    const editEl = document.getElementById('lpjNarasiEdit');
+    const saveBtn = document.getElementById('lpjNarasiSaveBtn');
+    if (!editEl) return;
+    const narasiBaru = editEl.value.trim();
+
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Menyimpan...'; }
+
+    const nowIso = new Date().toISOString();
+    const namaAdmin = currentUser.name || String(currentUser.id);
+    // Baris "lpj" sudah pernah dibuat sebelumnya (ada narasi/updatedBy/
+    // updatedDate tersimpan) -> pakai update. Kalau belum pernah sama sekali
+    // (baris "lpj" belum ada di sheet) -> append baris baru.
+    const hadRow = !!(appData.lpjNarasi && (appData.lpjNarasi.narasi || appData.lpjNarasi.updatedBy || appData.lpjNarasi.updatedDate));
+
+    let ok;
+    if (hadRow) {
+        ok = await updateSheetDB('LPJNarasi', 'id', 'lpj', {
+            narasi: narasiBaru,
+            updatedBy: namaAdmin,
+            updatedDate: nowIso
+        });
+    } else {
+        ok = await appendSheetDB('LPJNarasi', {
+            id: 'lpj',
+            narasi: narasiBaru,
+            updatedBy: namaAdmin,
+            updatedDate: nowIso
+        });
+    }
+
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Simpan'; }
+
+    if (ok) {
+        appData.lpjNarasi = { narasi: narasiBaru, updatedBy: namaAdmin, updatedDate: nowIso };
+        renderLpjNarasi();
+        showAlert('Narasi LPJ berhasil disimpan.', 'success');
+    } else {
+        showAlert('Gagal menyimpan narasi. Coba lagi.', 'error');
+    }
+}
+
+// PDF LPJ - sama pola dgn exportLaporanPDF() (jsPDF murni, digambar manual,
+// TIDAK screenshot DOM) supaya reliable di semua perangkat termasuk HP.
+function exportLPJPDF(evt) {
+    const btn = evt?.currentTarget || evt?.target;
+    const originalHTML = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
+
+    try {
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            throw new Error('Library PDF belum termuat. Coba refresh halaman lalu ulangi.');
+        }
+        const { jsPDF } = window.jspdf;
+        const c = REPORT_COLORS;
+        const rgb = hex => {
+            const h = hex.replace('#', '');
+            return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)];
+        };
+        const rupiah = v => `Rp ${v.toLocaleString('id-ID')}`;
+        const getText = id => (document.getElementById(id)?.textContent || '').trim();
+
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const marginX = 15;
+        const usableW = pageW - marginX * 2;
+        let y = 18;
+
+        const checkPageBreak = (needed) => {
+            if (y + needed > pageH - 15) {
+                doc.addPage();
+                y = 18;
+            }
+        };
+
+        // Header
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...rgb(c.gold));
+        doc.text(APP_CONFIG.mosqueName.toUpperCase(), pageW / 2, y, { align: 'center' });
+        y += 7;
+        doc.setFontSize(16);
+        doc.setTextColor(...rgb(c.emerald));
+        doc.text('Laporan Pertanggungjawaban (LPJ) Qurban', pageW / 2, y, { align: 'center', maxWidth: usableW });
+        y += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...rgb(c.inkFaint));
+        doc.text(`Dicetak ${new Date().toLocaleString('id-ID')}`, pageW / 2, y, { align: 'center' });
+        y += 10;
+
+        // Hero (Total Tabungan + 3 stat, dibaca langsung dari DOM yang sudah
+        // di-render loadLPJ() - supaya PDF selalu sama persis dgn tampilan).
+        const heroH = 34;
+        checkPageBreak(heroH + 5);
+        doc.setFillColor(...rgb(c.emerald));
+        doc.roundedRect(marginX, y, usableW, heroH, 3, 3, 'F');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...rgb(c.goldSoft));
+        doc.text('TOTAL TABUNGAN QURBAN TERKUMPUL', marginX + 8, y + 9);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(19);
+        doc.setTextColor(255, 255, 255);
+        doc.text(getText('lpjHeroTotal') || rupiah(0), marginX + 8, y + 20);
+
+        const heroStats = [
+            ['Total Anggota', getText('lpjStatAnggota')],
+            ['Peserta Qurban', getText('lpjStatPeserta')],
+            ['Penerima Manfaat', getText('lpjStatPenerima')]
+        ];
+        const heroStatW = usableW / 3;
+        heroStats.forEach((s, i) => {
+            const sx = marginX + 8 + i * heroStatW;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(...rgb(c.goldSoft));
+            doc.text(s[0], sx, y + 28);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(255, 255, 255);
+            doc.text(s[1] || '0', sx, y + 32.5);
+        });
+        y += heroH + 10;
+
+        // Narasi
+        const narasi = (appData.lpjNarasi && appData.lpjNarasi.narasi) || '';
+        if (narasi) {
+            checkPageBreak(16);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11.5);
+            doc.setTextColor(...rgb(c.emerald));
+            doc.text('Kata Pengantar', marginX, y);
+            y += 6;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9.5);
+            doc.setTextColor(...rgb(c.ink));
+            const narasiLines = doc.splitTextToSize(narasi, usableW);
+            narasiLines.forEach(line => {
+                checkPageBreak(6);
+                doc.text(line, marginX, y);
+                y += 5;
+            });
+            y += 6;
+        }
+
+        // Bagian ringkasan per modul, dibaca langsung dari DOM (konsisten dgn
+        // apa yang dilihat user, tidak perlu hitung ulang di sini).
+        const sections = [
+            { title: 'Tabungan Qurban', rows: [
+                ['Total Anggota Aktif', getText('lpjTabunganAnggota')],
+                ['Total Setoran Disetujui', getText('lpjTabunganTotal')],
+                ['Jumlah Kelompok Sapi', getText('lpjTabunganKelompok')]
+            ]},
+            { title: 'Survey Sapi & Peserta', rows: [
+                ['Sapi Disurvei', getText('lpjSurveySapi')],
+                ['Peserta Ikut Qurban', getText('lpjSurveyPeserta')],
+                ['Total Berat Sapi', getText('lpjSurveyBerat')]
+            ]},
+            { title: 'Distribusi Daging', rows: [
+                ['Rencana Distribusi (Qty)', getText('lpjDistribusiRencana')],
+                ['Realisasi Aktual (Qty)', getText('lpjDistribusiAktual')],
+                ['Persentase Realisasi', getText('lpjDistribusiPersen')]
+            ]},
+            { title: 'Keuangan Pelaksanaan', rows: [
+                ['Total Anggaran', getText('lpjKeuanganAnggaran')],
+                ['Realisasi Pemasukan', getText('lpjKeuanganMasuk')],
+                ['Realisasi Pengeluaran', getText('lpjKeuanganKeluar')],
+                ['Saldo Kas Akhir', getText('lpjKeuanganSaldo')]
+            ]},
+            { title: 'Penerima & Penyaluran', rows: [
+                ['Total Penerima Terdaftar', getText('lpjPenerimaTotal')],
+                ['Sudah Diambil', getText('lpjPenerimaSudah')],
+                ['Persentase Tersalurkan', getText('lpjPenerimaPersen')]
+            ]}
+        ];
+
+        sections.forEach(section => {
+            checkPageBreak(12 + section.rows.length * 8);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11.5);
+            doc.setTextColor(...rgb(c.emerald));
+            doc.text(section.title, marginX, y);
+            y += 3;
+            doc.setDrawColor(...rgb(c.border));
+            doc.setLineWidth(0.3);
+            doc.line(marginX, y, marginX + usableW, y);
+            y += 6;
+
+            section.rows.forEach((row, i) => {
+                checkPageBreak(8);
+                if (i % 2 === 0) {
+                    doc.setFillColor(...rgb(c.paper));
+                    doc.rect(marginX, y - 4.5, usableW, 7.5, 'F');
+                }
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9.5);
+                doc.setTextColor(...rgb(c.inkSoft));
+                doc.text(row[0], marginX + 3, y);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...rgb(c.ink));
+                doc.text(String(row[1] || '-'), marginX + usableW - 3, y, { align: 'right' });
+                y += 7.5;
+            });
+            y += 6;
+        });
+
+        downloadPdfDoc(doc, `LPJ_Qurban_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+        console.error('exportLPJPDF error:', err);
+        showAlert('Gagal membuat PDF: ' + (err.message || err), 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+    }
 }
 
 // Trigger download dokumen jsPDF. Di banyak browser HP, atribut

@@ -44,7 +44,7 @@
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?tenant=<slug>&config=1   -> config publik masjid (nama, logo, rekening, dst)
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[], LPJNarasi:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
@@ -230,7 +230,11 @@ function tenantConfigPublicFields(tenant) {
 // sebelum fitur ini ada otomatis dianggap kategori 'umum'.
 // Keduanya pakai "status" sebagai soft-delete ('batal' = disembunyikan,
 // bukan dihapus dari sheet, sama pola dengan SurveyPeserta).
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris'];
+// "LPJNarasi" - satu baris config (id tetap 'lpj') isi narasi/kata pengantar
+// yang bisa ditulis admin di tab LPJ (Laporan Pertanggungjawaban). Sengaja
+// dibuatkan sheet sendiri (bukan hardcode) supaya kontennya bisa diedit
+// tanpa ubah kode, sama semangatnya dengan Templates.
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris', 'LPJNarasi'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
 // Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
@@ -548,7 +552,9 @@ const TENANT_SHEET_TEMPLATE = {
   PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'created_date'],
   PosBudget: ['id', 'nama', 'jenisPos', 'jumlahAnggaran', 'keterangan', 'status', 'created_date'],
   TransaksiKeuangan: ['id', 'posId', 'tanggal', 'jumlah', 'keterangan', 'status', 'created_date', 'bukti'],
-  KemasanInventaris: ['id', 'namaItem', 'kategori', 'basisHitung', 'rasioPerUnit', 'kebutuhanManual', 'stokTersedia', 'catatan', 'status', 'created_date']
+  KemasanInventaris: ['id', 'namaItem', 'kategori', 'basisHitung', 'rasioPerUnit', 'kebutuhanManual', 'stokTersedia', 'catatan', 'status', 'created_date'],
+  // Cuma dipakai 1 baris (id selalu 'lpj') - lihat komentar SHEET_NAMES di atas.
+  LPJNarasi: ['id', 'narasi', 'updatedBy', 'updatedDate']
 };
 
 // Bikin 1 Google Spreadsheet BARU (isinya SEMUA tab modul di atas, sudah ada
