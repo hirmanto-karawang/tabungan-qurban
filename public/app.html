@@ -4183,7 +4183,17 @@ let dataLoadPromise = null; // supaya tidak ada 2 fetch bootstrap jalan bersamaa
 // supaya reload seperti itu (atau app di-buka lagi setelah HP membekukan
 // tab-nya di background) tetap otomatis lanjut ke akun yang sama.
 // Tidak menyimpan password, cuma identitas ringan yang aman disimpan di HP.
-const SESSION_STORAGE_KEY = 'tqSession';
+// PENTING: key ini HARUS unik per masjid (per slug), BUKAN string tetap.
+// Semua masjid berbagi 1 domain yang sama (cuma beda path /slug), dan
+// localStorage itu di-scope per ORIGIN (domain), bukan per path - jadi kalau
+// key-nya sama rata utk semua tenant, sesi login masjid A masih "nyangkut"
+// & sempat ke-restore ketika browser yang sama buka masjid B pertama kali
+// (baru ketauan salah setelah validasi appData.members gagal, muncul
+// sekilas UI/app lama dulu baru dilempar ke error - user ngerasa cuma
+// "buka cache lama"). Dengan CURRENT_TENANT ditempel di key, tiap masjid
+// punya slot localStorage sendiri-sendiri, jadi masjid baru yang belum
+// pernah dibuka di device itu SELALU mulai bersih dari layar login/welcome.
+const SESSION_STORAGE_KEY = 'tqSession_' + (CURRENT_TENANT || 'default');
 
 function saveSession(user) {
     try {
@@ -11867,6 +11877,11 @@ function renderPrayerTimes(jadwal) {
         showTenantNotFoundScreen();
         return;
     }
+
+    // Bersihkan sisa key sesi lama (sebelum key di-scope per-tenant) yang
+    // mungkin masih nyangkut di localStorage device ini - bukan bug baru,
+    // cuma beres-beres sekali jalan, aman dihapus kapan saja.
+    try { localStorage.removeItem('tqSession'); } catch (e) { /* abaikan */ }
 
     document.getElementById('uploadDate').valueAsDate = new Date();
     initFileDropzone();
