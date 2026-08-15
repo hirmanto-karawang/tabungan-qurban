@@ -2151,6 +2151,93 @@
     .profile-actions{ flex-direction:column; }
   }
 
+  /* ===== LPJ - infografis (timeline, badge kepercayaan, progress bar) =====
+     Dibuat sesudah versi pertama LPJ dianggap "terlalu minimalis" - tambahan
+     ini murni visual/infografis, TIDAK mengubah cara hitung angka (tetap di
+     loadLPJ()), supaya lebih meyakinkan tanpa bikin data jadi tidak akurat. */
+  .lpj-trust-badge{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background: var(--emerald-tint);
+    border:1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding:12px 16px;
+    margin-bottom:20px;
+    font-size:12.5px;
+    font-weight:600;
+    color: var(--emerald-2);
+    line-height:1.4;
+  }
+  .lpj-trust-badge svg{ width:20px; height:20px; flex-shrink:0; color: var(--emerald); }
+
+  .lpj-timeline{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap:14px;
+  }
+  .lpj-timeline-step{
+    position:relative;
+    padding:16px 15px 15px;
+    border-radius: var(--radius-md);
+    border:1px solid var(--border-soft);
+    background: var(--paper);
+    transition: background .3s ease, border-color .3s ease;
+  }
+  .lpj-timeline-step.done{ border-color: var(--emerald); background: var(--emerald-tint); }
+  .lpj-timeline-step.progress{ border-color: var(--gold); background: var(--gold-tint); }
+  .lpj-timeline-icon{
+    width:32px; height:32px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:10px;
+    color:#fff;
+    background: var(--ink-faint);
+    font-size:14px;
+    flex-shrink:0;
+  }
+  .lpj-timeline-icon svg{ width:16px; height:16px; }
+  .lpj-timeline-step.done .lpj-timeline-icon{ background: var(--emerald); }
+  .lpj-timeline-step.progress .lpj-timeline-icon{ background: var(--gold); }
+  .lpj-timeline-title{ font-weight:700; font-size:13px; color: var(--emerald); margin-bottom:4px; line-height:1.3; }
+  .lpj-timeline-desc{ font-size:11.5px; color: var(--ink-soft); line-height:1.5; }
+
+  .lpj-progress-row{ margin-top:16px; }
+  .lpj-progress-row:first-child{ margin-top:4px; }
+  .lpj-progress-label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12.5px; font-weight:600; color: var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .lpj-progress-label span:last-child{ font-family: var(--font-mono); color: var(--emerald); font-weight:700; }
+  .lpj-progress-track{
+    height:10px;
+    background: var(--sand);
+    border-radius:6px;
+    overflow:hidden;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.06);
+  }
+  .lpj-progress-fill{
+    height:100%;
+    width:0%;
+    border-radius:6px;
+    background: linear-gradient(90deg, var(--emerald-2), var(--emerald));
+    transition: width 1.1s ease;
+  }
+  .lpj-progress-fill.warning{ background: linear-gradient(90deg, var(--gold), var(--gold-soft)); }
+
+  .lpj-sapi-bar-row{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .lpj-sapi-bar-row:last-child{ margin-bottom:0; }
+  .lpj-sapi-bar-label{ width:76px; flex-shrink:0; font-size:12px; font-weight:600; color: var(--ink-soft); }
+  .lpj-sapi-bar-track{ flex:1; height:9px; background: var(--sand); border-radius:5px; overflow:hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.06); }
+  .lpj-sapi-bar-fill{ height:100%; width:0%; border-radius:5px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); transition: width 1s ease; }
+  .lpj-sapi-bar-value{ width:104px; flex-shrink:0; text-align:right; font-family: var(--font-mono); font-size:11.5px; font-weight:700; color: var(--emerald); }
+
+  @media (max-width:640px){
+    .lpj-sapi-bar-label{ width:56px; font-size:11px; }
+    .lpj-sapi-bar-value{ width:84px; font-size:10.5px; }
+  }
+
   /* ===== PRINT: laporan bersih, tanpa sidebar/topbar/tombol ===== */
   @media print{
     *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
@@ -4076,6 +4163,21 @@
           </div>
         </div>
 
+        <!-- BADGE KEPERCAYAAN - penegasan singkat bahwa semua angka di bawah
+             dihitung otomatis dari data sistem (bukan diketik manual admin),
+             supaya publik/donatur lebih yakin ini bukan laporan asal-asalan. -->
+        <div class="lpj-trust-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <span>Seluruh angka di halaman ini dihitung otomatis & real-time langsung dari data sistem (bukan diketik manual) - transparan dan bisa diverifikasi kapan saja.</span>
+        </div>
+
+        <!-- ALUR PELAKSANAAN - infografis timeline, status per tahap dihitung
+             di renderLpjTimeline() dari data yang sama dgn kartu di bawahnya. -->
+        <div class="card report-card">
+          <h3>🗺️ Alur Pelaksanaan Qurban</h3>
+          <div class="lpj-timeline" id="lpjTimeline"></div>
+        </div>
+
         <!-- NARASI / KATA PENGANTAR - bisa diedit admin, tampil apa adanya
              (read-only) utk anggota & guest/publik. -->
         <div class="card report-card">
@@ -4107,6 +4209,12 @@
               <div class="value" id="lpjTabunganKelompok">0</div>
             </div>
           </div>
+
+          <!-- Breakdown per kelompok sapi (Top 5), pakai getSapiStatistics()
+               yang sama dgn tab Laporan Tabungan - biar total di atas tidak
+               kelihatan "angka doang", ada rinciannya. -->
+          <h3 style="margin-top:22px;">Top Kelompok Sapi (Tabungan Terkumpul)</h3>
+          <div id="lpjTopSapiList" style="margin-top:6px;"></div>
         </div>
 
         <!-- RINGKASAN SURVEY & PESERTA -->
@@ -4141,11 +4249,21 @@
               <label>Realisasi Aktual (Qty)</label>
               <div class="value" id="lpjDistribusiAktual">0</div>
             </div>
-            <div class="stat-box">
-              <label>Persentase Realisasi</label>
-              <div class="value" id="lpjDistribusiPersen">0%</div>
-            </div>
           </div>
+
+          <div class="lpj-progress-row">
+            <div class="lpj-progress-label"><span>Persentase Realisasi (Aktual vs Rencana)</span><span id="lpjDistribusiPersen">0%</span></div>
+            <div class="lpj-progress-track"><div class="lpj-progress-fill" id="lpjDistribusiPersenBar"></div></div>
+          </div>
+
+          <!-- Grafik batang Rencana vs Aktual per alokasi (Top 8) - dibangun
+               di renderLpjDistribusiChart(), pakai Chart.js yang sudah dimuat
+               di tab Laporan Tabungan (CDN sama, tidak perlu load ulang). -->
+          <h3 style="margin-top:22px;">Rencana vs Aktual per Alokasi</h3>
+          <div class="report-chart-box">
+            <canvas id="lpjDistribusiChart"></canvas>
+          </div>
+          <div id="lpjDistribusiChartEmpty" style="display:none;text-align:center;padding:24px;color:var(--ink-faint);font-size:13px;">Belum ada data Rencana/Aktual Distribusi Daging.</div>
         </div>
 
         <!-- RINGKASAN KEUANGAN (pakai hitungRealisasiPos() yg sama dgn tab
@@ -4172,6 +4290,19 @@
               <div class="value" id="lpjKeuanganSaldo">Rp 0</div>
             </div>
           </div>
+
+          <div class="lpj-progress-row">
+            <div class="lpj-progress-label"><span>Realisasi Pengeluaran vs Anggaran</span><span id="lpjKeuanganRealisasiPersen">0%</span></div>
+            <div class="lpj-progress-track"><div class="lpj-progress-fill warning" id="lpjKeuanganRealisasiPersenBar"></div></div>
+          </div>
+
+          <!-- Donut peruntukan dana pengeluaran per pos (Top 6 + "Lainnya") -
+               dibangun di renderLpjDanaChart(). -->
+          <h3 style="margin-top:22px;">Peruntukan Dana (Realisasi Pengeluaran per Pos)</h3>
+          <div class="report-chart-box">
+            <canvas id="lpjDanaChart"></canvas>
+          </div>
+          <div id="lpjDanaChartEmpty" style="display:none;text-align:center;padding:24px;color:var(--ink-faint);font-size:13px;">Belum ada transaksi pengeluaran tercatat.</div>
         </div>
 
         <!-- RINGKASAN PENERIMA & PENYALURAN -->
@@ -4186,10 +4317,11 @@
               <label>Sudah Diambil</label>
               <div class="value" id="lpjPenerimaSudah">0</div>
             </div>
-            <div class="stat-box">
-              <label>Persentase Tersalurkan</label>
-              <div class="value" id="lpjPenerimaPersen">0%</div>
-            </div>
+          </div>
+
+          <div class="lpj-progress-row">
+            <div class="lpj-progress-label"><span>Persentase Tersalurkan</span><span id="lpjPenerimaPersen">0%</span></div>
+            <div class="lpj-progress-track"><div class="lpj-progress-fill" id="lpjPenerimaPersenBar"></div></div>
           </div>
         </div>
 
@@ -10270,10 +10402,17 @@ function loadLPJ() {
     const aktualAktif = appData.workOrderAktual.filter(d => d.status !== 'batal');
     const totalAktualQty = aktualAktif.reduce((sum, d) => sum + d.qty, 0);
     const persenDistribusi = totalRencanaQty > 0 ? Math.round((totalAktualQty / totalRencanaQty) * 100) : 0;
+    // Dikelompokkan per "alokasi" (nama peruntukan, mis. "Warga RT 01") buat
+    // grafik batang Rencana vs Aktual - lihat renderLpjDistribusiChart().
+    const rencanaByAlokasi = {};
+    rencanaAktif.forEach(d => { rencanaByAlokasi[d.alokasi || '(Tanpa nama)'] = (rencanaByAlokasi[d.alokasi || '(Tanpa nama)'] || 0) + d.qty; });
+    const aktualByAlokasi = {};
+    aktualAktif.forEach(d => { aktualByAlokasi[d.alokasi || '(Tanpa nama)'] = (aktualByAlokasi[d.alokasi || '(Tanpa nama)'] || 0) + d.qty; });
 
     // ----- Keuangan (persis sama caranya dgn renderKeuanganRingkasan()) -----
     const posAktif = appData.posBudget.filter(p => p.status !== 'batal');
     let totalAnggaranKeluar = 0, totalRealisasiMasuk = 0, totalRealisasiKeluar = 0;
+    const realisasiPerPosKeluar = []; // [{ nama, realisasi }] - buat donut "Peruntukan Dana"
     posAktif.forEach(pos => {
         const realisasi = hitungRealisasiPos(pos.id);
         if (pos.jenisPos === 'pemasukan') {
@@ -10281,9 +10420,11 @@ function loadLPJ() {
         } else {
             totalRealisasiKeluar += realisasi;
             totalAnggaranKeluar += pos.jumlahAnggaran;
+            if (realisasi > 0) realisasiPerPosKeluar.push({ nama: pos.nama || '(Tanpa nama)', realisasi });
         }
     });
     const saldoKas = totalRealisasiMasuk - totalRealisasiKeluar;
+    const persenAnggaran = totalAnggaranKeluar > 0 ? Math.round((totalRealisasiKeluar / totalAnggaranKeluar) * 100) : 0;
 
     // ----- Penerima & Penyaluran -----
     const penerimaAktif = appData.penerimaQR.filter(d => d.status !== 'batal');
@@ -10315,19 +10456,50 @@ function loadLPJ() {
     setText('lpjDistribusiRencana', totalRencanaQty.toLocaleString('id-ID'));
     setText('lpjDistribusiAktual', totalAktualQty.toLocaleString('id-ID'));
     setText('lpjDistribusiPersen', `${persenDistribusi}%`);
+    animateLpjProgressBar('lpjDistribusiPersenBar', persenDistribusi);
 
     // ----- Keuangan -----
     setText('lpjKeuanganAnggaran', rupiah(totalAnggaranKeluar));
     setText('lpjKeuanganMasuk', rupiah(totalRealisasiMasuk));
     setText('lpjKeuanganKeluar', rupiah(totalRealisasiKeluar));
     setText('lpjKeuanganSaldo', rupiah(saldoKas));
+    setText('lpjKeuanganRealisasiPersen', `${persenAnggaran}%`);
+    animateLpjProgressBar('lpjKeuanganRealisasiPersenBar', persenAnggaran);
 
     // ----- Penerima & Penyaluran -----
     setText('lpjPenerimaTotal', totalPenerima.toLocaleString('id-ID'));
     setText('lpjPenerimaSudah', sudahDiambil.toLocaleString('id-ID'));
     setText('lpjPenerimaPersen', `${persenPenerima}%`);
+    animateLpjProgressBar('lpjPenerimaPersenBar', persenPenerima);
+
+    // ----- Infografis tambahan -----
+    renderLpjTimeline({
+        totalTabungan, totalMembers,
+        totalSapiSurvei, totalPesertaUnik,
+        totalRencanaQty, totalAktualQty,
+        totalPenerima, sudahDiambil
+    });
+    renderLpjTopSapiList();
+    renderLpjDistribusiChart(rencanaByAlokasi, aktualByAlokasi);
+    renderLpjDanaChart(realisasiPerPosKeluar);
 
     renderLpjNarasi();
+}
+
+// Animasi lebar progress bar dari 0 - pola double requestAnimationFrame yang
+// sama dipakai di seluruh app ini supaya transition CSS tidak ke-skip (kalau
+// width diset langsung tanpa 2x rAF, browser kadang render final state saja
+// tanpa animasi kelihatan).
+function animateLpjProgressBar(elId, percent) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const clamped = Math.max(0, Math.min(100, percent));
+    el.style.width = '0%';
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            el.style.width = clamped + '%';
+        });
+    });
 }
 
 // Narasi/kata pengantar LPJ - read-only utk anggota/guest, editable utk admin
@@ -10433,6 +10605,215 @@ async function saveLpjNarasi() {
     } else {
         showAlert('Gagal menyimpan narasi. Coba lagi.', 'error');
     }
+}
+
+// Timeline "Alur Pelaksanaan Qurban" - 4 tahap, status per tahap dihitung
+// dari angka yang SAMA dengan kartu ringkasan di bawahnya (dioper sbg
+// parameter dari loadLPJ(), bukan dihitung ulang) supaya tidak pernah selisih.
+// Status: 'done' (emerald, centang) kalau tahap itu sudah ada progres nyata,
+// 'progress' (gold) kalau baru sebagian, abu-abu kalau belum mulai sama sekali.
+function renderLpjTimeline(stats) {
+    const el = document.getElementById('lpjTimeline');
+    if (!el) return;
+
+    const checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+
+    const steps = [
+        {
+            title: '1. Tabungan Terkumpul',
+            desc: stats.totalTabungan > 0
+                ? `Rp ${stats.totalTabungan.toLocaleString('id-ID')} dari ${stats.totalMembers} anggota`
+                : 'Belum ada setoran disetujui',
+            status: stats.totalTabungan > 0 ? 'done' : 'pending'
+        },
+        {
+            title: '2. Survey & Pendataan Sapi',
+            desc: stats.totalSapiSurvei > 0
+                ? `${stats.totalSapiSurvei} sapi disurvei, ${stats.totalPesertaUnik} peserta terdaftar`
+                : 'Belum ada sapi disurvei',
+            status: stats.totalSapiSurvei > 0 ? 'done' : 'pending'
+        },
+        {
+            title: '3. Penyembelihan & Distribusi',
+            desc: stats.totalAktualQty > 0
+                ? `${stats.totalAktualQty.toLocaleString('id-ID')} dari ${stats.totalRencanaQty.toLocaleString('id-ID')} rencana sudah direalisasikan`
+                : (stats.totalRencanaQty > 0 ? 'Rencana sudah disusun, pelaksanaan belum dimulai' : 'Belum ada rencana distribusi'),
+            status: stats.totalAktualQty > 0
+                ? (stats.totalAktualQty >= stats.totalRencanaQty && stats.totalRencanaQty > 0 ? 'done' : 'progress')
+                : (stats.totalRencanaQty > 0 ? 'progress' : 'pending')
+        },
+        {
+            title: '4. Penyaluran ke Penerima',
+            desc: stats.totalPenerima > 0
+                ? `${stats.sudahDiambil} dari ${stats.totalPenerima} penerima sudah menerima`
+                : 'Belum ada penerima terdaftar',
+            status: stats.totalPenerima > 0
+                ? (stats.sudahDiambil >= stats.totalPenerima ? 'done' : 'progress')
+                : 'pending'
+        }
+    ];
+
+    el.innerHTML = steps.map(step => `
+        <div class="lpj-timeline-step ${step.status === 'pending' ? '' : step.status}">
+            <div class="lpj-timeline-icon">${step.status === 'done' ? checkIcon : (step.status === 'progress' ? '…' : '○')}</div>
+            <div class="lpj-timeline-title">${step.title}</div>
+            <div class="lpj-timeline-desc">${step.desc}</div>
+        </div>
+    `).join('');
+}
+
+// Top 5 kelompok sapi (tabungan terkumpul) - bar list sederhana, pakai ulang
+// getSapiStatistics() yang sama dgn tab Laporan Tabungan supaya angkanya
+// konsisten dgn tab aslinya.
+function renderLpjTopSapiList() {
+    const el = document.getElementById('lpjTopSapiList');
+    if (!el) return;
+
+    const sapiStats = getSapiStatistics();
+    const sorted = Object.entries(sapiStats).sort((a, b) => b[1].total - a[1].total).slice(0, 5);
+
+    if (sorted.length === 0) {
+        el.innerHTML = '<div style="color:var(--ink-faint);font-size:12.5px;">Belum ada data tabungan per kelompok sapi.</div>';
+        return;
+    }
+
+    const maxTotal = sorted[0][1].total || 1;
+    el.innerHTML = sorted.map(([sapiNum, stat]) => {
+        const pct = Math.round((stat.total / maxTotal) * 100);
+        return `
+            <div class="lpj-sapi-bar-row">
+                <div class="lpj-sapi-bar-label">Sapi #${sapiNum}</div>
+                <div class="lpj-sapi-bar-track"><div class="lpj-sapi-bar-fill" style="width:0%;" data-target="${pct}"></div></div>
+                <div class="lpj-sapi-bar-value">Rp ${stat.total.toLocaleString('id-ID')}</div>
+            </div>
+        `;
+    }).join('');
+
+    // Animasi lebar bar - sama pola double rAF dgn animateLpjProgressBar().
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            el.querySelectorAll('.lpj-sapi-bar-fill').forEach(bar => {
+                bar.style.width = (bar.dataset.target || 0) + '%';
+            });
+        });
+    });
+}
+
+// Wadah instance Chart.js khusus tab LPJ - dipisah dari laporanCharts/
+// keuanganChart (punya tab lain) supaya destroy()-nya tidak saling tabrakan.
+const lpjCharts = {};
+
+// Grafik batang Rencana vs Aktual per alokasi (Top 8 alokasi terbesar
+// menurut Rencana) - Chart.js sudah dimuat sekali di tab Laporan Tabungan,
+// dipakai ulang di sini tanpa perlu load CDN lagi.
+function renderLpjDistribusiChart(rencanaByAlokasi, aktualByAlokasi) {
+    const canvas = document.getElementById('lpjDistribusiChart');
+    const emptyBox = document.getElementById('lpjDistribusiChartEmpty');
+    if (!canvas) return;
+
+    const allAlokasi = new Set([...Object.keys(rencanaByAlokasi), ...Object.keys(aktualByAlokasi)]);
+    const sorted = Array.from(allAlokasi)
+        .map(nama => ({ nama, rencana: rencanaByAlokasi[nama] || 0, aktual: aktualByAlokasi[nama] || 0 }))
+        .sort((a, b) => b.rencana - a.rencana)
+        .slice(0, 8);
+
+    if (sorted.length === 0) {
+        canvas.style.display = 'none';
+        if (emptyBox) emptyBox.style.display = 'block';
+        if (lpjCharts.distribusi) { lpjCharts.distribusi.destroy(); lpjCharts.distribusi = null; }
+        return;
+    }
+    canvas.style.display = 'block';
+    if (emptyBox) emptyBox.style.display = 'none';
+
+    const ctx = canvas.getContext('2d');
+    if (lpjCharts.distribusi) lpjCharts.distribusi.destroy();
+
+    lpjCharts.distribusi = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s.nama),
+            datasets: [
+                {
+                    label: 'Rencana',
+                    data: sorted.map(s => s.rencana),
+                    backgroundColor: REPORT_COLORS.goldSoft,
+                    borderRadius: 6,
+                    maxBarThickness: 28
+                },
+                {
+                    label: 'Aktual',
+                    data: sorted.map(s => s.aktual),
+                    backgroundColor: REPORT_COLORS.emerald,
+                    borderRadius: 6,
+                    maxBarThickness: 28
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 14 } },
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('id-ID')}` } }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 10.5 } } },
+                y: { beginAtZero: true, grid: { color: REPORT_COLORS.border, drawBorder: false } }
+            }
+        }
+    });
+}
+
+// Donut "Peruntukan Dana" - realisasi pengeluaran per Pos Budget (Top 6 +
+// gabungan "Lainnya") supaya publik lihat uang dipakai buat apa saja, bukan
+// cuma 1 angka total pengeluaran yang abstrak.
+function renderLpjDanaChart(realisasiPerPosKeluar) {
+    const canvas = document.getElementById('lpjDanaChart');
+    const emptyBox = document.getElementById('lpjDanaChartEmpty');
+    if (!canvas) return;
+
+    const sorted = [...realisasiPerPosKeluar].sort((a, b) => b.realisasi - a.realisasi);
+
+    if (sorted.length === 0) {
+        canvas.style.display = 'none';
+        if (emptyBox) emptyBox.style.display = 'block';
+        if (lpjCharts.dana) { lpjCharts.dana.destroy(); lpjCharts.dana = null; }
+        return;
+    }
+    canvas.style.display = 'block';
+    if (emptyBox) emptyBox.style.display = 'none';
+
+    const top6 = sorted.slice(0, 6);
+    const sisa = sorted.slice(6).reduce((sum, p) => sum + p.realisasi, 0);
+    const labels = top6.map(p => p.nama);
+    const data = top6.map(p => p.realisasi);
+    if (sisa > 0) { labels.push('Lainnya'); data.push(sisa); }
+
+    const ctx = canvas.getContext('2d');
+    if (lpjCharts.dana) lpjCharts.dana.destroy();
+
+    lpjCharts.dana = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: REPORT_PALETTE,
+                hoverOffset: 14,
+                borderColor: '#fff',
+                borderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            cutout: '68%',
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 14, font: { size: 11 } } },
+                tooltip: { callbacks: { label: ctx => `${ctx.label}: Rp ${ctx.parsed.toLocaleString('id-ID')}` } }
+            }
+        }
+    });
 }
 
 // PDF LPJ - sama pola dgn exportLaporanPDF() (jsPDF murni, digambar manual,
@@ -10562,6 +10943,7 @@ function exportLPJPDF(evt) {
                 ['Total Anggaran', getText('lpjKeuanganAnggaran')],
                 ['Realisasi Pemasukan', getText('lpjKeuanganMasuk')],
                 ['Realisasi Pengeluaran', getText('lpjKeuanganKeluar')],
+                ['Realisasi vs Anggaran', getText('lpjKeuanganRealisasiPersen')],
                 ['Saldo Kas Akhir', getText('lpjKeuanganSaldo')]
             ]},
             { title: 'Penerima & Penyaluran', rows: [
