@@ -35,6 +35,12 @@
     --sage-tint: #E9F1EE;
     --brick: #9B4632;
     --brick-tint: #F6E5DE;
+    /* Dipakai KHUSUS buat bedain chip peserta "Daftar Langsung" (tanpa
+       tabungan) dari peserta tabungan biasa (emerald) - lihat
+       .survey-participant-chip.instan. Nuansa biru-abu diselaraskan dgn
+       palet earthy yg ada (bukan biru cerah) supaya tetap menyatu. */
+    --sky: #2F6690;
+    --sky-tint: #E4EDF3;
     --radius-lg: 18px;
     --radius-md: 12px;
     --radius-sm: 8px;
@@ -1752,6 +1758,18 @@
     border-radius:999px;
     margin:0 6px 6px 0;
   }
+  /* Peserta "Daftar Langsung" (tipe='instan', tanpa tabungan) dapat warna
+     beda (biru-abu) supaya sekilas kelihatan mana yang bukan peserta
+     tabungan biasa - dulu semua chip hijau sama rata. Klik-able: langsung
+     buka modal upload bukti transfer utk peserta itu (lihat
+     openUploadBuktiInstanModalDirect()), skip langkah cari-by-nomor-HP. */
+  .survey-participant-chip.instan{
+    background: var(--sky-tint);
+    color: var(--sky);
+    cursor:pointer;
+    transition: background .15s ease, transform .12s ease;
+  }
+  .survey-participant-chip.instan:hover{ background:#D3E3EE; transform:translateY(-1px); }
 
   /* Badge kecil "Langsung" - nempel di nama peserta tipe 'instan' (fitur
      Daftar Langsung/Qurban Instan), biar admin & sesama peserta bisa bedain
@@ -9777,8 +9795,19 @@ function loadSurveySapiMemberList() {
             // pembayaran via WA. Lihat openInstantJoinModal()/submitInstantJoin().
             ikutBtn = `<button class="btn btn-success btn-small" onclick="openInstantJoinModal(${s.id})">Daftar Langsung</button>`;
         }
+        // Chip peserta 'instan' (Daftar Langsung) dibedain warnanya (biru-abu,
+        // .instan) dari peserta tabungan (hijau default) - dan klik-able,
+        // langsung buka modal upload bukti transfer buat peserta itu (skip
+        // langkah cari-by-nomor-HP), lihat openUploadBuktiInstanModalDirect().
         const pesertaHtml = peserta.length > 0
-            ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.tipe === 'instan' ? (p.atasNama || p.memberName) : p.memberName}${p.tipe === 'instan' ? ' <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>' : ''}</span>`).join('')
+            ? peserta.map(p => {
+                if (p.tipe === 'instan') {
+                    const lunas = p.statusBayar === 'lunas';
+                    const nama = p.atasNama || p.memberName;
+                    return `<span class="survey-participant-chip instan" onclick="openUploadBuktiInstanModalDirect(${p.id})" title="Klik untuk upload bukti transfer">${lunas ? '✓' : '👤'} ${nama} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span></span>`;
+                }
+                return `<span class="survey-participant-chip">👤 ${p.memberName}</span>`;
+            }).join('')
             : '<span style="color:var(--ink-faint); font-size:12.5px;">Belum ada yang ikut.</span>';
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         const iuranPerOrang = Math.round(k.iuran);
@@ -10102,6 +10131,21 @@ function openUploadBuktiInstanModal() {
     document.getElementById('uploadBuktiInstanModal').classList.add('show');
 }
 
+// Jalur pintas: diklik langsung dari chip peserta 'instan' di daftar publik
+// (lihat loadSurveySapiMemberList()) - skip langkah cari-by-nomor-HP krn
+// peserta-nya sudah jelas dari chip yang diklik. Tetap pakai modal yang sama
+// (uploadBuktiInstanModal), cuma langsung lompat ke step 2.
+function openUploadBuktiInstanModalDirect(pesertaId) {
+    const peserta = appData.surveyPeserta.find(p => p.id === pesertaId && p.status !== 'batal' && p.tipe === 'instan');
+    if (!peserta) {
+        showAlert('Pendaftaran tidak ditemukan.', 'error');
+        return;
+    }
+    resetUploadBuktiStep();
+    document.getElementById('uploadBuktiInstanModal').classList.add('show');
+    showUploadBuktiStep2ForPeserta(peserta);
+}
+
 function closeUploadBuktiInstanModal() {
     document.getElementById('uploadBuktiInstanModal').classList.remove('show');
 }
@@ -10151,6 +10195,13 @@ function cariPendaftaranInstan() {
         return;
     }
 
+    showUploadBuktiStep2ForPeserta(peserta);
+}
+
+// Isi & tampilkan step 2 (info peserta + form upload foto) - dipakai bareng
+// oleh cariPendaftaranInstan() (jalur cari-by-nomor-HP) dan
+// openUploadBuktiInstanModalDirect() (jalur klik langsung dari chip).
+function showUploadBuktiStep2ForPeserta(peserta) {
     const survey = appData.surveySapi.find(s => s.id === peserta.surveyId);
     const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
     const iuran = k ? Math.round(k.iuran) : 0;
