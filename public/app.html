@@ -521,6 +521,20 @@
     cursor:pointer;
     transition: background .15s ease, color .15s ease;
   }
+
+  /* Label section nav (mis. "Operasional Qurban", "Keuangan") - penanda
+     kelompok produk di sidebar, bukan tombol. Visibilitasnya diatur
+     otomatis oleh syncNavGroupLabels() mengikuti tombol-tombol di
+     bawahnya (lihat app.html JS, dekat showApp()). */
+  .nav-section-label{
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: rgba(244,239,225,.36);
+    padding: 16px 14px 5px;
+  }
   .tab-btn svg{ width:18px; height:18px; flex-shrink:0; opacity:.85; }
   .tab-btn:hover{ background: rgba(244,239,225,.06); color:#F4EFE1; }
   .tab-btn.active{ background: rgba(231,200,120,.14); color:#FBF6E9; box-shadow: inset 3px 0 0 var(--gold-soft); }
@@ -2387,57 +2401,77 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
         Upload Bukti
       </button>
-      <button class="tab-btn" id="verifyTabBtn" onclick="switchTab('verify')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-        Verifikasi
-      </button>
-      <button class="tab-btn" id="broadcastTabBtn" onclick="switchTab('broadcast')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-        Broadcast WA
-      </button>
-      <button class="tab-btn" id="approvalTabBtn" onclick="switchTab('approval')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 16c0-1 .5-2 1-3"/></svg>
-        Approval Anggota Baru
-      </button>
-      <button class="tab-btn" id="activityLogTabBtn" onclick="switchTab('activityLog')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M3.5 9L2 7.5M20.5 9L22 7.5"/></svg>
-        Log Aktivitas
-      </button>
-      <button class="tab-btn" id="surveySapiTabBtn" onclick="switchTab('surveySapi')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4.5-3-7-6.2-7-9.5A7 7 0 0112 4a7 7 0 017 7.5c0 3.3-2.5 6.5-7 9.5z"/><circle cx="12" cy="11" r="2.3"/></svg>
-        Survey Sapi
-      </button>
-      <button class="tab-btn" id="distribusiDagingTabBtn" onclick="switchTab('distribusiDaging')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/></svg>
-        Distribusi Daging
-      </button>
-      <button class="tab-btn" id="woAktualTabBtn" onclick="switchTab('woAktual')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        WO Aktual
-      </button>
-      <button class="tab-btn" id="penerimaTabBtn" onclick="switchTab('penerima')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>
-        Penerima &amp; Tiket
-      </button>
-      <button class="tab-btn" id="keuanganTabBtn" onclick="switchTab('keuangan')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 6v0M18 6v0M6 18v0M18 18v0"/></svg>
-        Keuangan
-      </button>
-      <button class="tab-btn" id="kemasanTabBtn" onclick="switchTab('kemasan')" style="display:none;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/><path d="M12 13v6"/></svg>
-        Kemasan &amp; Inventaris
-      </button>
-      <button class="tab-btn" id="profileTabBtn" onclick="switchTab('profile')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Profil
-      </button>
       <button class="tab-btn" id="historyTabBtn" onclick="switchTab('history')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/></svg>
         Riwayat
       </button>
+
+      <!-- ===== Grup nav: sejak "Tabungan Qurban" cuma salah satu modul di
+           platform "Alur Qurban", sidebar admin (13 tab) dikelompokkan per
+           produk/fungsi, bukan daftar datar lagi. Tiap label PUNYA
+           data-group yang cocok dengan data-group tombol di bawahnya -
+           visibilitas label dihitung OTOMATIS oleh syncNavGroupLabels()
+           (dipanggil di akhir showApp()) dari status tampil/sembunyi
+           tombol-tombolnya sendiri, jadi tidak perlu di-set manual di tiap
+           cabang role (admin/member/guest) - anti gampang ke-lupa/nyasar. -->
+      <div class="nav-section-label" data-group="tabungan" style="display:none;">Tabungan</div>
+      <button class="tab-btn" id="verifyTabBtn" data-group="tabungan" onclick="switchTab('verify')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        Verifikasi
+      </button>
+      <button class="tab-btn" id="approvalTabBtn" data-group="tabungan" onclick="switchTab('approval')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 16c0-1 .5-2 1-3"/></svg>
+        Approval Anggota Baru
+      </button>
+
+      <div class="nav-section-label" data-group="operasional" style="display:none;">Operasional Qurban</div>
+      <button class="tab-btn" id="surveySapiTabBtn" data-group="operasional" onclick="switchTab('surveySapi')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4.5-3-7-6.2-7-9.5A7 7 0 0112 4a7 7 0 017 7.5c0 3.3-2.5 6.5-7 9.5z"/><circle cx="12" cy="11" r="2.3"/></svg>
+        Survey Sapi
+      </button>
+      <button class="tab-btn" id="distribusiDagingTabBtn" data-group="operasional" onclick="switchTab('distribusiDaging')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/></svg>
+        Distribusi Daging
+      </button>
+      <button class="tab-btn" id="woAktualTabBtn" data-group="operasional" onclick="switchTab('woAktual')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        WO Aktual
+      </button>
+      <button class="tab-btn" id="penerimaTabBtn" data-group="operasional" onclick="switchTab('penerima')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/></svg>
+        Penerima &amp; Tiket
+      </button>
+
+      <div class="nav-section-label" data-group="keuangan" style="display:none;">Keuangan</div>
+      <button class="tab-btn" id="keuanganTabBtn" data-group="keuangan" onclick="switchTab('keuangan')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 6v0M18 6v0M6 18v0M18 18v0"/></svg>
+        Keuangan
+      </button>
+      <button class="tab-btn" id="kemasanTabBtn" data-group="keuangan" onclick="switchTab('kemasan')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/><path d="M12 13v6"/></svg>
+        Kemasan &amp; Inventaris
+      </button>
+
+      <div class="nav-section-label" data-group="lainnya" style="display:none;">Lainnya</div>
+      <button class="tab-btn" id="broadcastTabBtn" data-group="lainnya" onclick="switchTab('broadcast')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        Broadcast WA
+      </button>
+      <button class="tab-btn" id="activityLogTabBtn" data-group="lainnya" onclick="switchTab('activityLog')" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M3.5 9L2 7.5M20.5 9L22 7.5"/></svg>
+        Log Aktivitas
+      </button>
+
+      <!-- Laporan & Profil sengaja TIDAK dikelompokkan - keduanya relevan
+           lintas peran (admin/anggota), jadi diperlakukan sbg utilitas
+           umum, bukan bagian dari 1 produk tertentu. -->
       <button class="tab-btn" id="laporanTabBtn" onclick="switchTab('laporan')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h9l6 6v9a1 1 0 01-1 1H5a1 1 0 01-1-1z"/><path d="M14 4v6h6"/></svg>
         Laporan
+      </button>
+      <button class="tab-btn" id="profileTabBtn" onclick="switchTab('profile')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profil
       </button>
     </nav>
 
@@ -5117,7 +5151,25 @@ function showApp() {
         kemasanTabBtn.style.display = 'none';
     }
 
+    // Sinkronkan label grup nav (Tabungan/Operasional Qurban/Keuangan/
+    // Lainnya) - tampil kalau minimal 1 tombol di grupnya lagi tampil,
+    // sembunyi kalau semua tombol grupnya tersembunyi (mis. saat member/
+    // guest login). Dihitung sekali di sini stlh semua display tombol di
+    // atas final, jadi tidak perlu di-set manual per cabang role.
+    syncNavGroupLabels();
+
     updateDashboard();
+}
+
+// Lihat catatan panjang di showApp() - dipanggil tiap kali visibilitas tab
+// berubah supaya label section nav selalu sinkron dgn tombol di bawahnya.
+function syncNavGroupLabels() {
+    document.querySelectorAll('.nav-section-label').forEach(label => {
+        const group = label.dataset.group;
+        const anyVisible = Array.from(document.querySelectorAll(`.tab-btn[data-group="${group}"]`))
+            .some(btn => btn.style.display !== 'none');
+        label.style.display = anyVisible ? 'block' : 'none';
+    });
 }
 
 function toggleSidebar(){
