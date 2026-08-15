@@ -8684,54 +8684,42 @@ function updatePenerimaKuotaInfo() {
     updatePenerimaItemKuotaInfo();
 }
 
-// Total Item Tambahan (1 jenis) yang sudah "dijanjikan" ke penerima AKTIF
-// (bukan kategori mudhohi) di alokasi ini - dipakai buat hitung estimasi
-// sisa kuota, sama semangatnya dgn countPenerimaAktifUntukAlokasi() tapi per
-// jenis bagian lain, bukan per slot nama.
-function countItemTambahanTerisiUntukAlokasi(alokasiName, jenis) {
-    const nama = (alokasiName || '').trim().toLowerCase();
-    if (!nama) return 0;
+// Total Item Tambahan (1 jenis) yang sudah "dijanjikan" ke SEMUA penerima
+// AKTIF (bukan kategori mudhohi, lintas SEMUA alokasi) - dipakai buat hitung
+// estimasi sisa kuota. SENGAJA lintas alokasi (bukan per-RT) krn stok
+// fisiknya (Kepala/Kaki/Buntut/Tulang/Jeroan) memang 1 pool bersama utk
+// seluruh sapi, bukan dijatah per alokasi daging.
+function totalItemTambahanSemuaPenerima(jenis) {
     return appData.penerimaQR
-        .filter(p => p.status !== 'batal' && p.kategori !== 'mudhohi' && (p.alokasi || '').trim().toLowerCase() === nama)
+        .filter(p => p.status !== 'batal' && p.kategori !== 'mudhohi')
         .reduce((sum, p) => sum + (parseFloat((p.itemTambahan || {})[jenis]) || 0), 0);
 }
 
-// Estimasi sisa kuota Item Tambahan (Tulang/Jeroan/Kepala/Kaki/Buntut) utk
-// alokasi yang lagi dipilih - SENGAJA cuma informatif (bantu admin supaya
-// tidak "over-janji" pas cetak kupon), TIDAK memblokir submit spt kuota
-// alokasi utama krn itemTambahan memang sengaja dirancang bebas/tanpa
-// validasi keras (lihat komentar TENANT_SHEET_TEMPLATE.PenerimaQR). Sumber
-// "kuota" per jenis: baris RencanaDistribusiLain yang alokasi-nya SAMA
-// (case-insensitive) dgn alokasi daging yang lagi dipilih - kalau admin
-// belum bikin baris itu di sub-tab Rencana (Umum) > Rencana Distribusi
-// Bagian Lain, jenis itu tidak ditampilkan (tidak ada dasar kuotanya).
+// Estimasi sisa kuota Item Tambahan (Tulang/Jeroan/Kepala/Kaki/Buntut) -
+// SENGAJA otomatis dari totalBagianLainSemuaSurvey() (estimasi total dari
+// SEMUA sapi hasil survey, sama sumbernya dgn tabel Estimasi Bagian Lain &
+// Rencana Distribusi Bagian Lain) dikurangi yang sudah dititip ke penerima -
+// TIDAK perlu admin bikin baris Rencana Distribusi Bagian Lain dulu spt
+// versi awal, supaya info sisa selalu muncul tanpa langkah setup tambahan.
+// Cuma informatif (bantu admin supaya tidak "over-janji" pas cetak kupon),
+// TIDAK memblokir submit spt kuota alokasi daging utama - lihat komentar
+// TENANT_SHEET_TEMPLATE.PenerimaQR. Utk Tulang/Jeroan angkanya kg (dari
+// timbangan estimasi), sedangkan input Item Tambahan satuannya "paket" -
+// dianggap 1 paket ≈ 1 kg buat keperluan estimasi kasar ini saja.
 function updatePenerimaItemKuotaInfo() {
     const hintIds = { tulang: 'penerimaItemTulangHint', jeroan: 'penerimaItemJeroanHint', kepala: 'penerimaItemKepalaHint', kaki: 'penerimaItemKakiHint', buntut: 'penerimaItemBuntutHint' };
-
-    const select = document.getElementById('penerimaAlokasiSelect');
-    const alokasi = select ? select.value : '';
 
     ITEM_TAMBAHAN_JENIS_LIST.forEach(jenis => {
         const hintEl = document.getElementById(hintIds[jenis]);
         if (!hintEl) return;
 
-        if (!alokasi) { hintEl.innerHTML = ''; return; }
-
-        const namaLower = alokasi.trim().toLowerCase();
-        const r = appData.rencanaDistribusiLain.find(x => x.status !== 'batal' && x.jenis === jenis && (x.alokasi || '').trim().toLowerCase() === namaLower);
-
-        // Belum ada rencana (RencanaDistribusiLain) yang alokasinya cocok utk
-        // jenis ini - sengaja dikosongkan saja (bukan pesan penjelas), krn
-        // Item Tambahan memang opsional/bebas tanpa kuota.
-        if (!r) { hintEl.innerHTML = ''; return; }
-
-        const kuota = r.qty;
-        const terisi = countItemTambahanTerisiUntukAlokasi(alokasi, jenis);
+        const kuota = totalBagianLainSemuaSurvey(jenis);
+        const terisi = totalItemTambahanSemuaPenerima(jenis);
         const sisa = kuota - terisi;
 
         hintEl.innerHTML = sisa <= 0
-            ? `<span style="color:var(--brick); font-weight:600;">penuh (${terisi}/${kuota})</span>`
-            : `<span style="color:var(--emerald-2); font-weight:600;">sisa ${sisa}</span>`;
+            ? `<span style="color:var(--brick); font-weight:600;">habis (estimasi ${formatBagianLain(kuota, jenis)})</span>`
+            : `<span style="color:var(--emerald-2); font-weight:600;">sisa ${formatBagianLain(sisa, jenis)}</span>`;
     });
 }
 
