@@ -4397,16 +4397,35 @@
         <input type="hidden" id="instantJoinSurveyId">
 
         <div class="form-group">
-          <label>Nama Lengkap</label>
+          <label>Nama Lengkap (Pendaftar)</label>
           <input type="text" id="instantJoinName" placeholder="Contoh: Hirmanto Karawang">
         </div>
+
+        <div class="form-group">
+          <label>RT (Rukun Tetangga)</label>
+          <input type="text" id="instantJoinRT" placeholder="Contoh: 01, 02, 03">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label>Blok</label>
+            <input type="text" id="instantJoinBlok" placeholder="Contoh: A, B, C">
+          </div>
+          <div class="form-group">
+            <label>Nomor Rumah</label>
+            <input type="text" id="instantJoinNo" placeholder="Contoh: 01, 02, 03">
+          </div>
+        </div>
+
         <div class="form-group">
           <label>Nomor WhatsApp</label>
           <input type="tel" id="instantJoinPhone" placeholder="08xxxxxxxxx">
         </div>
+
         <div class="form-group">
-          <label>Alamat</label>
-          <textarea id="instantJoinAlamat" rows="2" placeholder="Contoh: RT 03, Perumahan ..., Karawang"></textarea>
+          <label>Qurban Atas Nama</label>
+          <input type="text" id="instantJoinAtasNama" placeholder="Contoh: Ahmad bin Abdullah">
+          <small style="display:block;margin-top:6px;color:var(--ink-faint);">Kosongkan kalau qurban ini atas nama Anda sendiri.</small>
         </div>
 
         <button class="btn btn-success btn-block" id="instantJoinSubmitBtn" onclick="submitInstantJoin()">Kirim Pendaftaran</button>
@@ -4968,7 +4987,10 @@ async function loadDataFromSheets() {
         // submitInstantJoin()). Baris lama (sebelum kolom ini ada) otomatis
         // dianggap tipe 'tabungan' - peserta biasa hasil joinSurveySapi().
         alamat: row.alamat || '',
-        tipe: (row.tipe || '').toString().trim().toLowerCase() === 'instan' ? 'instan' : 'tabungan'
+        tipe: (row.tipe || '').toString().trim().toLowerCase() === 'instan' ? 'instan' : 'tabungan',
+        // Opsional, khusus tipe 'instan' - lihat komentar TENANT_SHEET_TEMPLATE
+        // di public/api/sheets.js.
+        atasNama: row.atasNama || ''
     })).filter(p => p.id);
 
     // Parse DistribusiDaging (rencana pembagian daging per alokasi PER SAPI -
@@ -6487,7 +6509,11 @@ function loadSurveySapiResume() {
             if (p.tipe === 'instan') {
                 return `
                     <tr>
-                      <td>${p.memberName} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>${p.alamat ? `<div style="font-size:11px;color:var(--ink-faint);font-weight:400;">${p.alamat}</div>` : ''}</td>
+                      <td>${p.atasNama || p.memberName} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>
+                        <div style="font-size:11px;color:var(--ink-faint);font-weight:400;">
+                          ${p.atasNama ? `Pendaftar: ${p.memberName} · ` : ''}${p.alamat || ''}
+                        </div>
+                      </td>
                       <td colspan="2" style="color:var(--ink-faint);">Bayar langsung Rp ${iuranPerOrang.toLocaleString('id-ID')} · belum dikonfirmasi admin</td>
                       <td><button class="btn btn-ghost btn-small" onclick="waFollowUpInstan(${p.id})">💬 WA</button></td>
                     </tr>`;
@@ -6557,7 +6583,7 @@ function waFollowUpInstan(pesertaId) {
     const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
     const iuran = k ? Math.round(k.iuran) : 0;
     const msg = `Assalamu'alaikum ${p.memberName}, terima kasih sudah mendaftar Daftar Langsung ikut Qurban${survey ? ' (' + surveyKode(survey) + ')' : ''} di ${APP_CONFIG.mosqueName}.
-
+${p.atasNama ? `\nQurban atas nama: ${p.atasNama}\n` : ''}
 Total yang perlu dibayar: Rp ${iuran.toLocaleString('id-ID')}
 Transfer ke:
 ${APP_CONFIG.bankName} ${APP_CONFIG.bankAccountNumberDisplay}
@@ -7769,7 +7795,12 @@ async function generateKuponMudhohi() {
         const record = {
             id: newId,
             alokasi: '',
-            nama: p.memberName,
+            // Peserta 'instan' (Daftar Langsung) bisa isi "Qurban Atas Nama"
+            // yang beda dari nama pendaftar (mis. atas nama ortu yg sudah
+            // wafat) - itu yang harus tercetak di e-tiket, bukan nama
+            // pendaftar. Kosong -> fallback ke nama pendaftar sendiri (sama
+            // seperti sebelumnya utk peserta tabungan biasa).
+            nama: p.atasNama || p.memberName,
             noHp: p.phone || '',
             // Peserta 'instan' (Daftar Langsung) isi alamat sendiri saat
             // daftar - dibawa ke sini supaya e-tiketnya lengkap. Peserta
@@ -9401,7 +9432,7 @@ function loadSurveySapiMemberList() {
             ikutBtn = `<button class="btn btn-success btn-small" onclick="openInstantJoinModal(${s.id})">Daftar Langsung</button>`;
         }
         const pesertaHtml = peserta.length > 0
-            ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.memberName}${p.tipe === 'instan' ? ' <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>' : ''}</span>`).join('')
+            ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.tipe === 'instan' ? (p.atasNama || p.memberName) : p.memberName}${p.tipe === 'instan' ? ' <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>' : ''}</span>`).join('')
             : '<span style="color:var(--ink-faint); font-size:12.5px;">Belum ada yang ikut.</span>';
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         const iuranPerOrang = Math.round(k.iuran);
@@ -9573,8 +9604,11 @@ function openInstantJoinModal(surveyId) {
 
     document.getElementById('instantJoinSurveyId').value = surveyId;
     document.getElementById('instantJoinName').value = '';
+    document.getElementById('instantJoinRT').value = '';
+    document.getElementById('instantJoinBlok').value = '';
+    document.getElementById('instantJoinNo').value = '';
     document.getElementById('instantJoinPhone').value = '';
-    document.getElementById('instantJoinAlamat').value = '';
+    document.getElementById('instantJoinAtasNama').value = '';
     document.getElementById('instantJoinInfo').textContent = survey
         ? `Grup: ${surveyKode(survey)} · ${jenisSapiLabel(survey.jenisSapi)}${survey.supplier ? ' · ' + survey.supplier : ''}. Total bayar (1x, penuh): Rp ${iuranPerOrang.toLocaleString('id-ID')}.`
         : 'Grup sapi tidak ditemukan.';
@@ -9592,21 +9626,28 @@ function closeInstantJoinModal() {
 async function submitInstantJoin() {
     const surveyId = parseInt(document.getElementById('instantJoinSurveyId').value) || 0;
     const name = document.getElementById('instantJoinName').value.trim();
+    const rt = document.getElementById('instantJoinRT').value.trim();
+    const blok = document.getElementById('instantJoinBlok').value.trim();
+    const no = document.getElementById('instantJoinNo').value.trim();
     const phone = document.getElementById('instantJoinPhone').value.trim();
-    const alamat = document.getElementById('instantJoinAlamat').value.trim();
+    // Opsional - kosong berarti qurban atas nama pendaftar sendiri. Kalau
+    // diisi, dipakai sbg nama utama di e-tiket (lihat generateKuponMudhohi()),
+    // bukan nama pendaftar - umum dipakai utk qurban atas nama ortu/keluarga
+    // yg sudah wafat, mis. "Ahmad bin Abdullah".
+    const atasNama = document.getElementById('instantJoinAtasNama').value.trim();
 
-    if (!name || !phone) {
-        showAlert('Nama dan Nomor WhatsApp harus diisi', 'error');
+    if (!name || !rt || !blok || !no || !phone) {
+        showAlert('Nama, RT, Blok, No, dan Nomor WhatsApp harus diisi', 'error');
         return;
     }
     if (!phone.startsWith('08')) {
         showAlert('Nomor WhatsApp harus dimulai dengan 08', 'error');
         return;
     }
-    if (!alamat) {
-        showAlert('Alamat harus diisi', 'error');
-        return;
-    }
+    // Digabung jadi 1 string krn kolom "alamat" di SurveyPeserta memang
+    // dirancang sbg 1 kolom (dipakai juga oleh PenerimaQR.alamat yg sama-sama
+    // free text) - beda dari Members/Pendaftaran yg pakai 3 kolom terpisah.
+    const alamat = `RT ${rt}, Blok ${blok}, No ${no}`;
 
     const survey = appData.surveySapi.find(s => s.id === surveyId);
     const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
@@ -9644,8 +9685,8 @@ async function submitInstantJoin() {
     const iuranPerOrang = k ? Math.round(k.iuran) : 0;
     const adminMsgFor = () => `Assalamu'alaikum, ada yang daftar Qurban Instan (tanpa menabung)! 🐄
 
-Nama: ${name}
-WhatsApp: ${phone}
+Nama Pendaftar: ${name}
+${atasNama ? `Qurban Atas Nama: ${atasNama}\n` : ''}WhatsApp: ${phone}
 Alamat: ${alamat}
 Grup Sapi: ${survey ? surveyKode(survey) + ' · ' + jenisSapiLabel(survey.jenisSapi) : '-'}
 Total Bayar: Rp ${iuranPerOrang.toLocaleString('id-ID')}
@@ -9669,7 +9710,8 @@ Mohon dihubungi untuk arahan pembayaran (transfer/tunai).
         status: 'aktif',
         created_date: new Date().toISOString(),
         alamat: alamat,
-        tipe: 'instan'
+        tipe: 'instan',
+        atasNama: atasNama
     };
 
     const success = await appendSheetDB('SurveyPeserta', record);

@@ -553,7 +553,12 @@ const TENANT_SHEET_TEMPLATE = {
   // sebelum kolom ini ada otomatis dianggap 'tabungan' (lihat parsing di
   // app.html). "alamat" cuma diisi utk tipe 'instan' (member biasa sudah
   // punya alamat di data Members-nya sendiri).
-  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe'],
+  // "atasNama" - khusus tipe 'instan', opsional: nama penerima manfaat qurban
+  // kalau BEDA dari pendaftar (mis. qurban atas nama orang tua yg sudah
+  // wafat, format umum "Ahmad bin Abdullah"). Kosong = qurban atas nama
+  // pendaftar sendiri (memberName). Dipakai generateKuponMudhohi() sbg nama
+  // utama di e-tiket (lihat komentar di sana).
+  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe', 'atasNama'],
   DistribusiDaging: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   RencanaDistribusi: ['id', 'alokasi', 'berat', 'qty', 'wo', 'status', 'created_date'],
   WorkOrderAktual: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
