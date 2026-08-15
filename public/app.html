@@ -3616,7 +3616,6 @@
               <input type="text" id="penerimaAlamat" placeholder="Contoh: RT 01/RW 02">
             </div>
           </div>
-          <div id="penerimaKuotaInfo" style="margin-bottom:14px;"></div>
 
           <!-- Item Tambahan (opsional) - jatah bagian NON-DAGING (di luar
                alokasi daging utama) yang mau dititipkan ke penerima ini
@@ -8658,29 +8657,20 @@ function populatePenerimaAlokasiSelect() {
 
 function updatePenerimaKuotaInfo() {
     const select = document.getElementById('penerimaAlokasiSelect');
-    const info = document.getElementById('penerimaKuotaInfo');
     const hint = document.getElementById('penerimaAlokasiSisaHint');
-    if (!select || !info) return;
+    if (!select) return;
 
     const alokasi = select.value;
-    if (!alokasi) { info.innerHTML = ''; if (hint) hint.innerHTML = ''; updatePenerimaItemKuotaInfo(); return; }
+    if (!alokasi) { if (hint) hint.innerHTML = ''; updatePenerimaItemKuotaInfo(); return; }
 
     const r = appData.rencanaDistribusi.find(x => x.status !== 'batal' && x.alokasi === alokasi);
     const kuota = r ? r.qty : 0;
     const terisi = countPenerimaAktifUntukAlokasi(alokasi);
     const sisa = kuota - terisi;
 
-    let html;
-    if (sisa <= 0) {
-        html = `<span style="color:var(--brick); font-weight:600;">Kuota "${alokasi}" sudah penuh (${terisi}/${kuota})</span>`;
-    } else {
-        html = `<span style="color:var(--ink-soft);">Kuota "${alokasi}": ${terisi} dari ${kuota} terisi <span style="color:var(--emerald-2); font-weight:600;">(sisa ${sisa})</span></span>`;
-    }
-    info.innerHTML = html;
-
-    // Tulisan kecil langsung di bawah kotak Alokasi - versi ringkas dari
-    // penerimaKuotaInfo di atas, biar admin langsung lihat sisa kuota tanpa
-    // perlu lihat ke bawah form.
+    // Tulisan kecil langsung di bawah kotak Alokasi - cukup ini saja, box
+    // terpisah yang lebih panjang (penerimaKuotaInfo) sudah dihapus krn
+    // dianggap redundan.
     if (hint) {
         hint.innerHTML = sisa <= 0
             ? `<span style="color:var(--brick); font-weight:600;">Kuota penuh (${terisi}/${kuota})</span>`
