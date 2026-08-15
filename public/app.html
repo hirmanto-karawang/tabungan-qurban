@@ -4990,7 +4990,10 @@ async function loadDataFromSheets() {
         tipe: (row.tipe || '').toString().trim().toLowerCase() === 'instan' ? 'instan' : 'tabungan',
         // Opsional, khusus tipe 'instan' - lihat komentar TENANT_SHEET_TEMPLATE
         // di public/api/sheets.js.
-        atasNama: row.atasNama || ''
+        atasNama: row.atasNama || '',
+        // Status pembayaran khusus tipe 'instan', ditoggle admin manual (lihat
+        // togglePembayaranInstan()). Kosong/baris lama dianggap 'belum'.
+        statusBayar: (row.statusBayar || '').toString().trim().toLowerCase() === 'lunas' ? 'lunas' : 'belum'
     })).filter(p => p.id);
 
     // Parse DistribusiDaging (rencana pembagian daging per alokasi PER SAPI -
@@ -6507,6 +6510,7 @@ function loadSurveySapiResume() {
             // langsung penuh belakangan, bukan dicicil). Tampilkan status +
             // tombol WA follow-up sbg gantinya.
             if (p.tipe === 'instan') {
+                const lunas = p.statusBayar === 'lunas';
                 return `
                     <tr>
                       <td>${p.atasNama || p.memberName} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>
@@ -6514,8 +6518,14 @@ function loadSurveySapiResume() {
                           ${p.atasNama ? `Pendaftar: ${p.memberName} · ` : ''}${p.alamat || ''}
                         </div>
                       </td>
-                      <td colspan="2" style="color:var(--ink-faint);">Bayar langsung Rp ${iuranPerOrang.toLocaleString('id-ID')} · belum dikonfirmasi admin</td>
-                      <td><button class="btn btn-ghost btn-small" onclick="waFollowUpInstan(${p.id})">💬 WA</button></td>
+                      <td colspan="2">
+                        Bayar langsung Rp ${iuranPerOrang.toLocaleString('id-ID')}
+                        <div style="margin-top:2px;color:${lunas ? 'var(--emerald-2)' : 'var(--brick)'}; font-weight:600;">${lunas ? '✓ Lunas' : 'Belum dikonfirmasi'}</div>
+                      </td>
+                      <td style="white-space:nowrap;">
+                        <button class="btn btn-ghost btn-small" onclick="waFollowUpInstan(${p.id})" title="Hubungi via WhatsApp">💬 WA</button>
+                        <button class="btn btn-small ${lunas ? 'btn-ghost' : 'btn-success'}" onclick="togglePembayaranInstan(${p.id})" style="margin-left:4px;">${lunas ? 'Batalkan Lunas' : 'Tandai Lunas'}</button>
+                      </td>
                     </tr>`;
             }
             const tabungan = memberApprovedSavings(p.memberId);
@@ -6537,7 +6547,9 @@ function loadSurveySapiResume() {
         const totalTerkumpul = pesertaTabungan.reduce((sum, p) => sum + memberApprovedSavings(p.memberId), 0);
         const totalKebutuhan = iuranPerOrang * pesertaTabungan.length;
         const totalKurang = Math.max(totalKebutuhan - totalTerkumpul, 0);
-        const jumlahInstan = peserta.length - pesertaTabungan.length;
+        const pesertaInstan = peserta.filter(p => p.tipe === 'instan');
+        const jumlahInstan = pesertaInstan.length;
+        const jumlahInstanLunas = pesertaInstan.filter(p => p.statusBayar === 'lunas').length;
 
         const tableOrEmpty = peserta.length > 0
             ? `<div class="table-container" style="margin-top:10px;">
@@ -6563,7 +6575,7 @@ function loadSurveySapiResume() {
                 <div class="survey-participants-title">
                   Tabungan terkumpul Rp ${totalTerkumpul.toLocaleString('id-ID')} dari kebutuhan Rp ${totalKebutuhan.toLocaleString('id-ID')}
                   ${totalKurang > 0 ? ` · Kurang Rp ${totalKurang.toLocaleString('id-ID')}` : ' · ✓ Lunas semua'}
-                  ${jumlahInstan > 0 ? ` · ${jumlahInstan} peserta Daftar Langsung` : ''}
+                  ${jumlahInstan > 0 ? ` · ${jumlahInstan} peserta Daftar Langsung (${jumlahInstanLunas} lunas)` : ''}
                 </div>
                 ${tableOrEmpty}
               </div>
@@ -6592,6 +6604,25 @@ a.n. ${APP_CONFIG.bankAccountHolder}
 Mohon kirim bukti transfer setelah pembayaran ya. Jazakallahu khairan.
 🔗 ${APP_CONFIG.appUrl}`;
     if (!openWaTo(p.phone, msg)) showAlert('Nomor HP peserta tidak valid.', 'error');
+}
+
+// Toggle status pembayaran peserta 'instan' (Belum Bayar <-> Lunas) - dipicu
+// manual oleh admin setelah dikonfirmasi transfer/tunai (tidak ada verifikasi
+// otomatis krn tidak ada bukti transfer yang diupload di jalur Daftar
+// Langsung, sesuai keputusan awal fitur ini).
+async function togglePembayaranInstan(pesertaId) {
+    const p = appData.surveyPeserta.find(x => x.id === pesertaId);
+    if (!p) return;
+
+    const statusBaru = p.statusBayar === 'lunas' ? 'belum' : 'lunas';
+    const ok = await updateSheetDB('SurveyPeserta', 'id', pesertaId, { statusBayar: statusBaru });
+    if (!ok) {
+        showAlert('Gagal mengubah status pembayaran, coba lagi.', 'error');
+        return;
+    }
+    p.statusBayar = statusBaru;
+    showAlert(statusBaru === 'lunas' ? 'Ditandai Lunas.' : 'Ditandai Belum Bayar.', 'success');
+    loadSurveySapiResume();
 }
 
 // Estimasi pembagian daging per sapi buat rencana hari H - "Hak Mudhohi" per
@@ -9711,7 +9742,8 @@ Mohon dihubungi untuk arahan pembayaran (transfer/tunai).
         created_date: new Date().toISOString(),
         alamat: alamat,
         tipe: 'instan',
-        atasNama: atasNama
+        atasNama: atasNama,
+        statusBayar: 'belum'
     };
 
     const success = await appendSheetDB('SurveyPeserta', record);

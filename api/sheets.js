@@ -558,7 +558,12 @@ const TENANT_SHEET_TEMPLATE = {
   // wafat, format umum "Ahmad bin Abdullah"). Kosong = qurban atas nama
   // pendaftar sendiri (memberName). Dipakai generateKuponMudhohi() sbg nama
   // utama di e-tiket (lihat komentar di sana).
-  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe', 'atasNama'],
+  // "statusBayar" - khusus tipe 'instan' ('belum'/'lunas'), ditoggle admin
+  // manual dari tombol di resume peserta (waFollowUpInstan()/togglePembayaranInstan())
+  // setelah dikonfirmasi transfer/tunai. Kosong/baris lama dianggap 'belum'.
+  // Tidak dipakai peserta tipe 'tabungan' (status lunas/kurangnya sudah
+  // dihitung otomatis dari sheet Savings, lihat memberApprovedSavings()).
+  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe', 'atasNama', 'statusBayar'],
   DistribusiDaging: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   RencanaDistribusi: ['id', 'alokasi', 'berat', 'qty', 'wo', 'status', 'created_date'],
   WorkOrderAktual: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
