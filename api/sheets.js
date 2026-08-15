@@ -545,7 +545,15 @@ const TENANT_SHEET_TEMPLATE = {
   Templates: ['key', 'title', 'message'],
   LoginLog: ['id', 'memberId', 'memberName', 'role', 'loginAt'],
   SurveySapi: ['id', 'tanggal', 'supplier', 'latitude', 'longitude', 'alamat', 'jenisSapi', 'berat', 'harga', 'biayaPengolahan', 'foto1', 'foto2', 'foto3', 'foto4', 'foto5', 'createdBy', 'created_date'],
-  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date'],
+  // "alamat" & "tipe" ditambah utk fitur "Daftar Langsung" (Qurban Instan) -
+  // peserta yang ikut TANPA menabung (mendekati hari-H, bayar penuh
+  // langsung, dihubungi admin via WA, tanpa akun login). tipe='tabungan'
+  // (peserta anggota biasa, hasil joinSurveySapi()) atau 'instan' (hasil
+  // submitInstantJoin(), memberId selalu 0 krn tidak ada akun) - baris lama
+  // sebelum kolom ini ada otomatis dianggap 'tabungan' (lihat parsing di
+  // app.html). "alamat" cuma diisi utk tipe 'instan' (member biasa sudah
+  // punya alamat di data Members-nya sendiri).
+  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe'],
   DistribusiDaging: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   RencanaDistribusi: ['id', 'alokasi', 'berat', 'qty', 'wo', 'status', 'created_date'],
   WorkOrderAktual: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],

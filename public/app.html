@@ -1753,6 +1753,22 @@
     margin:0 6px 6px 0;
   }
 
+  /* Badge kecil "Langsung" - nempel di nama peserta tipe 'instan' (fitur
+     Daftar Langsung/Qurban Instan), biar admin & sesama peserta bisa bedain
+     dari peserta tabungan biasa sekilas lihat. */
+  .badge-instan{
+    display:inline-block;
+    background: var(--gold);
+    color:#fff;
+    font-size:9.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    padding:2px 6px;
+    border-radius:999px;
+    margin-left:4px;
+  }
+
   .rek-box{
     background: linear-gradient(135deg, var(--gold-tint) 0%, rgba(182,137,58,.08) 100%);
     border:2px solid var(--gold-soft);
@@ -3249,6 +3265,13 @@
             <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:22px;">
               Daftar sapi calon qurban hasil survey admin. Klik <strong>Ikut</strong> kalau Anda ingin bergabung di grup sapi ini.
             </p>
+            <!-- Cuma tampil utk guest/belum login (di-toggle di runTabDataLoaders())
+                 - jelasin jalur "Daftar Langsung" (Qurban Instan) buat orang yang
+                 mau ikut mendekati hari-H tanpa ikut nabung dulu. -->
+            <div id="surveySapiGuestInfo" class="lpj-trust-badge" style="display:none;margin-bottom:22px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+              <span>Belum ikut menabung tapi ingin ikut qurban tahun ini? Klik <strong>Daftar Langsung</strong> di grup sapi yang masih ada sisa slot - cukup isi data diri, admin akan menghubungi via WhatsApp untuk arahan pembayaran.</span>
+            </div>
             <div id="surveySapiMemberList"></div>
           </div>
         </div>
@@ -4357,6 +4380,43 @@
     </div>
   </div>
 
+  <!-- Modal "Daftar Langsung" (Qurban Instan) - dibuka dari tombol Daftar
+       Langsung di loadSurveySapiMemberList() (jalur guest/belum punya akun
+       tabungan). Isi minimal: Nama, No HP, Alamat - TIDAK ada upload bukti
+       transfer di sini (sesuai keputusan: bayar belakangan, admin follow-up
+       via WA). Lihat openInstantJoinModal()/submitInstantJoin(). -->
+  <div id="instantJoinModal" class="modal-overlay">
+    <div class="modal-content" style="width:440px;">
+      <div class="modal-header">
+        <div class="modal-title">Daftar Langsung Ikut Qurban</div>
+        <button class="modal-close" onclick="closeInstantJoinModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:block;">
+        <p id="instantJoinInfo" style="color:var(--ink-soft); font-size:13.5px; margin-top:0; margin-bottom:18px;"></p>
+
+        <input type="hidden" id="instantJoinSurveyId">
+
+        <div class="form-group">
+          <label>Nama Lengkap</label>
+          <input type="text" id="instantJoinName" placeholder="Contoh: Hirmanto Karawang">
+        </div>
+        <div class="form-group">
+          <label>Nomor WhatsApp</label>
+          <input type="tel" id="instantJoinPhone" placeholder="08xxxxxxxxx">
+        </div>
+        <div class="form-group">
+          <label>Alamat</label>
+          <textarea id="instantJoinAlamat" rows="2" placeholder="Contoh: RT 03, Perumahan ..., Karawang"></textarea>
+        </div>
+
+        <button class="btn btn-success btn-block" id="instantJoinSubmitBtn" onclick="submitInstantJoin()">Kirim Pendaftaran</button>
+        <p style="color:var(--ink-faint); font-size:12px; margin-top:12px; margin-bottom:0;">
+          Setelah terkirim, admin akan menghubungi Anda via WhatsApp untuk arahan pembayaran. Ini bukan tabungan bertahap - pembayaran langsung penuh 1x.
+        </p>
+      </div>
+    </div>
+  </div>
+
 <script>
 // ================================================================
 // ===== APP_CONFIG - SATU-SATUNYA TEMPAT YANG PERLU DIEDIT     =====
@@ -4903,7 +4963,12 @@ async function loadDataFromSheets() {
         phone: row.phone || '',
         // Kosong (baris lama sebelum kolom status ada) dianggap 'aktif'.
         status: row.status || 'aktif',
-        created_date: row.created_date || ''
+        created_date: row.created_date || '',
+        // "alamat" & "tipe" - fitur "Daftar Langsung" (Qurban Instan, lihat
+        // submitInstantJoin()). Baris lama (sebelum kolom ini ada) otomatis
+        // dianggap tipe 'tabungan' - peserta biasa hasil joinSurveySapi().
+        alamat: row.alamat || '',
+        tipe: (row.tipe || '').toString().trim().toLowerCase() === 'instan' ? 'instan' : 'tabungan'
     })).filter(p => p.id);
 
     // Parse DistribusiDaging (rencana pembagian daging per alokasi PER SAPI -
@@ -5439,18 +5504,20 @@ function showApp() {
         // Redirect ke dashboard
         switchTab('dashboard');
     } else if (currentUser.role === 'guest') {
-        // Guest hanya bisa lihat Dashboard & Laporan
+        // Guest hanya bisa lihat Dashboard, Laporan, & Survey Sapi (versi
+        // publik - lihat hasil survey + tombol "Daftar Langsung" utk yang mau
+        // ikut qurban tanpa menabung, lihat loadSurveySapiMemberList()).
         profileTabBtn.style.display = 'none';
         uploadTabBtn.style.display = 'none';
         historyTabBtn.style.display = 'none';
         laporanTabBtn.style.display = 'flex';
+        surveySapiTabBtn.style.display = 'flex';
 
         // Hide menu admin
         verifyTabBtn.style.display = 'none';
         broadcastTabBtn.style.display = 'none';
         approvalTabBtn.style.display = 'none';
         activityLogTabBtn.style.display = 'none';
-        surveySapiTabBtn.style.display = 'none';
         distribusiDagingTabBtn.style.display = 'none';
         woAktualTabBtn.style.display = 'none';
         penerimaTabBtn.style.display = 'none';
@@ -5593,6 +5660,8 @@ function runTabDataLoaders(tabName) {
             loadSurveySapiTable();
             loadSurveySapiResume();
         } else {
+            const guestInfo = document.getElementById('surveySapiGuestInfo');
+            if (guestInfo) guestInfo.style.display = (currentUser && currentUser.role === 'member') ? 'none' : 'flex';
             loadSurveySapiMemberList();
         }
         renderSurveyHero();
@@ -6410,6 +6479,19 @@ function loadSurveySapiResume() {
         const iuranPerOrang = Math.round(k.iuran);
 
         const rows = peserta.map(p => {
+            // Peserta 'instan' (Daftar Langsung, tanpa menabung) tidak punya
+            // riwayat Tabungan sama sekali - kolom Tabungan/Kekurangan tidak
+            // relevan (bukan berarti "kurang bayar" krn memang bayarnya
+            // langsung penuh belakangan, bukan dicicil). Tampilkan status +
+            // tombol WA follow-up sbg gantinya.
+            if (p.tipe === 'instan') {
+                return `
+                    <tr>
+                      <td>${p.memberName} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>${p.alamat ? `<div style="font-size:11px;color:var(--ink-faint);font-weight:400;">${p.alamat}</div>` : ''}</td>
+                      <td colspan="2" style="color:var(--ink-faint);">Bayar langsung Rp ${iuranPerOrang.toLocaleString('id-ID')} · belum dikonfirmasi admin</td>
+                      <td><button class="btn btn-ghost btn-small" onclick="waFollowUpInstan(${p.id})">💬 WA</button></td>
+                    </tr>`;
+            }
             const tabungan = memberApprovedSavings(p.memberId);
             const kurang = Math.max(iuranPerOrang - tabungan, 0);
             const lunas = kurang === 0;
@@ -6422,9 +6504,14 @@ function loadSurveySapiResume() {
                 </tr>`;
         }).join('');
 
-        const totalTerkumpul = peserta.reduce((sum, p) => sum + memberApprovedSavings(p.memberId), 0);
-        const totalKebutuhan = iuranPerOrang * peserta.length;
+        // Total tabungan/kekurangan cuma dihitung dari peserta tipe 'tabungan'
+        // - peserta 'instan' sengaja tidak ikut dijumlah di sini (mereka bayar
+        // penuh terpisah, belum tentu lewat sheet Savings sama sekali).
+        const pesertaTabungan = peserta.filter(p => p.tipe !== 'instan');
+        const totalTerkumpul = pesertaTabungan.reduce((sum, p) => sum + memberApprovedSavings(p.memberId), 0);
+        const totalKebutuhan = iuranPerOrang * pesertaTabungan.length;
         const totalKurang = Math.max(totalKebutuhan - totalTerkumpul, 0);
+        const jumlahInstan = peserta.length - pesertaTabungan.length;
 
         const tableOrEmpty = peserta.length > 0
             ? `<div class="table-container" style="margin-top:10px;">
@@ -6450,11 +6537,35 @@ function loadSurveySapiResume() {
                 <div class="survey-participants-title">
                   Tabungan terkumpul Rp ${totalTerkumpul.toLocaleString('id-ID')} dari kebutuhan Rp ${totalKebutuhan.toLocaleString('id-ID')}
                   ${totalKurang > 0 ? ` · Kurang Rp ${totalKurang.toLocaleString('id-ID')}` : ' · ✓ Lunas semua'}
+                  ${jumlahInstan > 0 ? ` · ${jumlahInstan} peserta Daftar Langsung` : ''}
                 </div>
                 ${tableOrEmpty}
               </div>
             </div>`;
     }).join('');
+}
+
+// Tombol "💬 WA" di resume admin (peserta tipe 'instan') - buka WhatsApp ke
+// NOMOR PESERTA (kebalikan dari openWaTo() di submitInstantJoin() yang
+// nge-notif ke pengurus) supaya admin gampang follow-up pembayaran. Aksi ini
+// dipicu langsung dari klik tombol (fresh user gesture), jadi aman dari
+// blokir popup tanpa perlu pola sinkron-sebelum-await.
+function waFollowUpInstan(pesertaId) {
+    const p = appData.surveyPeserta.find(x => x.id === pesertaId);
+    if (!p) return;
+    const survey = appData.surveySapi.find(s => s.id === p.surveyId);
+    const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
+    const iuran = k ? Math.round(k.iuran) : 0;
+    const msg = `Assalamu'alaikum ${p.memberName}, terima kasih sudah mendaftar Daftar Langsung ikut Qurban${survey ? ' (' + surveyKode(survey) + ')' : ''} di ${APP_CONFIG.mosqueName}.
+
+Total yang perlu dibayar: Rp ${iuran.toLocaleString('id-ID')}
+Transfer ke:
+${APP_CONFIG.bankName} ${APP_CONFIG.bankAccountNumberDisplay}
+a.n. ${APP_CONFIG.bankAccountHolder}
+
+Mohon kirim bukti transfer setelah pembayaran ya. Jazakallahu khairan.
+🔗 ${APP_CONFIG.appUrl}`;
+    if (!openWaTo(p.phone, msg)) showAlert('Nomor HP peserta tidak valid.', 'error');
 }
 
 // Estimasi pembagian daging per sapi buat rencana hari H - "Hak Mudhohi" per
@@ -7660,7 +7771,11 @@ async function generateKuponMudhohi() {
             alokasi: '',
             nama: p.memberName,
             noHp: p.phone || '',
-            alamat: '',
+            // Peserta 'instan' (Daftar Langsung) isi alamat sendiri saat
+            // daftar - dibawa ke sini supaya e-tiketnya lengkap. Peserta
+            // tabungan biasa tidak isi alamat di SurveyPeserta (datanya ada
+            // di Members sendiri), jadi kosong seperti sebelumnya.
+            alamat: p.alamat || '',
             kodeTiket: generateKodeTiket(),
             status: 'aktif',
             diambil: 'tidak',
@@ -9245,11 +9360,19 @@ function loadSurveySapiMemberList() {
     // tetap ada jejaknya (sama pola dengan Verifications). Baris lama sebelum
     // fitur ini ada (status kosong) tetap dianggap aktif.
     const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
-    const myJoin = currentUser ? activePeserta.find(p => p.memberId === currentUser.id) : null;
+    // PENTING: myJoin/sudahIkut cuma dihitung utk role 'member' (login asli).
+    // Guest currentUser.id SELALU 0 (lihat handleGuestLogin()) - kalau ini
+    // tidak digating, guest bisa "match" peserta Instan manapun yang
+    // memberId-nya juga 0 (bukan miliknya sendiri), bikin tombol Ikut salah
+    // nyangka guest itu "sudah ikut" grup orang lain. Peserta tipe 'instan'
+    // (hasil submitInstantJoin(), tanpa akun) memang sengaja memberId=0 -
+    // aman krn perbandingan ini di-skip total utk non-member.
+    const isRealMember = currentUser && currentUser.role === 'member';
+    const myJoin = isRealMember ? activePeserta.find(p => p.memberId === currentUser.id) : null;
 
     container.innerHTML = appData.surveySapi.map(s => {
         const peserta = activePeserta.filter(p => p.surveyId === s.id);
-        const sudahIkut = currentUser && peserta.some(p => p.memberId === currentUser.id);
+        const sudahIkut = isRealMember && peserta.some(p => p.memberId === currentUser.id);
         const lokasiCell = s.latitude && s.longitude
             ? `<a href="https://www.google.com/maps?q=${s.latitude},${s.longitude}" target="_blank" rel="noopener" style="color:var(--emerald-2);">📍 Lihat Peta</a>`
             : '—';
@@ -9269,11 +9392,16 @@ function loadSurveySapiMemberList() {
                 : `<button class="btn btn-ghost btn-small" onclick="switchSurveySapi(${s.id})">🔄 Pindah ke Sini</button>`;
         } else if (penuh) {
             ikutBtn = `<button class="btn btn-ghost btn-small" disabled title="Grup sapi ini sudah penuh">Penuh (${SURVEY_MAX_PESERTA}/${SURVEY_MAX_PESERTA})</button>`;
-        } else {
+        } else if (isRealMember) {
             ikutBtn = `<button class="btn btn-success btn-small" onclick="joinSurveySapi(${s.id})">Ikut</button>`;
+        } else {
+            // Guest/belum login - jalur "Daftar Langsung" (Qurban Instan):
+            // tidak menabung, cukup isi data diri di modal, admin follow-up
+            // pembayaran via WA. Lihat openInstantJoinModal()/submitInstantJoin().
+            ikutBtn = `<button class="btn btn-success btn-small" onclick="openInstantJoinModal(${s.id})">Daftar Langsung</button>`;
         }
         const pesertaHtml = peserta.length > 0
-            ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.memberName}</span>`).join('')
+            ? peserta.map(p => `<span class="survey-participant-chip">👤 ${p.memberName}${p.tipe === 'instan' ? ' <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>' : ''}</span>`).join('')
             : '<span style="color:var(--ink-faint); font-size:12.5px;">Belum ada yang ikut.</span>';
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         const iuranPerOrang = Math.round(k.iuran);
@@ -9421,6 +9549,154 @@ async function switchSurveySapi(newSurveyId) {
     loadSurveySapiMemberList();
     loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
     loadWorkOrderList('workOrderListMember', false);
+}
+
+// ===== DAFTAR LANGSUNG (QURBAN INSTAN) =====
+// Jalur utk orang yang mau ikut qurban TANPA menabung bertahap (biasanya
+// mendekati hari-H) - tanpa akun login, cukup isi Nama/No HP/Alamat. Hasil
+// submit langsung jadi baris SurveyPeserta (tipe:'instan', memberId:0, status
+// 'aktif' seketika - TIDAK ada tahap approval, sesuai keputusan), jadi ikut
+// terhitung otomatis di semua kalkulasi kuota/iuran/resume yang sudah ada
+// (sama data source dengan peserta jalur tabungan), dan otomatis kebawa juga
+// kalau admin generate Kupon Mudhohi nanti.
+function openInstantJoinModal(surveyId) {
+    const survey = appData.surveySapi.find(s => s.id === surveyId);
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+    const jumlahDiSurveyIni = activePeserta.filter(p => p.surveyId === surveyId).length;
+    if (jumlahDiSurveyIni >= SURVEY_MAX_PESERTA) {
+        showAlert(`Grup sapi ini sudah penuh (maksimal ${SURVEY_MAX_PESERTA} peserta).`, 'error');
+        return;
+    }
+
+    const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
+    const iuranPerOrang = k ? Math.round(k.iuran) : 0;
+
+    document.getElementById('instantJoinSurveyId').value = surveyId;
+    document.getElementById('instantJoinName').value = '';
+    document.getElementById('instantJoinPhone').value = '';
+    document.getElementById('instantJoinAlamat').value = '';
+    document.getElementById('instantJoinInfo').textContent = survey
+        ? `Grup: ${surveyKode(survey)} · ${jenisSapiLabel(survey.jenisSapi)}${survey.supplier ? ' · ' + survey.supplier : ''}. Total bayar (1x, penuh): Rp ${iuranPerOrang.toLocaleString('id-ID')}.`
+        : 'Grup sapi tidak ditemukan.';
+
+    const btn = document.getElementById('instantJoinSubmitBtn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Kirim Pendaftaran'; }
+
+    document.getElementById('instantJoinModal').classList.add('show');
+}
+
+function closeInstantJoinModal() {
+    document.getElementById('instantJoinModal').classList.remove('show');
+}
+
+async function submitInstantJoin() {
+    const surveyId = parseInt(document.getElementById('instantJoinSurveyId').value) || 0;
+    const name = document.getElementById('instantJoinName').value.trim();
+    const phone = document.getElementById('instantJoinPhone').value.trim();
+    const alamat = document.getElementById('instantJoinAlamat').value.trim();
+
+    if (!name || !phone) {
+        showAlert('Nama dan Nomor WhatsApp harus diisi', 'error');
+        return;
+    }
+    if (!phone.startsWith('08')) {
+        showAlert('Nomor WhatsApp harus dimulai dengan 08', 'error');
+        return;
+    }
+    if (!alamat) {
+        showAlert('Alamat harus diisi', 'error');
+        return;
+    }
+
+    const survey = appData.surveySapi.find(s => s.id === surveyId);
+    const activePeserta = appData.surveyPeserta.filter(p => p.status !== 'batal');
+
+    // Kuota bisa saja sudah berubah sejak modal dibuka (orang lain daftar
+    // duluan) - cek ulang sebelum benar-benar simpan.
+    const jumlahDiSurveyIni = activePeserta.filter(p => p.surveyId === surveyId).length;
+    if (jumlahDiSurveyIni >= SURVEY_MAX_PESERTA) {
+        showAlert(`Grup sapi ini baru saja penuh (maksimal ${SURVEY_MAX_PESERTA} peserta). Coba pilih grup lain.`, 'error');
+        closeInstantJoinModal();
+        loadSurveySapiMemberList();
+        return;
+    }
+
+    // Cek nomor HP dobel (baik peserta tabungan maupun instan lain) - 1 orang
+    // logisnya cuma ikut 1 grup, sama semangatnya dgn aturan "1 anggota 1
+    // sapi" di joinSurveySapi(), tapi di sini dicek by nomor HP krn tidak ada
+    // akun/memberId.
+    const normalizedPhone = normalizePhone(phone);
+    const dobel = activePeserta.find(p => p.phone && normalizePhone(p.phone) === normalizedPhone);
+    if (dobel) {
+        const dobelSurvey = appData.surveySapi.find(s => s.id === dobel.surveyId);
+        showAlert(`Nomor WhatsApp ini sudah terdaftar di grup ${dobelSurvey ? surveyKode(dobelSurvey) : 'lain'}. Hubungi admin kalau ingin pindah grup.`, 'error');
+        return;
+    }
+
+    const btn = document.getElementById('instantJoinSubmitBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Mengirim...'; }
+
+    // ===== Notif WA ke Bendahara/Ketua: SEBELUM await apapun kalau bisa =====
+    // Sama pola dgn handleRegistration() - data buat pesan sudah lengkap dari
+    // form (tidak perlu tunggu server), jadi window.open() dipanggil sinkron
+    // di sini supaya tidak diblokir browser mobile.
+    const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
+    const iuranPerOrang = k ? Math.round(k.iuran) : 0;
+    const adminMsgFor = () => `Assalamu'alaikum, ada yang daftar Qurban Instan (tanpa menabung)! 🐄
+
+Nama: ${name}
+WhatsApp: ${phone}
+Alamat: ${alamat}
+Grup Sapi: ${survey ? surveyKode(survey) + ' · ' + jenisSapiLabel(survey.jenisSapi) : '-'}
+Total Bayar: Rp ${iuranPerOrang.toLocaleString('id-ID')}
+
+Mohon dihubungi untuk arahan pembayaran (transfer/tunai).
+🔗 ${APP_CONFIG.appUrl}`;
+    let officerPhone = (appData.members && appData.members.length > 0)
+        ? findOfficerPhone(appData.members, ['bendum2', 'ketua1'])
+        : '';
+    if (officerPhone) openWaTo(officerPhone, adminMsgFor());
+
+    const newId = appData.surveyPeserta.length > 0
+        ? Math.max(...appData.surveyPeserta.map(p => p.id)) + 1
+        : 1;
+    const record = {
+        id: newId,
+        surveyId: surveyId,
+        memberId: 0,
+        memberName: name,
+        phone: phone,
+        status: 'aktif',
+        created_date: new Date().toISOString(),
+        alamat: alamat,
+        tipe: 'instan'
+    };
+
+    const success = await appendSheetDB('SurveyPeserta', record);
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Kirim Pendaftaran'; }
+
+    if (!success) {
+        showAlert('Gagal menyimpan pendaftaran. Coba lagi.', 'error');
+        return;
+    }
+
+    appData.surveyPeserta.push(record);
+
+    // Fallback: nomor pengurus belum ke-cache pas modal dibuka (jarang) -
+    // coba lagi setelah data anggota ke-fetch fresh. window.open() di sini
+    // sudah lewat await, jadi mungkin diblokir di sebagian browser mobile,
+    // tapi pendaftarannya sendiri tetap tersimpan normal.
+    if (!officerPhone) {
+        const freshMembers = await fetchSheetDBTable('Members');
+        officerPhone = findOfficerPhone(freshMembers, ['bendum2', 'ketua1']);
+        if (officerPhone) openWaTo(officerPhone, adminMsgFor());
+    }
+
+    closeInstantJoinModal();
+    showAlert('Pendaftaran berhasil dikirim! Admin akan menghubungi Anda via WhatsApp.', 'success');
+    loadSurveySapiMemberList();
+    renderSurveyHero();
 }
 
 // ===== VERIFY =====
