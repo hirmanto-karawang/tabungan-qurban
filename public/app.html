@@ -3420,17 +3420,20 @@
                    akumulasi TOTAL semua sapi saja (tidak dirinci per sapi,
                    tidak ada Work Order/kolom WO-B/L spt daging di atas) -
                    lihat loadRencanaDistribusiLain(). -->
-              <h3 style="margin-top:30px;">Rencana Distribusi Bagian Lain (Tulang &amp; Jeroan)</h3>
+              <h3 style="margin-top:30px;">Rencana Distribusi Bagian Lain (Tulang, Jeroan, Kulit, Kepala, Kaki, Buntut)</h3>
               <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
-                Total akumulasi dari SEMUA sapi hasil survey (tidak dirinci per sapi) - lihat rincian per sapi di tabel Estimasi Bagian Lain di sub-tab Estimasi Distribusi.
+                Total akumulasi dari SEMUA sapi hasil survey (tidak dirinci per sapi) - Tulang &amp; Jeroan dihitung dalam kg, Kepala/Kaki/Buntut dihitung dalam pcs (unit fisik per ekor). Lihat rincian per sapi di tabel Estimasi Bagian Lain di sub-tab Estimasi Distribusi.
               </p>
               <div id="rencanaBagianLainSummary" style="margin-bottom:18px;"></div>
               <div class="form-grid">
                 <div class="form-group">
                   <label>Jenis Bagian</label>
-                  <select id="rencanaLainJenis">
-                    <option value="tulang">Tulang</option>
-                    <option value="jeroan">Jeroan</option>
+                  <select id="rencanaLainJenis" onchange="updateRencanaLainUnitLabel()">
+                    <option value="tulang">Tulang (kg)</option>
+                    <option value="jeroan">Jeroan (kg)</option>
+                    <option value="kepala">Kepala (pcs)</option>
+                    <option value="kaki">Kaki (pcs)</option>
+                    <option value="buntut">Buntut (pcs)</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -3438,7 +3441,7 @@
                   <input type="text" id="rencanaLainAlokasi" placeholder="Contoh: Peternak, Panti Asuhan, Panitia">
                 </div>
                 <div class="form-group">
-                  <label>Berat per Unit (kg)</label>
+                  <label id="rencanaLainBeratLabel">Berat per Unit (kg)</label>
                   <input type="number" id="rencanaLainBerat" placeholder="Contoh: 5" min="0" step="0.01">
                 </div>
                 <div class="form-group">
@@ -3545,9 +3548,9 @@
                 </table>
               </div>
 
-              <h3 style="margin-top:30px;">Rencana Distribusi Bagian Lain (Tulang &amp; Jeroan)</h3>
+              <h3 style="margin-top:30px;">Rencana Distribusi Bagian Lain (Tulang, Jeroan, Kulit, Kepala, Kaki, Buntut)</h3>
               <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
-                Total akumulasi dari semua sapi hasil survey, disusun admin.
+                Total akumulasi dari semua sapi hasil survey, disusun admin. Tulang &amp; Jeroan dalam kg, Kepala/Kaki/Buntut dalam pcs.
               </p>
               <div id="rencanaBagianLainSummaryMember" style="margin-bottom:18px;"></div>
               <div class="table-container">
@@ -5385,19 +5388,23 @@ async function loadDataFromSheets() {
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
-    // Parse RencanaDistribusiLain (Tulang/Jeroan - akumulasi TOTAL semua
-    // survey, tidak dirinci per sapi & tidak ada Work Order/kolom "wo" spt
-    // RencanaDistribusi daging). "jenis" default 'tulang' kalau kosong/nilai
-    // tidak dikenal.
-    appData.rencanaDistribusiLain = rencanaDistribusiLainRows.map(row => ({
+    // Parse RencanaDistribusiLain (Tulang/Jeroan/Kepala/Kaki/Buntut -
+    // akumulasi TOTAL semua survey, tidak dirinci per sapi & tidak ada Work
+    // Order/kolom "wo" spt RencanaDistribusi daging). "jenis" default
+    // 'tulang' kalau kosong/nilai tidak dikenal.
+    appData.rencanaDistribusiLain = rencanaDistribusiLainRows.map(row => {
+        const jenisRaw = (row.jenis || '').toString().trim().toLowerCase();
+        const jenisValid = ['tulang', 'jeroan', 'kepala', 'kaki', 'buntut'];
+        return {
         id: parseInt(row.id) || 0,
-        jenis: (row.jenis || '').toString().trim().toLowerCase() === 'jeroan' ? 'jeroan' : 'tulang',
+        jenis: jenisValid.includes(jenisRaw) ? jenisRaw : 'tulang',
         alokasi: row.alokasi || '',
         berat: parseFloat(row.berat) || 0,
         qty: parseFloat(row.qty) || 0,
         status: row.status || 'aktif',
         created_date: row.created_date || ''
-    })).filter(d => d.id);
+        };
+    }).filter(d => d.id);
 
     // Parse WorkOrderAktual (angka AKTUAL hari pelaksanaan, skema sama
     // dengan DistribusiDaging tapi sheet terpisah - Qty di sini SENGAJA
@@ -7463,23 +7470,59 @@ async function hapusRencanaAlokasi(id) {
     }
 }
 
-// ===== RENCANA DISTRIBUSI BAGIAN LAIN (Tulang & Jeroan) =====
+// ===== RENCANA DISTRIBUSI BAGIAN LAIN (Tulang/Jeroan/Kepala/Kaki/Buntut) =====
 // Sama semangat dgn Rencana Distribusi Daging (Umum) di atas - alokasi
 // manual dibanding thd total "budget" - tapi budget-nya total akumulasi
-// Tulang/Jeroan dari SEMUA sapi (bukan Share Warga), dan SENGAJA TIDAK ada
-// kolom WO/B/L krn Tulang/Jeroan tidak melalui Work Order per sapi (WO
-// Aktual cuma soal daging).
+// bagian LAIN dari SEMUA sapi (bukan Share Warga), dan SENGAJA TIDAK ada
+// kolom WO/B/L krn bagian ini tidak melalui Work Order per sapi (WO Aktual
+// cuma soal daging).
+// Tulang/Jeroan satuannya KG (ditimbang, dibagi berdasarkan berat -
+// computeSurveyKalkulasi()). Kepala/Kaki/Buntut satuannya PCS (dihitung per
+// UNIT FISIK per ekor sapi - 1 kepala, 4 kaki, 1 buntut per ekor - bukan
+// ditimbang), jadi "budget"-nya dihitung dari JUMLAH SAPI, bukan berat.
+const BAGIAN_LAIN_UNIT = { tulang: 'kg', jeroan: 'kg', kepala: 'pcs', kaki: 'pcs', buntut: 'pcs' };
+const BAGIAN_LAIN_LABEL = { tulang: 'Tulang', jeroan: 'Jeroan', kepala: 'Kepala', kaki: 'Kaki', buntut: 'Buntut' };
+const BAGIAN_LAIN_COLOR = { tulang: 'var(--sky)', jeroan: 'var(--gold)', kepala: 'var(--brick)', kaki: 'var(--sage)', buntut: 'var(--emerald-2)' };
+// Jumlah unit fisik per ekor sapi, khusus jenis PCS.
+const BAGIAN_LAIN_PCS_PER_SAPI = { kepala: 1, kaki: 4, buntut: 1 };
+
 let editingRencanaLainId = null;
+
+// Format angka sesuai satuan jenisnya - kg pakai formatKg() (1 desimal),
+// pcs dibulatkan tanpa desimal + label "pcs".
+function formatBagianLain(value, jenis) {
+    if (BAGIAN_LAIN_UNIT[jenis] === 'pcs') {
+        return `${Math.round(value).toLocaleString('id-ID')} pcs`;
+    }
+    return formatKg(value);
+}
 
 // Total akumulasi (semua survey sapi) utk 1 jenis bagian - dipakai sbg
 // "budget" utk Rencana Distribusi Bagian Lain, sama semangatnya dgn
-// totalShareWargaSemuaSurvey() utk daging. jenis: 'tulang' | 'jeroan'.
+// totalShareWargaSemuaSurvey() utk daging. jenis: 'tulang'|'jeroan' (kg, dari
+// computeSurveyKalkulasi) atau 'kepala'|'kaki'|'buntut' (pcs, dari jumlah
+// sapi x BAGIAN_LAIN_PCS_PER_SAPI).
 function totalBagianLainSemuaSurvey(jenis) {
+    if (BAGIAN_LAIN_UNIT[jenis] === 'pcs') {
+        return appData.surveySapi.length * (BAGIAN_LAIN_PCS_PER_SAPI[jenis] || 0);
+    }
     const key = jenis === 'jeroan' ? 'estimasiJeroan' : 'estimasiTulang';
     return appData.surveySapi.reduce((sum, s) => {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         return sum + k[key];
     }, 0);
+}
+
+// Update label form ("Berat per Unit (kg)" <-> "Jumlah per Unit (pcs)") tiap
+// kali dropdown Jenis diganti - dipanggil via onchange di HTML.
+function updateRencanaLainUnitLabel() {
+    const jenisSelect = document.getElementById('rencanaLainJenis');
+    const label = document.getElementById('rencanaLainBeratLabel');
+    if (!jenisSelect || !label) return;
+    const isPcs = BAGIAN_LAIN_UNIT[jenisSelect.value] === 'pcs';
+    label.textContent = isPcs ? 'Jumlah per Unit (pcs)' : 'Berat per Unit (kg)';
+    const beratInput = document.getElementById('rencanaLainBerat');
+    if (beratInput) beratInput.placeholder = isPcs ? 'Contoh: 1' : 'Contoh: 5';
 }
 
 function loadRencanaDistribusiLain(tbodyId, tfootId, summaryId, isAdminView) {
@@ -7490,10 +7533,6 @@ function loadRencanaDistribusiLain(tbodyId, tfootId, summaryId, isAdminView) {
     const summaryEl = document.getElementById(summaryId);
     const rows = appData.rencanaDistribusiLain.filter(d => d.status !== 'batal');
     const colspan = isAdminView ? 6 : 5;
-    const jenisLabel = { tulang: 'Tulang', jeroan: 'Jeroan' };
-    const jenisColor = { tulang: 'var(--sky)', jeroan: 'var(--gold)' };
-
-    let totalTulangAlokasi = 0, totalJeroanAlokasi = 0;
 
     if (rows.length === 0) {
         tbody.innerHTML = `<tr><td colspan="${colspan}" class="loading">Belum ada rencana distribusi.${isAdminView ? ' Tambahkan lewat form di atas.' : ''}</td></tr>`;
@@ -7501,7 +7540,7 @@ function loadRencanaDistribusiLain(tbodyId, tfootId, summaryId, isAdminView) {
     } else {
         tbody.innerHTML = rows.map(d => {
             const total = d.berat * d.qty;
-            if (d.jenis === 'jeroan') totalJeroanAlokasi += total; else totalTulangAlokasi += total;
+            const unit = BAGIAN_LAIN_UNIT[d.jenis] || 'kg';
 
             const aksiCell = isAdminView
                 ? `<td style="white-space:nowrap;">
@@ -7512,11 +7551,11 @@ function loadRencanaDistribusiLain(tbodyId, tfootId, summaryId, isAdminView) {
 
             return `
                 <tr>
-                  <td><span style="color:${jenisColor[d.jenis] || 'var(--ink)'}; font-weight:600;">${jenisLabel[d.jenis] || d.jenis}</span></td>
+                  <td><span style="color:${BAGIAN_LAIN_COLOR[d.jenis] || 'var(--ink)'}; font-weight:600;">${BAGIAN_LAIN_LABEL[d.jenis] || d.jenis}</span></td>
                   <td>${d.alokasi || '—'}</td>
-                  <td>${d.berat.toLocaleString('id-ID')} kg</td>
+                  <td>${d.berat.toLocaleString('id-ID')} ${unit}</td>
                   <td>${d.qty.toLocaleString('id-ID')}</td>
-                  <td><strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
+                  <td><strong>${formatBagianLain(total, d.jenis)}</strong></td>
                   ${aksiCell}
                 </tr>`;
         }).join('');
@@ -7524,43 +7563,43 @@ function loadRencanaDistribusiLain(tbodyId, tfootId, summaryId, isAdminView) {
         if (tfoot) {
             tfoot.innerHTML = `
                 <tr style="background:var(--sand); font-weight:700;">
-                  <td colspan="4">Total Dialokasikan (Tulang / Jeroan)</td>
-                  <td>${formatKg(totalTulangAlokasi)} / ${formatKg(totalJeroanAlokasi)}</td>
-                  ${isAdminView ? '<td></td>' : ''}
+                  <td colspan="${colspan}">Total ${rows.length} alokasi aktif - lihat rincian per jenis di kotak ringkasan di atas.</td>
                 </tr>`;
         }
     }
 
     if (summaryEl) {
-        const totalTulang = totalBagianLainSemuaSurvey('tulang');
-        const totalJeroan = totalBagianLainSemuaSurvey('jeroan');
-
-        const boxFor = (label, total, alokasi) => {
+        const jenisList = ['tulang', 'jeroan', 'kepala', 'kaki', 'buntut'];
+        const boxFor = (jenis) => {
+            const total = totalBagianLainSemuaSurvey(jenis);
+            const alokasi = rows.filter(d => d.jenis === jenis).reduce((sum, d) => sum + d.berat * d.qty, 0);
             const selisih = total - alokasi;
+            const tol = BAGIAN_LAIN_UNIT[jenis] === 'pcs' ? 0.5 : 0.05;
             let statusHtml;
-            if (Math.abs(selisih) <= 0.05) statusHtml = `<span style="color:var(--emerald-2); font-weight:600;">✓ Pas, sudah direncanakan semua</span>`;
-            else if (selisih > 0) statusHtml = `<span style="color:var(--gold); font-weight:600;">Belum dialokasikan: ${formatKg(selisih)}</span>`;
-            else statusHtml = `<span style="color:var(--brick); font-weight:600;">⚠️ Melebihi total: ${formatKg(-selisih)}</span>`;
+            if (Math.abs(selisih) <= tol) statusHtml = `<span style="color:var(--emerald-2); font-weight:600;">✓ Pas, sudah direncanakan semua</span>`;
+            else if (selisih > 0) statusHtml = `<span style="color:var(--gold); font-weight:600;">Belum dialokasikan: ${formatBagianLain(selisih, jenis)}</span>`;
+            else statusHtml = `<span style="color:var(--brick); font-weight:600;">⚠️ Melebihi total: ${formatBagianLain(-selisih, jenis)}</span>`;
             return `
                 <div class="rek-box" style="margin-bottom:10px;">
-                  <div class="rek-row"><span>Total ${label} (semua survey)</span><span>${formatKg(total)}</span></div>
-                  <div class="rek-row"><span>Dialokasikan</span><span>${formatKg(alokasi)}</span></div>
+                  <div class="rek-row"><span>Total ${BAGIAN_LAIN_LABEL[jenis]} (semua survey)</span><span>${formatBagianLain(total, jenis)}</span></div>
+                  <div class="rek-row"><span>Dialokasikan</span><span>${formatBagianLain(alokasi, jenis)}</span></div>
                   <div class="rek-row"><span>Status</span>${statusHtml}</div>
                 </div>`;
         };
 
-        summaryEl.innerHTML = boxFor('Tulang', totalTulang, totalTulangAlokasi) + boxFor('Jeroan', totalJeroan, totalJeroanAlokasi);
+        summaryEl.innerHTML = jenisList.map(boxFor).join('');
     }
 }
 
 async function simpanRencanaAlokasiLain() {
-    const jenis = document.getElementById('rencanaLainJenis').value === 'jeroan' ? 'jeroan' : 'tulang';
+    const jenisRaw = document.getElementById('rencanaLainJenis').value;
+    const jenis = BAGIAN_LAIN_UNIT[jenisRaw] ? jenisRaw : 'tulang';
     const alokasi = document.getElementById('rencanaLainAlokasi').value.trim();
     const berat = parseFloat(document.getElementById('rencanaLainBerat').value);
     const qty = parseFloat(document.getElementById('rencanaLainQty').value);
 
     if (!alokasi) { showAlert('Nama alokasi harus diisi', 'error'); return; }
-    if (!berat || berat <= 0) { showAlert('Berat per unit harus diisi', 'error'); return; }
+    if (!berat || berat <= 0) { showAlert(`${BAGIAN_LAIN_UNIT[jenis] === 'pcs' ? 'Jumlah' : 'Berat'} per unit harus diisi`, 'error'); return; }
     if (!qty || qty <= 0) { showAlert('Qty harus diisi', 'error'); return; }
 
     if (editingRencanaLainId) {
@@ -7608,6 +7647,7 @@ function editRencanaAlokasiLain(id) {
 
     editingRencanaLainId = id;
     document.getElementById('rencanaLainJenis').value = item.jenis;
+    updateRencanaLainUnitLabel();
     document.getElementById('rencanaLainAlokasi').value = item.alokasi;
     document.getElementById('rencanaLainBerat').value = item.berat;
     document.getElementById('rencanaLainQty').value = item.qty;
@@ -7622,6 +7662,8 @@ function editRencanaAlokasiLain(id) {
 
 function batalEditRencanaAlokasiLain() {
     editingRencanaLainId = null;
+    document.getElementById('rencanaLainJenis').value = 'tulang';
+    updateRencanaLainUnitLabel();
     document.getElementById('rencanaLainAlokasi').value = '';
     document.getElementById('rencanaLainBerat').value = '';
     document.getElementById('rencanaLainQty').value = '';
