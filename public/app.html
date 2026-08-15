@@ -3272,10 +3272,19 @@
             <!-- Cuma tampil utk guest/belum login (di-toggle di runTabDataLoaders())
                  - jelasin jalur "Daftar Langsung" (Qurban Instan) buat orang yang
                  mau ikut mendekati hari-H tanpa ikut nabung dulu. -->
-            <div id="surveySapiGuestInfo" class="lpj-trust-badge" style="display:none;margin-bottom:22px;">
+            <div id="surveySapiGuestInfo" class="lpj-trust-badge" style="display:none;margin-bottom:14px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
               <span>Belum ikut menabung tapi ingin ikut qurban tahun ini? Klik <strong>Daftar Langsung</strong> di grup sapi yang masih ada sisa slot - cukup isi data diri, admin akan menghubungi via WhatsApp untuk arahan pembayaran.</span>
             </div>
+            <!-- Tombol upload bukti transfer utk peserta "Daftar Langsung" -
+                 tampil bareng surveySapiGuestInfo (sama-sama cuma utk guest,
+                 lihat runTabDataLoaders()). Peserta instan tidak punya akun
+                 login, jadi tidak ada halaman "punya saya" - identifikasi
+                 pakai nomor WhatsApp pendaftaran, lihat cariPendaftaranInstan(). -->
+            <button id="surveySapiUploadBuktiBtn" class="btn btn-ghost" style="display:none;margin-bottom:22px;" onclick="openUploadBuktiInstanModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;vertical-align:-3px;margin-right:6px;"><path d="M12 15V3M12 15l-4-4M12 15l4-4"/><path d="M4 17v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+              Sudah Daftar Langsung &amp; Sudah Transfer? Upload Bukti
+            </button>
             <div id="surveySapiMemberList"></div>
           </div>
         </div>
@@ -4631,6 +4640,54 @@
     </div>
   </div>
 
+  <!-- Modal Upload Bukti Transfer utk peserta "Daftar Langsung" (tipe='instan')
+       - tidak ada akun login, jadi identifikasi dilakukan dgn nomor WhatsApp
+       yang dipakai saat submitInstantJoin() (1 nomor = 1 pendaftaran, karena
+       sudah di-dedupe di sana). Alurnya 2 langkah: cari pendaftaran by nomor
+       HP (cariPendaftaranInstan()), lalu upload foto (submitBuktiInstan()).
+       Lihat komentar TENANT_SHEET_TEMPLATE.SurveyPeserta di sheets.js utk
+       skema kolom buktiBayar/hasBuktiBayar. -->
+  <div id="uploadBuktiInstanModal" class="modal-overlay">
+    <div class="modal-content" style="width:440px;">
+      <div class="modal-header">
+        <div class="modal-title">Upload Bukti Transfer</div>
+        <button class="modal-close" onclick="closeUploadBuktiInstanModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="display:block;">
+        <div id="uploadBuktiStep1">
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:0; margin-bottom:18px;">
+            Masukkan nomor WhatsApp yang Anda pakai saat daftar "Daftar Langsung" untuk mencari pendaftaran Anda.
+          </p>
+          <div class="form-group">
+            <label>Nomor WhatsApp</label>
+            <input type="tel" id="uploadBuktiPhone" placeholder="08xxxxxxxxx">
+          </div>
+          <div id="uploadBuktiSearchError" style="color:var(--brick); font-size:13px; margin-bottom:12px;"></div>
+          <button class="btn btn-primary btn-block" id="uploadBuktiSearchBtn" onclick="cariPendaftaranInstan()">Cari Pendaftaran Saya</button>
+        </div>
+
+        <div id="uploadBuktiStep2" style="display:none;">
+          <div id="uploadBuktiInfo" class="lpj-trust-badge" style="margin-bottom:18px;"></div>
+
+          <div class="form-group">
+            <label>Foto Bukti Transfer</label>
+            <div id="uploadBuktiSlot" class="survey-foto-slot" style="width:150px;aspect-ratio:1/1;margin-top:6px;">
+              <input type="file" id="uploadBuktiFile" accept="image/png,image/jpeg" capture="environment" onchange="previewBuktiInstan()">
+              <div class="slot-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+                <span>Foto Bukti Transfer</span>
+              </div>
+            </div>
+            <div id="uploadBuktiError" style="color:var(--brick); font-size:13px; margin-top:8px;"></div>
+          </div>
+
+          <button class="btn btn-success btn-block" id="uploadBuktiSubmitBtn" onclick="submitBuktiInstan()" disabled>Kirim Bukti Transfer</button>
+          <button class="btn btn-ghost btn-block" style="margin-top:8px;" onclick="resetUploadBuktiStep()">&larr; Cari Nomor Lain</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
 // ================================================================
 // ===== APP_CONFIG - SATU-SATUNYA TEMPAT YANG PERLU DIEDIT     =====
@@ -5188,7 +5245,12 @@ async function loadDataFromSheets() {
         atasNama: row.atasNama || '',
         // Status pembayaran khusus tipe 'instan', ditoggle admin manual (lihat
         // togglePembayaranInstan()). Kosong/baris lama dianggap 'belum'.
-        statusBayar: (row.statusBayar || '').toString().trim().toLowerCase() === 'lunas' ? 'lunas' : 'belum'
+        statusBayar: (row.statusBayar || '').toString().trim().toLowerCase() === 'lunas' ? 'lunas' : 'belum',
+        // Flag saja (bukan isi foto) - fileData sebenarnya (buktiBayar) sudah
+        // dibuang sama server (lihat stripBuktiBayarInstan() di sheets.js),
+        // diganti flag hasBuktiBayar ini. Isi fotonya baru diambil on-demand
+        // lewat fetchSurveyPesertaBuktiData() saat admin klik "Lihat Bukti".
+        hasBuktiBayar: !!row.hasBuktiBayar
     })).filter(p => p.id);
 
     // Parse DistribusiDaging (rencana pembagian daging per alokasi PER SAPI -
@@ -5887,7 +5949,10 @@ function runTabDataLoaders(tabName) {
             loadSurveySapiResume();
         } else {
             const guestInfo = document.getElementById('surveySapiGuestInfo');
-            if (guestInfo) guestInfo.style.display = (currentUser && currentUser.role === 'member') ? 'none' : 'flex';
+            const isGuestView = !(currentUser && currentUser.role === 'member');
+            if (guestInfo) guestInfo.style.display = isGuestView ? 'flex' : 'none';
+            const uploadBuktiBtn = document.getElementById('surveySapiUploadBuktiBtn');
+            if (uploadBuktiBtn) uploadBuktiBtn.style.display = isGuestView ? 'inline-flex' : 'none';
             loadSurveySapiMemberList();
         }
         renderSurveyHero();
@@ -6725,6 +6790,7 @@ function loadSurveySapiResume() {
                       </td>
                       <td style="white-space:nowrap;">
                         <button class="btn btn-ghost btn-small" onclick="waFollowUpInstan(${p.id})" title="Hubungi via WhatsApp">💬 WA</button>
+                        ${p.hasBuktiBayar ? `<button class="btn btn-ghost btn-small" onclick="showBuktiBayarInstan(${p.id})" style="margin-left:4px;" title="Lihat foto bukti transfer">🖼 Lihat Bukti</button>` : ''}
                         <button class="btn btn-small ${lunas ? 'btn-ghost' : 'btn-success'}" onclick="togglePembayaranInstan(${p.id})" style="margin-left:4px;">${lunas ? 'Batalkan Lunas' : 'Tandai Lunas'}</button>
                       </td>
                     </tr>`;
@@ -6824,6 +6890,54 @@ async function togglePembayaranInstan(pesertaId) {
     p.statusBayar = statusBaru;
     showAlert(statusBaru === 'lunas' ? 'Ditandai Lunas.' : 'Ditandai Belum Bayar.', 'success');
     loadSurveySapiResume();
+}
+
+// Ambil foto bukti transfer peserta instan on-demand (fileData sebenarnya
+// dibuang dari bootstrap/list, lihat stripBuktiBayarInstan() di sheets.js) -
+// sama pola dgn fetchSavingFileData() utk Savings.fileData.
+async function fetchSurveyPesertaBuktiData(pesertaId) {
+    try {
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=SurveyPeserta&getFile=${pesertaId}${tenantParam()}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return data.fileData || '';
+    } catch (error) {
+        console.error('Error fetching bukti bayar instan:', error);
+        return '';
+    }
+}
+
+// Tombol "🖼 Lihat Bukti" di resume admin (peserta instan) - reuse
+// #previewModal yang sama dgn showPreview() (Savings), cuma sumber datanya
+// beda sheet/kolom.
+async function showBuktiBayarInstan(pesertaId) {
+    const p = appData.surveyPeserta.find(x => x.id === pesertaId);
+    if (!p) return;
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+
+    title.textContent = `Bukti Transfer - ${p.atasNama || p.memberName}`;
+
+    if (!p.hasBuktiBayar) {
+        body.innerHTML = '<div class="preview-pdf"><p>📄 Tidak ada bukti file tersimpan</p></div>';
+        modal.classList.add('show');
+        return;
+    }
+
+    body.innerHTML = '<div class="preview-pdf"><p>⏳ Memuat bukti...</p></div>';
+    modal.classList.add('show');
+
+    const fileData = await fetchSurveyPesertaBuktiData(pesertaId);
+
+    if (!fileData) {
+        body.innerHTML = '<div class="preview-pdf"><p>📄 Gagal memuat bukti file</p></div>';
+        return;
+    }
+
+    body.innerHTML = `<img src="${fileData}" class="preview-full-image" alt="Bukti transfer">`;
 }
 
 // Estimasi pembagian daging per sapi buat rencana hari H - "Hak Mudhohi" per
@@ -9972,6 +10086,181 @@ Mohon dihubungi untuk arahan pembayaran (transfer/tunai).
     showAlert('Pendaftaran berhasil dikirim! Admin akan menghubungi Anda via WhatsApp.', 'success');
     loadSurveySapiMemberList();
     renderSurveyHero();
+}
+
+// ===== UPLOAD BUKTI TRANSFER (peserta "Daftar Langsung"/instan) =====
+// Peserta instan tidak punya akun login, jadi tidak ada halaman "riwayat
+// saya" - modal ini 2 langkah: (1) cari pendaftaran sendiri by nomor WA yang
+// dipakai saat submitInstantJoin() (1 nomor = 1 pendaftaran aktif, sudah
+// di-dedupe di sana jadi aman dipakai sbg kunci pencarian), (2) upload foto
+// bukti (dikompres pakai compressImage() yang sama dgn upload bukti Tabungan
+// biasa) lalu disimpan ke kolom SurveyPeserta.buktiBayar via updateSheetDB().
+let uploadBuktiInstanState = { pesertaId: null, fotoBase64: null };
+
+function openUploadBuktiInstanModal() {
+    resetUploadBuktiStep();
+    document.getElementById('uploadBuktiInstanModal').classList.add('show');
+}
+
+function closeUploadBuktiInstanModal() {
+    document.getElementById('uploadBuktiInstanModal').classList.remove('show');
+}
+
+function resetUploadBuktiStep() {
+    uploadBuktiInstanState = { pesertaId: null, fotoBase64: null };
+    document.getElementById('uploadBuktiPhone').value = '';
+    document.getElementById('uploadBuktiSearchError').textContent = '';
+    const searchBtn = document.getElementById('uploadBuktiSearchBtn');
+    if (searchBtn) { searchBtn.disabled = false; searchBtn.textContent = 'Cari Pendaftaran Saya'; }
+    document.getElementById('uploadBuktiStep1').style.display = 'block';
+    document.getElementById('uploadBuktiStep2').style.display = 'none';
+    document.getElementById('uploadBuktiError').textContent = '';
+    const submitBtn = document.getElementById('uploadBuktiSubmitBtn');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Kirim Bukti Transfer'; }
+    const slot = document.getElementById('uploadBuktiSlot');
+    if (slot) {
+        slot.innerHTML = `
+            <input type="file" id="uploadBuktiFile" accept="image/png,image/jpeg" capture="environment" onchange="previewBuktiInstan()">
+            <div class="slot-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+                <span>Foto Bukti Transfer</span>
+            </div>`;
+    }
+}
+
+function cariPendaftaranInstan() {
+    const phoneInput = document.getElementById('uploadBuktiPhone').value.trim();
+    const errorEl = document.getElementById('uploadBuktiSearchError');
+    errorEl.textContent = '';
+
+    if (!phoneInput) {
+        errorEl.textContent = 'Nomor WhatsApp harus diisi.';
+        return;
+    }
+
+    const normalized = normalizePhone(phoneInput);
+    // Cuma cari di antara peserta tipe 'instan' - peserta 'tabungan' punya
+    // akun & jalur upload sendiri (menu Upload Bukti Transfer), tidak relevan
+    // di sini.
+    const peserta = appData.surveyPeserta.find(p =>
+        p.status !== 'batal' && p.tipe === 'instan' && p.phone && normalizePhone(p.phone) === normalized
+    );
+
+    if (!peserta) {
+        errorEl.textContent = 'Nomor tidak ditemukan. Pastikan sudah daftar "Daftar Langsung" dulu, atau hubungi admin kalau merasa sudah daftar.';
+        return;
+    }
+
+    const survey = appData.surveySapi.find(s => s.id === peserta.surveyId);
+    const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
+    const iuran = k ? Math.round(k.iuran) : 0;
+    const nama = peserta.atasNama || peserta.memberName;
+
+    uploadBuktiInstanState.pesertaId = peserta.id;
+
+    const statusText = peserta.statusBayar === 'lunas'
+        ? '✓ Status saat ini: sudah ditandai <strong>Lunas</strong> oleh admin. Anda tetap bisa upload/ganti foto bukti kalau perlu.'
+        : 'Status saat ini: <strong>Belum Bayar</strong>. Setelah upload, admin akan cek & tandai Lunas.';
+
+    document.getElementById('uploadBuktiInfo').innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+        <span>Ditemukan: <strong>${nama}</strong>${survey ? ' · ' + surveyKode(survey) : ''}. Total iuran Rp ${iuran.toLocaleString('id-ID')}. ${statusText}</span>`;
+
+    document.getElementById('uploadBuktiStep1').style.display = 'none';
+    document.getElementById('uploadBuktiStep2').style.display = 'block';
+}
+
+function previewBuktiInstan() {
+    const input = document.getElementById('uploadBuktiFile');
+    const slot = document.getElementById('uploadBuktiSlot');
+    const errorEl = document.getElementById('uploadBuktiError');
+    const submitBtn = document.getElementById('uploadBuktiSubmitBtn');
+    const file = input.files[0];
+    if (!file) return;
+
+    errorEl.textContent = '';
+    submitBtn.disabled = true;
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+        errorEl.textContent = 'Foto harus PNG atau JPG.';
+        input.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        compressImage(e.target.result, function (compressedBase64) {
+            uploadBuktiInstanState.fotoBase64 = compressedBase64;
+            slot.innerHTML = `
+                <input type="file" id="uploadBuktiFile" accept="image/png,image/jpeg" capture="environment" onchange="previewBuktiInstan()">
+                <img src="${compressedBase64}" alt="Bukti transfer">
+                <button type="button" class="slot-remove" onclick="removeBuktiInstan(event)" title="Hapus foto">&times;</button>`;
+            submitBtn.disabled = false;
+        }, function () {
+            errorEl.textContent = 'Foto terlalu detail untuk disimpan walau sudah dikompres maksimal. Coba foto ulang lebih sederhana.';
+            input.value = '';
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeBuktiInstan(evt) {
+    if (evt) evt.stopPropagation();
+    uploadBuktiInstanState.fotoBase64 = null;
+    document.getElementById('uploadBuktiSubmitBtn').disabled = true;
+    const slot = document.getElementById('uploadBuktiSlot');
+    slot.innerHTML = `
+        <input type="file" id="uploadBuktiFile" accept="image/png,image/jpeg" capture="environment" onchange="previewBuktiInstan()">
+        <div class="slot-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+            <span>Foto Bukti Transfer</span>
+        </div>`;
+}
+
+async function submitBuktiInstan() {
+    const { pesertaId, fotoBase64 } = uploadBuktiInstanState;
+    if (!pesertaId || !fotoBase64) {
+        showAlert('Pilih foto bukti transfer dulu.', 'error');
+        return;
+    }
+
+    const peserta = appData.surveyPeserta.find(p => p.id === pesertaId);
+    const btn = document.getElementById('uploadBuktiSubmitBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Mengirim...'; }
+
+    // ===== Notif WA ke Bendahara/Ketua: SEBELUM await, sama pola dgn
+    // submitInstantJoin() - data pesan sudah lengkap dari state lokal, jadi
+    // window.open() dipanggil sinkron di sini supaya tidak diblokir browser
+    // mobile begitu ada jeda async (updateSheetDB) di bawahnya.
+    if (peserta) {
+        const survey = appData.surveySapi.find(s => s.id === peserta.surveyId);
+        const nama = peserta.atasNama || peserta.memberName;
+        const msg = `Assalamu'alaikum, peserta Daftar Langsung sudah upload bukti transfer! 🧾
+
+Nama: ${nama}
+Pendaftar: ${peserta.memberName}
+WhatsApp: ${peserta.phone}
+Grup Sapi: ${survey ? surveyKode(survey) + ' · ' + jenisSapiLabel(survey.jenisSapi) : '-'}
+
+Mohon dicek & ditandai Lunas kalau sudah sesuai (menu Survey Sapi > Resume Peserta).
+🔗 ${APP_CONFIG.appUrl}`;
+        const officerPhone = findOfficerPhone(appData.members, ['bendum2', 'ketua1']);
+        if (officerPhone) openWaTo(officerPhone, msg);
+    }
+
+    const success = await updateSheetDB('SurveyPeserta', 'id', pesertaId, { buktiBayar: fotoBase64 });
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Kirim Bukti Transfer'; }
+
+    if (!success) {
+        showAlert('Gagal mengirim bukti transfer. Coba lagi.', 'error');
+        return;
+    }
+
+    if (peserta) peserta.hasBuktiBayar = true;
+
+    closeUploadBuktiInstanModal();
+    showAlert('Bukti transfer terkirim! Admin akan segera mengecek & menandai status pembayaran Anda.', 'success');
 }
 
 // ===== VERIFY =====

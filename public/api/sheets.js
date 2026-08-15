@@ -258,6 +258,13 @@ function stripPenerimaFoto(row) {
   return { ...row, hasFotoAmbil: !!row.fotoAmbil, fotoAmbil: '' };
 }
 
+// Sama pola lagi, utk 1 kolom foto bukti transfer peserta "Daftar Langsung"
+// (Qurban Instan, tipe='instan') di sheet SurveyPeserta - beda dari member
+// tabungan biasa yang upload buktinya lewat sheet Savings (fileData).
+function stripBuktiBayarInstan(row) {
+  return { ...row, hasBuktiBayar: !!row.buktiBayar, buktiBayar: '' };
+}
+
 // Sama pola lagi, utk 1 kolom foto bukti transaksi keuangan (nota/struk) di
 // sheet TransaksiKeuangan - modul "Keuangan" (Pos Budget + arus kas harian).
 function stripBuktiTransaksi(row) {
@@ -411,6 +418,9 @@ async function readSheet(sheetId, sheetName, accessToken) {
   if (sheetName === 'TransaksiKeuangan') {
     rows = rows.map(stripBuktiTransaksi);
   }
+  if (sheetName === 'SurveyPeserta') {
+    rows = rows.map(stripBuktiBayarInstan);
+  }
   return rows;
 }
 
@@ -436,6 +446,9 @@ async function readAllSheetsBatch(sheetId, accessToken) {
       }
       if (name === 'TransaksiKeuangan') {
         rows = rows.map(stripBuktiTransaksi);
+      }
+      if (name === 'SurveyPeserta') {
+        rows = rows.map(stripBuktiBayarInstan);
       }
       result[name] = rows;
     });
@@ -563,7 +576,15 @@ const TENANT_SHEET_TEMPLATE = {
   // setelah dikonfirmasi transfer/tunai. Kosong/baris lama dianggap 'belum'.
   // Tidak dipakai peserta tipe 'tabungan' (status lunas/kurangnya sudah
   // dihitung otomatis dari sheet Savings, lihat memberApprovedSavings()).
-  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe', 'atasNama', 'statusBayar'],
+  // "buktiBayar" - khusus tipe 'instan', opsional: foto bukti transfer (base64
+  // data URL, dikompres di client sama seperti Savings.fileData) yang peserta
+  // upload SENDIRI lewat modal cari-by-nomor-HP (tidak ada akun login jadi
+  // tidak ada halaman "punya saya" khusus) - lihat cariPendaftaranInstan()/
+  // submitBuktiInstan() di app.html. DIBUANG dari list/bootstrap biasa dan
+  // diganti flag hasBuktiBayar (lihat stripBuktiBayarInstan()), sama pola
+  // dengan Savings.fileData - isi foto sebenarnya baru diambil on-demand
+  // lewat ?sheet=SurveyPeserta&getFile=<id> saat admin klik "Lihat Bukti".
+  SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe', 'atasNama', 'statusBayar', 'buktiBayar'],
   DistribusiDaging: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   RencanaDistribusi: ['id', 'alokasi', 'berat', 'qty', 'wo', 'status', 'created_date'],
   WorkOrderAktual: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
@@ -980,6 +1001,11 @@ module.exports = async function handler(req, res) {
 
       if (sheet === 'TransaksiKeuangan' && getFile) {
         const fileData = await getFileData(targetSheetId, 'TransaksiKeuangan', getFile, accessToken, 'bukti');
+        return res.status(200).json({ id: getFile, fileData });
+      }
+
+      if (sheet === 'SurveyPeserta' && getFile) {
+        const fileData = await getFileData(targetSheetId, 'SurveyPeserta', getFile, accessToken, 'buktiBayar');
         return res.status(200).json({ id: getFile, fileData });
       }
 
