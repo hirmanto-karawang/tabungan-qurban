@@ -3415,6 +3415,48 @@
                   <tfoot id="rencanaDistribusiFoot"></tfoot>
                 </table>
               </div>
+
+              <!-- Rencana Distribusi Bagian LAIN (Tulang & Jeroan) - SENGAJA
+                   akumulasi TOTAL semua sapi saja (tidak dirinci per sapi,
+                   tidak ada Work Order/kolom WO-B/L spt daging di atas) -
+                   lihat loadRencanaDistribusiLain(). -->
+              <h3 style="margin-top:30px;">Rencana Distribusi Bagian Lain (Tulang &amp; Jeroan)</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Total akumulasi dari SEMUA sapi hasil survey (tidak dirinci per sapi) - lihat rincian per sapi di tabel Estimasi Bagian Lain di sub-tab Estimasi Distribusi.
+              </p>
+              <div id="rencanaBagianLainSummary" style="margin-bottom:18px;"></div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Jenis Bagian</label>
+                  <select id="rencanaLainJenis">
+                    <option value="tulang">Tulang</option>
+                    <option value="jeroan">Jeroan</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Alokasi</label>
+                  <input type="text" id="rencanaLainAlokasi" placeholder="Contoh: Peternak, Panti Asuhan, Panitia">
+                </div>
+                <div class="form-group">
+                  <label>Berat per Unit (kg)</label>
+                  <input type="number" id="rencanaLainBerat" placeholder="Contoh: 5" min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                  <label>Qty</label>
+                  <input type="number" id="rencanaLainQty" placeholder="Contoh: 10" min="0" step="1">
+                </div>
+              </div>
+              <div class="actions" style="margin-bottom:18px;">
+                <button class="btn btn-success btn-small" id="rencanaLainSubmitBtn" onclick="simpanRencanaAlokasiLain()">+ Tambah Alokasi</button>
+                <button class="btn btn-ghost btn-small" id="rencanaLainCancelBtn" onclick="batalEditRencanaAlokasiLain()" style="display:none;">Batal Edit</button>
+              </div>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Jenis</th><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th><th></th></tr></thead>
+                  <tbody id="rencanaLainBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="rencanaLainFoot"></tfoot>
+                </table>
+              </div>
             </div>
 
             <div id="workOrderTab" class="sub-tab-content" style="display:none;">
@@ -3500,6 +3542,19 @@
                   <thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th><th>WO</th><th>B/L</th></tr></thead>
                   <tbody id="rencanaDistribusiBodyMember"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
                   <tfoot id="rencanaDistribusiFootMember"></tfoot>
+                </table>
+              </div>
+
+              <h3 style="margin-top:30px;">Rencana Distribusi Bagian Lain (Tulang &amp; Jeroan)</h3>
+              <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+                Total akumulasi dari semua sapi hasil survey, disusun admin.
+              </p>
+              <div id="rencanaBagianLainSummaryMember" style="margin-bottom:18px;"></div>
+              <div class="table-container">
+                <table>
+                  <thead><tr><th>Jenis</th><th>Alokasi</th><th>Berat</th><th>Qty</th><th>Total</th></tr></thead>
+                  <tbody id="rencanaLainBodyMember"><tr><td colspan="5" class="loading">Memuat…</td></tr></tbody>
+                  <tfoot id="rencanaLainFootMember"></tfoot>
                 </table>
               </div>
             </div>
@@ -4883,6 +4938,7 @@ let appData = {
     surveyPeserta: [],
     distribusiDaging: [],
     rencanaDistribusi: [],
+    rencanaDistribusiLain: [],
     workOrderAktual: [],
     penerimaQR: [],
     posBudget: [],
@@ -5130,6 +5186,7 @@ async function loadDataFromSheets() {
     const surveyPesertaRows = bootstrap ? (bootstrap.SurveyPeserta || []) : await fetchSheetDBTable('SurveyPeserta');
     const distribusiDagingRows = bootstrap ? (bootstrap.DistribusiDaging || []) : await fetchSheetDBTable('DistribusiDaging');
     const rencanaDistribusiRows = bootstrap ? (bootstrap.RencanaDistribusi || []) : await fetchSheetDBTable('RencanaDistribusi');
+    const rencanaDistribusiLainRows = bootstrap ? (bootstrap.RencanaDistribusiLain || []) : await fetchSheetDBTable('RencanaDistribusiLain');
     const workOrderAktualRows = bootstrap ? (bootstrap.WorkOrderAktual || []) : await fetchSheetDBTable('WorkOrderAktual');
     const penerimaQRRows = bootstrap ? (bootstrap.PenerimaQR || []) : await fetchSheetDBTable('PenerimaQR');
     const posBudgetRows = bootstrap ? (bootstrap.PosBudget || []) : await fetchSheetDBTable('PosBudget');
@@ -5324,6 +5381,20 @@ async function loadDataFromSheets() {
         berat: parseFloat(row.berat) || 0,
         qty: parseFloat(row.qty) || 0,
         wo: (row.wo || '').toString().trim().toLowerCase() === 'ya',
+        status: row.status || 'aktif',
+        created_date: row.created_date || ''
+    })).filter(d => d.id);
+
+    // Parse RencanaDistribusiLain (Tulang/Jeroan - akumulasi TOTAL semua
+    // survey, tidak dirinci per sapi & tidak ada Work Order/kolom "wo" spt
+    // RencanaDistribusi daging). "jenis" default 'tulang' kalau kosong/nilai
+    // tidak dikenal.
+    appData.rencanaDistribusiLain = rencanaDistribusiLainRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        jenis: (row.jenis || '').toString().trim().toLowerCase() === 'jeroan' ? 'jeroan' : 'tulang',
+        alokasi: row.alokasi || '',
+        berat: parseFloat(row.berat) || 0,
+        qty: parseFloat(row.qty) || 0,
         status: row.status || 'aktif',
         created_date: row.created_date || ''
     })).filter(d => d.id);
@@ -6016,11 +6087,13 @@ function runTabDataLoaders(tabName) {
             loadSurveySapiDistribusi();
             loadSurveySapiBagianLain();
             loadRencanaDistribusiGlobal('rencanaDistribusiBody', 'rencanaDistribusiFoot', true);
+            loadRencanaDistribusiLain('rencanaLainBody', 'rencanaLainFoot', 'rencanaBagianLainSummary', true);
             loadWorkOrderList('workOrderListAdmin', true);
         } else {
             loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
             loadSurveySapiBagianLain('surveyBagianLainBodyMember', 'surveyBagianLainFootMember');
             loadRencanaDistribusiGlobal('rencanaDistribusiBodyMember', 'rencanaDistribusiFootMember', false);
+            loadRencanaDistribusiLain('rencanaLainBodyMember', 'rencanaLainFootMember', 'rencanaBagianLainSummaryMember', false);
             loadWorkOrderList('workOrderListMember', false);
         }
         renderDistribusiHero();
@@ -7385,6 +7458,191 @@ async function hapusRencanaAlokasi(id) {
         showAlert('Alokasi dihapus', 'success');
         if (editingRencanaId === id) batalEditRencanaAlokasi();
         loadRencanaDistribusiGlobal('rencanaDistribusiBody', 'rencanaDistribusiFoot', true);
+    } else {
+        showAlert('Gagal menghapus alokasi, coba lagi.', 'error');
+    }
+}
+
+// ===== RENCANA DISTRIBUSI BAGIAN LAIN (Tulang & Jeroan) =====
+// Sama semangat dgn Rencana Distribusi Daging (Umum) di atas - alokasi
+// manual dibanding thd total "budget" - tapi budget-nya total akumulasi
+// Tulang/Jeroan dari SEMUA sapi (bukan Share Warga), dan SENGAJA TIDAK ada
+// kolom WO/B/L krn Tulang/Jeroan tidak melalui Work Order per sapi (WO
+// Aktual cuma soal daging).
+let editingRencanaLainId = null;
+
+// Total akumulasi (semua survey sapi) utk 1 jenis bagian - dipakai sbg
+// "budget" utk Rencana Distribusi Bagian Lain, sama semangatnya dgn
+// totalShareWargaSemuaSurvey() utk daging. jenis: 'tulang' | 'jeroan'.
+function totalBagianLainSemuaSurvey(jenis) {
+    const key = jenis === 'jeroan' ? 'estimasiJeroan' : 'estimasiTulang';
+    return appData.surveySapi.reduce((sum, s) => {
+        const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
+        return sum + k[key];
+    }, 0);
+}
+
+function loadRencanaDistribusiLain(tbodyId, tfootId, summaryId, isAdminView) {
+    const tbody = document.getElementById(tbodyId || 'rencanaLainBody');
+    const tfoot = document.getElementById(tfootId || 'rencanaLainFoot');
+    if (!tbody) return;
+
+    const summaryEl = document.getElementById(summaryId);
+    const rows = appData.rencanaDistribusiLain.filter(d => d.status !== 'batal');
+    const colspan = isAdminView ? 6 : 5;
+    const jenisLabel = { tulang: 'Tulang', jeroan: 'Jeroan' };
+    const jenisColor = { tulang: 'var(--sky)', jeroan: 'var(--gold)' };
+
+    let totalTulangAlokasi = 0, totalJeroanAlokasi = 0;
+
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="loading">Belum ada rencana distribusi.${isAdminView ? ' Tambahkan lewat form di atas.' : ''}</td></tr>`;
+        if (tfoot) tfoot.innerHTML = '';
+    } else {
+        tbody.innerHTML = rows.map(d => {
+            const total = d.berat * d.qty;
+            if (d.jenis === 'jeroan') totalJeroanAlokasi += total; else totalTulangAlokasi += total;
+
+            const aksiCell = isAdminView
+                ? `<td style="white-space:nowrap;">
+                     <button class="btn btn-ghost btn-small" onclick="editRencanaAlokasiLain(${d.id})" title="Edit">✏️</button>
+                     <button class="btn btn-ghost btn-small" onclick="hapusRencanaAlokasiLain(${d.id})" title="Hapus">🗑️</button>
+                   </td>`
+                : '';
+
+            return `
+                <tr>
+                  <td><span style="color:${jenisColor[d.jenis] || 'var(--ink)'}; font-weight:600;">${jenisLabel[d.jenis] || d.jenis}</span></td>
+                  <td>${d.alokasi || '—'}</td>
+                  <td>${d.berat.toLocaleString('id-ID')} kg</td>
+                  <td>${d.qty.toLocaleString('id-ID')}</td>
+                  <td><strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
+                  ${aksiCell}
+                </tr>`;
+        }).join('');
+
+        if (tfoot) {
+            tfoot.innerHTML = `
+                <tr style="background:var(--sand); font-weight:700;">
+                  <td colspan="4">Total Dialokasikan (Tulang / Jeroan)</td>
+                  <td>${formatKg(totalTulangAlokasi)} / ${formatKg(totalJeroanAlokasi)}</td>
+                  ${isAdminView ? '<td></td>' : ''}
+                </tr>`;
+        }
+    }
+
+    if (summaryEl) {
+        const totalTulang = totalBagianLainSemuaSurvey('tulang');
+        const totalJeroan = totalBagianLainSemuaSurvey('jeroan');
+
+        const boxFor = (label, total, alokasi) => {
+            const selisih = total - alokasi;
+            let statusHtml;
+            if (Math.abs(selisih) <= 0.05) statusHtml = `<span style="color:var(--emerald-2); font-weight:600;">✓ Pas, sudah direncanakan semua</span>`;
+            else if (selisih > 0) statusHtml = `<span style="color:var(--gold); font-weight:600;">Belum dialokasikan: ${formatKg(selisih)}</span>`;
+            else statusHtml = `<span style="color:var(--brick); font-weight:600;">⚠️ Melebihi total: ${formatKg(-selisih)}</span>`;
+            return `
+                <div class="rek-box" style="margin-bottom:10px;">
+                  <div class="rek-row"><span>Total ${label} (semua survey)</span><span>${formatKg(total)}</span></div>
+                  <div class="rek-row"><span>Dialokasikan</span><span>${formatKg(alokasi)}</span></div>
+                  <div class="rek-row"><span>Status</span>${statusHtml}</div>
+                </div>`;
+        };
+
+        summaryEl.innerHTML = boxFor('Tulang', totalTulang, totalTulangAlokasi) + boxFor('Jeroan', totalJeroan, totalJeroanAlokasi);
+    }
+}
+
+async function simpanRencanaAlokasiLain() {
+    const jenis = document.getElementById('rencanaLainJenis').value === 'jeroan' ? 'jeroan' : 'tulang';
+    const alokasi = document.getElementById('rencanaLainAlokasi').value.trim();
+    const berat = parseFloat(document.getElementById('rencanaLainBerat').value);
+    const qty = parseFloat(document.getElementById('rencanaLainQty').value);
+
+    if (!alokasi) { showAlert('Nama alokasi harus diisi', 'error'); return; }
+    if (!berat || berat <= 0) { showAlert('Berat per unit harus diisi', 'error'); return; }
+    if (!qty || qty <= 0) { showAlert('Qty harus diisi', 'error'); return; }
+
+    if (editingRencanaLainId) {
+        const success = await updateSheetDB('RencanaDistribusiLain', 'id', editingRencanaLainId, { jenis, alokasi, berat, qty });
+        if (success) {
+            const item = appData.rencanaDistribusiLain.find(d => d.id === editingRencanaLainId);
+            if (item) { item.jenis = jenis; item.alokasi = alokasi; item.berat = berat; item.qty = qty; }
+            showAlert('Alokasi berhasil diperbarui', 'success');
+            batalEditRencanaAlokasiLain();
+            loadRencanaDistribusiLain('rencanaLainBody', 'rencanaLainFoot', 'rencanaBagianLainSummary', true);
+        } else {
+            showAlert('Gagal menyimpan perubahan, coba lagi.', 'error');
+        }
+        return;
+    }
+
+    const newId = appData.rencanaDistribusiLain.length > 0
+        ? Math.max(...appData.rencanaDistribusiLain.map(d => d.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        jenis: jenis,
+        alokasi: alokasi,
+        berat: berat,
+        qty: qty,
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+
+    const success = await appendSheetDB('RencanaDistribusiLain', record);
+    if (success) {
+        appData.rencanaDistribusiLain.push({ ...record });
+        showAlert('Alokasi berhasil ditambahkan', 'success');
+        document.getElementById('rencanaLainAlokasi').value = '';
+        document.getElementById('rencanaLainBerat').value = '';
+        document.getElementById('rencanaLainQty').value = '';
+        loadRencanaDistribusiLain('rencanaLainBody', 'rencanaLainFoot', 'rencanaBagianLainSummary', true);
+    }
+}
+
+function editRencanaAlokasiLain(id) {
+    const item = appData.rencanaDistribusiLain.find(d => d.id === id);
+    if (!item) return;
+
+    editingRencanaLainId = id;
+    document.getElementById('rencanaLainJenis').value = item.jenis;
+    document.getElementById('rencanaLainAlokasi').value = item.alokasi;
+    document.getElementById('rencanaLainBerat').value = item.berat;
+    document.getElementById('rencanaLainQty').value = item.qty;
+
+    const btn = document.getElementById('rencanaLainSubmitBtn');
+    if (btn) btn.textContent = '💾 Simpan Perubahan';
+    const cancelBtn = document.getElementById('rencanaLainCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+    document.getElementById('rencanaLainAlokasi').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function batalEditRencanaAlokasiLain() {
+    editingRencanaLainId = null;
+    document.getElementById('rencanaLainAlokasi').value = '';
+    document.getElementById('rencanaLainBerat').value = '';
+    document.getElementById('rencanaLainQty').value = '';
+
+    const btn = document.getElementById('rencanaLainSubmitBtn');
+    if (btn) btn.textContent = '+ Tambah Alokasi';
+    const cancelBtn = document.getElementById('rencanaLainCancelBtn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+async function hapusRencanaAlokasiLain(id) {
+    const item = appData.rencanaDistribusiLain.find(d => d.id === id);
+    if (!item) return;
+    if (!confirm(`Hapus alokasi "${item.alokasi}" dari rencana distribusi bagian lain?`)) return;
+
+    const success = await updateSheetDB('RencanaDistribusiLain', 'id', id, { status: 'batal' });
+    if (success) {
+        item.status = 'batal';
+        showAlert('Alokasi dihapus', 'success');
+        if (editingRencanaLainId === id) batalEditRencanaAlokasiLain();
+        loadRencanaDistribusiLain('rencanaLainBody', 'rencanaLainFoot', 'rencanaBagianLainSummary', true);
     } else {
         showAlert('Gagal menghapus alokasi, coba lagi.', 'error');
     }

@@ -44,7 +44,7 @@
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?tenant=<slug>&config=1   -> config publik masjid (nama, logo, rekening, dst)
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[], LPJNarasi:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], RencanaDistribusiLain:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[], LPJNarasi:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
@@ -234,7 +234,7 @@ function tenantConfigPublicFields(tenant) {
 // yang bisa ditulis admin di tab LPJ (Laporan Pertanggungjawaban). Sengaja
 // dibuatkan sheet sendiri (bukan hardcode) supaya kontennya bisa diedit
 // tanpa ubah kode, sama semangatnya dengan Templates.
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris', 'LPJNarasi'];
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'RencanaDistribusiLain', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris', 'LPJNarasi'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
 // Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
@@ -587,6 +587,13 @@ const TENANT_SHEET_TEMPLATE = {
   SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe', 'atasNama', 'statusBayar', 'buktiBayar'],
   DistribusiDaging: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   RencanaDistribusi: ['id', 'alokasi', 'berat', 'qty', 'wo', 'status', 'created_date'],
+  // Rencana distribusi bagian NON-DAGING (Tulang/Jeroan) - "kalkulator
+  // distribusi bagian sapi", lihat computeSurveyKalkulasi() di app.html utk
+  // rumus estimasi tiap bagian. SENGAJA tidak ada kolom "wo" spt
+  // RencanaDistribusi (daging) - bagian ini tidak melalui Work Order per
+  // sapi, cukup dibandingkan ke total akumulasi (semua survey) langsung.
+  // "jenis" isinya 'tulang' atau 'jeroan'.
+  RencanaDistribusiLain: ['id', 'jenis', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   WorkOrderAktual: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'created_date'],
   PosBudget: ['id', 'nama', 'jenisPos', 'jumlahAnggaran', 'keterangan', 'status', 'created_date'],
