@@ -3624,6 +3624,7 @@
                ITEM_TAMBAHAN_UNIT. -->
           <div style="margin-bottom:14px;">
             <label style="display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin-bottom:8px;">Item Tambahan (opsional)</label>
+            <div id="penerimaItemKuotaInfo" style="margin-bottom:10px;"></div>
             <div class="form-grid">
               <div class="form-group">
                 <label>Tulang (paket)</label>
@@ -8660,7 +8661,7 @@ function updatePenerimaKuotaInfo() {
     if (!select || !info) return;
 
     const alokasi = select.value;
-    if (!alokasi) { info.innerHTML = ''; return; }
+    if (!alokasi) { info.innerHTML = ''; updatePenerimaItemKuotaInfo(); return; }
 
     const r = appData.rencanaDistribusi.find(x => x.status !== 'batal' && x.alokasi === alokasi);
     const kuota = r ? r.qty : 0;
@@ -8674,6 +8675,63 @@ function updatePenerimaKuotaInfo() {
         html = `<span style="color:var(--ink-soft);">Kuota "${alokasi}": ${terisi} dari ${kuota} terisi <span style="color:var(--emerald-2); font-weight:600;">(sisa ${sisa})</span></span>`;
     }
     info.innerHTML = html;
+
+    updatePenerimaItemKuotaInfo();
+}
+
+// Total Item Tambahan (1 jenis) yang sudah "dijanjikan" ke penerima AKTIF
+// (bukan kategori mudhohi) di alokasi ini - dipakai buat hitung estimasi
+// sisa kuota, sama semangatnya dgn countPenerimaAktifUntukAlokasi() tapi per
+// jenis bagian lain, bukan per slot nama.
+function countItemTambahanTerisiUntukAlokasi(alokasiName, jenis) {
+    const nama = (alokasiName || '').trim().toLowerCase();
+    if (!nama) return 0;
+    return appData.penerimaQR
+        .filter(p => p.status !== 'batal' && p.kategori !== 'mudhohi' && (p.alokasi || '').trim().toLowerCase() === nama)
+        .reduce((sum, p) => sum + (parseFloat((p.itemTambahan || {})[jenis]) || 0), 0);
+}
+
+// Estimasi sisa kuota Item Tambahan (Tulang/Jeroan/Kepala/Kaki/Buntut) utk
+// alokasi yang lagi dipilih - SENGAJA cuma informatif (bantu admin supaya
+// tidak "over-janji" pas cetak kupon), TIDAK memblokir submit spt kuota
+// alokasi utama krn itemTambahan memang sengaja dirancang bebas/tanpa
+// validasi keras (lihat komentar TENANT_SHEET_TEMPLATE.PenerimaQR). Sumber
+// "kuota" per jenis: baris RencanaDistribusiLain yang alokasi-nya SAMA
+// (case-insensitive) dgn alokasi daging yang lagi dipilih - kalau admin
+// belum bikin baris itu di sub-tab Rencana (Umum) > Rencana Distribusi
+// Bagian Lain, jenis itu tidak ditampilkan (tidak ada dasar kuotanya).
+function updatePenerimaItemKuotaInfo() {
+    const el = document.getElementById('penerimaItemKuotaInfo');
+    if (!el) return;
+
+    const select = document.getElementById('penerimaAlokasiSelect');
+    const alokasi = select ? select.value : '';
+    if (!alokasi) { el.innerHTML = ''; return; }
+
+    const namaLower = alokasi.trim().toLowerCase();
+    const rows = ITEM_TAMBAHAN_JENIS_LIST
+        .map(jenis => {
+            const r = appData.rencanaDistribusiLain.find(x => x.status !== 'batal' && x.jenis === jenis && (x.alokasi || '').trim().toLowerCase() === namaLower);
+            if (!r) return null;
+            const kuota = r.qty;
+            const terisi = countItemTambahanTerisiUntukAlokasi(alokasi, jenis);
+            const sisa = kuota - terisi;
+            return { jenis, kuota, terisi, sisa };
+        })
+        .filter(Boolean);
+
+    if (rows.length === 0) {
+        el.innerHTML = `<div style="font-size:12.5px; color:var(--ink-faint);">Belum ada rencana Item Tambahan utk alokasi "${alokasi}" - tambahkan di sub-tab Rencana (Umum) &gt; Rencana Distribusi Bagian Lain kalau mau estimasi kuotanya ditampilkan di sini.</div>`;
+        return;
+    }
+
+    el.innerHTML = `<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:4px;">Estimasi sisa kuota Item Tambahan utk "${alokasi}":</div>` +
+        rows.map(x => {
+            const color = x.sisa <= 0 ? 'var(--brick)' : 'var(--emerald-2)';
+            const label = `${BAGIAN_LAIN_LABEL[x.jenis]}: ${x.terisi}/${x.kuota} ${ITEM_TAMBAHAN_UNIT[x.jenis]}`;
+            const sisaText = x.sisa <= 0 ? 'penuh' : `sisa ${x.sisa}`;
+            return `<span style="display:inline-block; margin:2px 8px 2px 0; font-size:12.5px;"><span style="color:var(--ink-soft);">${label}</span> <span style="color:${color}; font-weight:600;">(${sisaText})</span></span>`;
+        }).join('');
 }
 
 // Baca 5 input Item Tambahan (Tulang/Jeroan/Kepala/Kaki/Buntut) dari form
