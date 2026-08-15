@@ -7,7 +7,7 @@
 // NAIKKAN angka di belakang string ini (v2, v3, dst) SETIAP kali ada
 // perubahan besar - itu memicu activate() membuang cache lama, jadi user
 // yang sudah pernah buka app tidak nyangkut di versi lama selamanya.
-const CACHE_VERSION = 'tabungan-qurban-v4';
+const CACHE_VERSION = 'tabungan-qurban-v5';
 // PENTING: cache.addAll() di install() di bawah GAGAL TOTAL (install error,
 // SW tidak pernah aktif) kalau SATU SAJA path di sini 404 - makanya
 // '/styles.css' (tidak pernah ada, semua CSS inline di index.html/app.html)
