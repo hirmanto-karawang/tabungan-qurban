@@ -4787,7 +4787,8 @@ Alamat: RT ${rt}, Blok ${blok}, No ${no}
 WhatsApp: ${phone}
 Alasan: ${reason}
 
-Periksa menu "Approval Anggota Baru" di aplikasi untuk proses lebih lanjut.`;
+Periksa menu "Approval Anggota Baru" di aplikasi untuk proses lebih lanjut.
+🔗 ${APP_CONFIG.appUrl}`;
     let bendaharaPhone = (appData.members && appData.members.length > 0)
         ? findOfficerPhone(appData.members, ['bendum2', 'ketua1'])
         : '';
@@ -5581,7 +5582,8 @@ Nominal: Rp ${amount.toLocaleString('id-ID')}
 Tanggal transfer: ${date}
 Bank: ${bank}
 
-Periksa menu "Verifikasi Tabungan" di aplikasi untuk proses lebih lanjut.`;
+Periksa menu "Verifikasi Tabungan" di aplikasi untuk proses lebih lanjut.
+🔗 ${APP_CONFIG.appUrl}`;
         openWaTo(bendaharaPhone, uploadMsg);
     }
 
@@ -10488,6 +10490,8 @@ Tabungan Qurban Anda sebesar Rp ${amount.toLocaleString('id-ID')} telah DISETUJU
 
 Terima kasih atas kepercayaan dan ketulusan Anda. Semoga Allah menerima amal kita semua.
 
+🔗 ${APP_CONFIG.appUrl}
+
 Barakallahu fiik! 🤲
 
 Admin ${APP_CONFIG.mosqueName}`;
@@ -10500,7 +10504,8 @@ Mohon maaf, tabungan Qurban Anda sebesar Rp ${amount.toLocaleString('id-ID')} be
 
 ❌ Alasan: ${reason}
 
-📝 Silakan upload ulang bukti transfer yang lebih jelas melalui aplikasi Tabungan Qurban.
+📝 Silakan upload ulang bukti transfer yang lebih jelas melalui aplikasi:
+🔗 ${APP_CONFIG.appUrl}
 
 Terima kasih atas pengertian dan kesabaran Anda.
 
@@ -11416,8 +11421,10 @@ Pendaftaran Anda sebagai anggota Tabungan Qurban telah DISETUJUI ✅
 ├─ Sapi: #${idInfo.sapi}
 └─ Alamat: RT ${pendaftar.rt}, Blok ${pendaftar.blok}, No ${pendaftar.no}
 
+🔗 Link aplikasi: ${APP_CONFIG.appUrl}
+
 Langkah berikutnya:
-1. Buka aplikasi Tabungan Qurban
+1. Buka link aplikasi di atas
 2. Pilih "Masuk Akun"
 3. Masukkan ID dan password di atas
 4. Mulai menabung!
@@ -11456,6 +11463,8 @@ Mohon maaf, tim kami masih perlu klarifikasi beberapa hal:
 Silakan hubungi kami melalui WhatsApp untuk diskusi lebih lanjut, atau coba daftar kembali dengan data yang lebih lengkap.
 
 Terima kasih atas pengertian Anda.
+
+🔗 ${APP_CONFIG.appUrl}
 
 Admin ${APP_CONFIG.mosqueName}`;
     openWaTo(pendaftar.phone, rejectMsg);
