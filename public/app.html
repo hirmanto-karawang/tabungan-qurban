@@ -3624,27 +3624,31 @@
                ITEM_TAMBAHAN_UNIT. -->
           <div style="margin-bottom:14px;">
             <label style="display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin-bottom:8px;">Item Tambahan (opsional)</label>
-            <div id="penerimaItemKuotaInfo" style="margin-bottom:10px;"></div>
             <div class="form-grid">
               <div class="form-group">
                 <label>Tulang (paket)</label>
                 <input type="number" id="penerimaItemTulang" placeholder="0" min="0" step="1">
+                <div id="penerimaItemTulangHint" style="font-size:11.5px; margin-top:4px;"></div>
               </div>
               <div class="form-group">
                 <label>Jeroan (paket)</label>
                 <input type="number" id="penerimaItemJeroan" placeholder="0" min="0" step="1">
+                <div id="penerimaItemJeroanHint" style="font-size:11.5px; margin-top:4px;"></div>
               </div>
               <div class="form-group">
                 <label>Kepala (pcs)</label>
                 <input type="number" id="penerimaItemKepala" placeholder="0" min="0" step="1">
+                <div id="penerimaItemKepalaHint" style="font-size:11.5px; margin-top:4px;"></div>
               </div>
               <div class="form-group">
                 <label>Kaki (pcs)</label>
                 <input type="number" id="penerimaItemKaki" placeholder="0" min="0" step="1">
+                <div id="penerimaItemKakiHint" style="font-size:11.5px; margin-top:4px;"></div>
               </div>
               <div class="form-group">
                 <label>Buntut (pcs)</label>
                 <input type="number" id="penerimaItemBuntut" placeholder="0" min="0" step="1">
+                <div id="penerimaItemBuntutHint" style="font-size:11.5px; margin-top:4px;"></div>
               </div>
             </div>
           </div>
@@ -8702,40 +8706,33 @@ function countItemTambahanTerisiUntukAlokasi(alokasiName, jenis) {
 // belum bikin baris itu di sub-tab Rencana (Umum) > Rencana Distribusi
 // Bagian Lain, jenis itu tidak ditampilkan (tidak ada dasar kuotanya).
 function updatePenerimaItemKuotaInfo() {
-    const el = document.getElementById('penerimaItemKuotaInfo');
-    if (!el) return;
+    const hintIds = { tulang: 'penerimaItemTulangHint', jeroan: 'penerimaItemJeroanHint', kepala: 'penerimaItemKepalaHint', kaki: 'penerimaItemKakiHint', buntut: 'penerimaItemBuntutHint' };
 
     const select = document.getElementById('penerimaAlokasiSelect');
     const alokasi = select ? select.value : '';
-    if (!alokasi) { el.innerHTML = ''; return; }
 
-    const namaLower = alokasi.trim().toLowerCase();
-    const rows = ITEM_TAMBAHAN_JENIS_LIST
-        .map(jenis => {
-            const r = appData.rencanaDistribusiLain.find(x => x.status !== 'batal' && x.jenis === jenis && (x.alokasi || '').trim().toLowerCase() === namaLower);
-            if (!r) return null;
-            const kuota = r.qty;
-            const terisi = countItemTambahanTerisiUntukAlokasi(alokasi, jenis);
-            const sisa = kuota - terisi;
-            return { jenis, kuota, terisi, sisa };
-        })
-        .filter(Boolean);
+    ITEM_TAMBAHAN_JENIS_LIST.forEach(jenis => {
+        const hintEl = document.getElementById(hintIds[jenis]);
+        if (!hintEl) return;
 
-    if (rows.length === 0) {
-        // Belum ada rencana Item Tambahan (RencanaDistribusiLain) yang
-        // alokasinya cocok - sengaja dikosongkan saja (bukan pesan penjelas),
-        // krn Item Tambahan memang opsional/bebas tanpa kuota.
-        el.innerHTML = '';
-        return;
-    }
+        if (!alokasi) { hintEl.innerHTML = ''; return; }
 
-    el.innerHTML = `<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:4px;">Estimasi sisa kuota Item Tambahan utk "${alokasi}":</div>` +
-        rows.map(x => {
-            const color = x.sisa <= 0 ? 'var(--brick)' : 'var(--emerald-2)';
-            const label = `${BAGIAN_LAIN_LABEL[x.jenis]}: ${x.terisi}/${x.kuota} ${ITEM_TAMBAHAN_UNIT[x.jenis]}`;
-            const sisaText = x.sisa <= 0 ? 'penuh' : `sisa ${x.sisa}`;
-            return `<span style="display:inline-block; margin:2px 8px 2px 0; font-size:12.5px;"><span style="color:var(--ink-soft);">${label}</span> <span style="color:${color}; font-weight:600;">(${sisaText})</span></span>`;
-        }).join('');
+        const namaLower = alokasi.trim().toLowerCase();
+        const r = appData.rencanaDistribusiLain.find(x => x.status !== 'batal' && x.jenis === jenis && (x.alokasi || '').trim().toLowerCase() === namaLower);
+
+        // Belum ada rencana (RencanaDistribusiLain) yang alokasinya cocok utk
+        // jenis ini - sengaja dikosongkan saja (bukan pesan penjelas), krn
+        // Item Tambahan memang opsional/bebas tanpa kuota.
+        if (!r) { hintEl.innerHTML = ''; return; }
+
+        const kuota = r.qty;
+        const terisi = countItemTambahanTerisiUntukAlokasi(alokasi, jenis);
+        const sisa = kuota - terisi;
+
+        hintEl.innerHTML = sisa <= 0
+            ? `<span style="color:var(--brick); font-weight:600;">penuh (${terisi}/${kuota})</span>`
+            : `<span style="color:var(--emerald-2); font-weight:600;">sisa ${sisa}</span>`;
+    });
 }
 
 // Baca 5 input Item Tambahan (Tulang/Jeroan/Kepala/Kaki/Buntut) dari form
