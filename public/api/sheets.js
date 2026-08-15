@@ -605,7 +605,15 @@ const TENANT_SHEET_TEMPLATE = {
   // app.html.
   DistribusiBagianLain: ['id', 'surveyId', 'jenis', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   WorkOrderAktual: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
-  PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'created_date'],
+  // "itemTambahan" - opsional, JSON string berisi jatah bagian NON-DAGING
+  // (Tulang/Jeroan dalam "paket", Kepala/Kaki/Buntut dalam "pcs") yang
+  // dititipkan ke penerima INI selain jatah daging alokasinya, mis.
+  // '{"tulang":1,"jeroan":1,"kaki":1}'. Cuma dipakai penerima biasa (bukan
+  // kategori 'mudhohi'). SENGAJA tidak divalidasi/dibatasi kuota terhadap
+  // RencanaDistribusiLain (beda dari Work Order Sapi yang per-sapi) - ini
+  // titipan manual admin per penerima, bebas. Kosong/tidak ke-parse = {}.
+  // Lihat formatItemTambahanText()/renderItemTambahanBadges() di app.html.
+  PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'itemTambahan', 'created_date'],
   PosBudget: ['id', 'nama', 'jenisPos', 'jumlahAnggaran', 'keterangan', 'status', 'created_date'],
   TransaksiKeuangan: ['id', 'posId', 'tanggal', 'jumlah', 'keterangan', 'status', 'created_date', 'bukti'],
   KemasanInventaris: ['id', 'namaItem', 'kategori', 'basisHitung', 'rasioPerUnit', 'kebutuhanManual', 'stokTersedia', 'catatan', 'status', 'created_date'],

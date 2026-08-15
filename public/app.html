@@ -3616,13 +3616,45 @@
             </div>
           </div>
           <div id="penerimaKuotaInfo" style="margin-bottom:14px;"></div>
+
+          <!-- Item Tambahan (opsional) - jatah bagian NON-DAGING (di luar
+               alokasi daging utama) yang mau dititipkan ke penerima ini
+               sekalian, mis. RT 1 dapat tambahan 1 kaki sapi + 1 paket
+               tulang. SENGAJA tidak dibatasi kuota - lihat komentar
+               ITEM_TAMBAHAN_UNIT. -->
+          <div style="margin-bottom:14px;">
+            <label style="display:block; font-size:13px; font-weight:600; color:var(--ink-soft); margin-bottom:8px;">Item Tambahan (opsional)</label>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Tulang (paket)</label>
+                <input type="number" id="penerimaItemTulang" placeholder="0" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label>Jeroan (paket)</label>
+                <input type="number" id="penerimaItemJeroan" placeholder="0" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label>Kepala (pcs)</label>
+                <input type="number" id="penerimaItemKepala" placeholder="0" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label>Kaki (pcs)</label>
+                <input type="number" id="penerimaItemKaki" placeholder="0" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label>Buntut (pcs)</label>
+                <input type="number" id="penerimaItemBuntut" placeholder="0" min="0" step="1">
+              </div>
+            </div>
+          </div>
+
           <div class="actions" style="margin-bottom:18px;">
             <button class="btn btn-success btn-small" id="penerimaSubmitBtn" onclick="simpanPenerima()">+ Tambah &amp; Buat Tiket</button>
           </div>
           <div class="table-container">
             <table>
-              <thead><tr><th>Alokasi</th><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Kode Tiket</th><th>Status</th><th></th></tr></thead>
-              <tbody id="penerimaListBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
+              <thead><tr><th>Alokasi</th><th>Nama</th><th>No. HP</th><th>Alamat</th><th>Item Tambahan</th><th>Kode Tiket</th><th>Status</th><th></th></tr></thead>
+              <tbody id="penerimaListBody"><tr><td colspan="8" class="loading">Memuat…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -5468,6 +5500,18 @@ async function loadDataFromSheets() {
         berat: (row.berat !== undefined && row.berat !== '') ? parseFloat(row.berat) : null,
         kelompokSapi: row.kelompokSapi || '',
         sourcePesertaId: parseInt(row.sourcePesertaId) || 0,
+        // "itemTambahan" - jatah bagian NON-DAGING (Tulang/Jeroan/Kepala/Kaki/
+        // Buntut) yang dititipkan ke penerima ini, opsional, disimpan sbg JSON
+        // string di sheet - lihat komentar TENANT_SHEET_TEMPLATE.PenerimaQR di
+        // public/api/sheets.js. Baris lama/kosong/JSON rusak dianggap {}.
+        itemTambahan: (() => {
+            try {
+                const parsed = row.itemTambahan ? JSON.parse(row.itemTambahan) : {};
+                return (parsed && typeof parsed === 'object') ? parsed : {};
+            } catch (e) {
+                return {};
+            }
+        })(),
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
@@ -7508,6 +7552,36 @@ const BAGIAN_LAIN_COLOR = { tulang: 'var(--sky)', jeroan: 'var(--gold)', kepala:
 // Jumlah unit fisik per ekor sapi, khusus jenis PCS.
 const BAGIAN_LAIN_PCS_PER_SAPI = { kepala: 1, kaki: 4, buntut: 1 };
 
+// ===== ITEM TAMBAHAN PENERIMA (Tulang/Jeroan/Kepala/Kaki/Buntut per orang)
+// ===== Beda dari BAGIAN_LAIN_UNIT di atas (yang satuannya kg/pcs utk
+// akumulasi TOTAL semua sapi) - di sini per PENERIMA perorangan, jadi
+// Tulang/Jeroan dihitung "paket" (bundel siap-bawa-pulang, bukan kg
+// presisi), Kepala/Kaki/Buntut tetap "pcs". Lihat komentar
+// TENANT_SHEET_TEMPLATE.PenerimaQR di public/api/sheets.js.
+const ITEM_TAMBAHAN_UNIT = { tulang: 'paket', jeroan: 'paket', kepala: 'pcs', kaki: 'pcs', buntut: 'pcs' };
+const ITEM_TAMBAHAN_JENIS_LIST = ['tulang', 'jeroan', 'kepala', 'kaki', 'buntut'];
+
+// Teks ringkas 1 baris, mis. "1 paket Tulang, 1 paket Jeroan, 1 pcs Kaki" -
+// dipakai di tabel & tiket cetak (plain text, tanpa HTML/warna).
+function formatItemTambahanText(itemObj) {
+    if (!itemObj) return '';
+    return ITEM_TAMBAHAN_JENIS_LIST
+        .filter(j => (parseFloat(itemObj[j]) || 0) > 0)
+        .map(j => `${itemObj[j]} ${ITEM_TAMBAHAN_UNIT[j]} ${BAGIAN_LAIN_LABEL[j]}`)
+        .join(', ');
+}
+
+// Badge berwarna per jenis - dipakai di tabel Kelola Daftar Penerima & modal
+// preview tiket (HTML, pakai warna BAGIAN_LAIN_COLOR yang sama spt di
+// Rencana/Work Order Bagian Lain supaya konsisten).
+function renderItemTambahanBadges(itemObj) {
+    if (!itemObj) return '';
+    const badges = ITEM_TAMBAHAN_JENIS_LIST
+        .filter(j => (parseFloat(itemObj[j]) || 0) > 0)
+        .map(j => `<span style="display:inline-block; margin:2px 4px 2px 0; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; color:#fff; background:${BAGIAN_LAIN_COLOR[j] || 'var(--ink-faint)'};">${itemObj[j]} ${ITEM_TAMBAHAN_UNIT[j]} ${BAGIAN_LAIN_LABEL[j]}</span>`);
+    return badges.join('');
+}
+
 let editingRencanaLainId = null;
 
 // Format angka sesuai satuan jenisnya - kg pakai formatKg() (1 desimal),
@@ -8602,6 +8676,29 @@ function updatePenerimaKuotaInfo() {
     info.innerHTML = html;
 }
 
+// Baca 5 input Item Tambahan (Tulang/Jeroan/Kepala/Kaki/Buntut) dari form
+// Kelola Daftar Penerima - cuma isikan key yang qty-nya > 0 supaya JSON yang
+// disimpan ringkas & formatItemTambahanText()/renderItemTambahanBadges()
+// (yang cuma nge-filter >0) tetap konsisten dgn hasilnya kosong {} kalau
+// semua 0.
+function bacaItemTambahanForm() {
+    const ids = { tulang: 'penerimaItemTulang', jeroan: 'penerimaItemJeroan', kepala: 'penerimaItemKepala', kaki: 'penerimaItemKaki', buntut: 'penerimaItemBuntut' };
+    const obj = {};
+    ITEM_TAMBAHAN_JENIS_LIST.forEach(j => {
+        const el = document.getElementById(ids[j]);
+        const val = el ? (parseFloat(el.value) || 0) : 0;
+        if (val > 0) obj[j] = val;
+    });
+    return obj;
+}
+
+function resetItemTambahanForm() {
+    ['penerimaItemTulang', 'penerimaItemJeroan', 'penerimaItemKepala', 'penerimaItemKaki', 'penerimaItemBuntut'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+}
+
 async function simpanPenerima() {
     const select = document.getElementById('penerimaAlokasiSelect');
     const namaInput = document.getElementById('penerimaNama');
@@ -8613,6 +8710,7 @@ async function simpanPenerima() {
     const nama = namaInput.value.trim();
     const noHp = (noHpInput.value || '').trim();
     const alamat = (alamatInput.value || '').trim();
+    const itemTambahanObj = bacaItemTambahanForm();
 
     if (!alokasi) { showAlert('Pilih alokasi dulu (tambahkan di Rencana Distribusi Daging Umum kalau belum ada)', 'error'); return; }
     if (!nama) { showAlert('Nama penerima harus diisi', 'error'); return; }
@@ -8639,16 +8737,18 @@ async function simpanPenerima() {
         status: 'aktif',
         diambil: 'tidak',
         waktuAmbil: '',
+        itemTambahan: JSON.stringify(itemTambahanObj),
         created_date: new Date().toISOString()
     };
 
     const success = await appendSheetDB('PenerimaQR', record);
     if (success) {
-        appData.penerimaQR.push({ ...record, diambil: false, lokasiLat: null, lokasiLng: null, hasFotoAmbil: false });
+        appData.penerimaQR.push({ ...record, itemTambahan: itemTambahanObj, diambil: false, lokasiLat: null, lokasiLng: null, hasFotoAmbil: false });
         showAlert(`Penerima "${nama}" ditambahkan, tiket ${record.kodeTiket} siap dicetak`, 'success');
         namaInput.value = '';
         noHpInput.value = '';
         alamatInput.value = '';
+        resetItemTambahanForm();
         updatePenerimaKuotaInfo();
         loadPenerimaList();
     } else {
@@ -8668,7 +8768,7 @@ function loadPenerimaList() {
         .sort((a, b) => (a.alokasi || '').localeCompare(b.alokasi || '') || (a.id - b.id));
 
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada penerima. Tambahkan lewat form di atas.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="loading">Belum ada penerima. Tambahkan lewat form di atas.</td></tr>';
         return;
     }
 
@@ -8677,12 +8777,15 @@ function loadPenerimaList() {
             ? `<span style="color:var(--brick); font-weight:600;">✓ Sudah diambil</span>${p.waktuAmbil ? `<div style="font-size:11px; color:var(--ink-faint);">${new Date(p.waktuAmbil).toLocaleString('id-ID')}</div>` : ''}`
             : `<span style="color:var(--emerald-2); font-weight:600;">Belum diambil</span>`;
 
+        const itemTambahanBadges = renderItemTambahanBadges(p.itemTambahan);
+
         return `
             <tr>
               <td>${p.alokasi || '—'}</td>
               <td>${p.nama || '—'}</td>
               <td>${p.noHp || '—'}</td>
               <td>${p.alamat || '—'}</td>
+              <td>${itemTambahanBadges || '<span style="color:var(--ink-faint);">—</span>'}</td>
               <td><code>${p.kodeTiket}</code></td>
               <td>${statusHtml}</td>
               <td style="white-space:nowrap;">
@@ -8921,6 +9024,11 @@ function lihatQrPenerima(id) {
               `}
             </div>
             ${(!isMudhohi && p.alamat) ? `<div class="tiket-alamat">${p.alamat}</div>` : ''}
+            ${(!isMudhohi && p.itemTambahan && Object.keys(p.itemTambahan).length > 0) ? `
+              <div style="margin-top:10px; text-align:center;">
+                <div style="font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Item Tambahan</div>
+                ${renderItemTambahanBadges(p.itemTambahan)}
+              </div>` : ''}
 
             <div class="tiket-perforasi">
               <span class="notch left"></span><span class="dash-line"></span><span class="notch right"></span>
@@ -8974,12 +9082,14 @@ function cetakTiketPenerima(id) {
     const logoHtml = APP_CONFIG.logoFile
         ? `<img src="${APP_CONFIG.logoFile}" alt="${mosqueNameSafe}">`
         : `<div class="logo-fallback">${mosqueNameSafe.charAt(0).toUpperCase()}</div>`;
+    const itemTambahanText = !isMudhohi ? formatItemTambahanText(p.itemTambahan) : '';
     const statRows = isMudhohi
         ? `<div class="stat"><span>Kelompok Sapi</span><b>${p.kelompokSapi || '—'}</b></div>
            <div class="stat"><span>Jatah Daging</span><b>${p.berat != null ? formatKg(p.berat) : '—'}</b></div>`
         : `<div class="stat"><span>Alokasi</span><b>${p.alokasi || '—'}</b></div>
            ${p.noHp ? `<div class="stat"><span>No. HP</span><b>${p.noHp}</b></div>` : ''}
-           ${p.alamat ? `<div class="stat"><span>Alamat</span><b>${p.alamat}</b></div>` : ''}`;
+           ${p.alamat ? `<div class="stat"><span>Alamat</span><b>${p.alamat}</b></div>` : ''}
+           ${itemTambahanText ? `<div class="stat"><span>Item Tambahan</span><b>${itemTambahanText}</b></div>` : ''}`;
 
     w.document.write(`
         <html>
