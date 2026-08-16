@@ -5085,12 +5085,23 @@ function clearSavedSession() {
     }
 }
 
+// Berapa lama data di appData dianggap "masih segar" sebelum switchTab()
+// mau fetch ulang bootstrap (18 sheet sekaligus) - dinaikkan dari 5 detik ke
+// 15 detik supaya pindah-pindah tab dalam sesi singkat (mis. Keuangan ->
+// Kemasan -> Laporan dalam <15 detik) tidak trigger fetch+parse ulang
+// SEMUA sheet tiap kali, padahal isinya belum tentu berubah. Tombol
+// pull-to-refresh & alur setelah aksi penting (approve, generate kupon, dst)
+// tetap selalu dapat data BENAR-BENAR baru karena keduanya manggil dengan
+// force=true / manggil loadDataFromSheets() langsung, bukan lewat cek ini.
+const DATA_FRESH_TTL_MS = 15000;
+
 // Pastikan data ter-load, tapi hindari fetch dobel kalau sudah ada yang jalan
-// atau data masih segar (<5 detik). Dipakai baik oleh prefetch saat halaman
-// dibuka maupun oleh handleLogin/switchTab, supaya keduanya berbagi 1 request
-// yang sama alih-alih masing-masing fetch sendiri-sendiri.
+// atau data masih segar (lihat DATA_FRESH_TTL_MS). Dipakai baik oleh
+// prefetch saat halaman dibuka maupun oleh handleLogin/switchTab, supaya
+// keduanya berbagi 1 request yang sama alih-alih masing-masing fetch
+// sendiri-sendiri.
 function ensureDataLoaded(force) {
-    const isFresh = !force && appData.members.length > 0 && (Date.now() - lastDataLoadTime) < 5000;
+    const isFresh = !force && appData.members.length > 0 && (Date.now() - lastDataLoadTime) < DATA_FRESH_TTL_MS;
     if (isFresh) return Promise.resolve();
     if (!dataLoadPromise) {
         dataLoadPromise = loadDataFromSheets().finally(() => { dataLoadPromise = null; });
