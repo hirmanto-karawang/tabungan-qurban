@@ -1,3 +1,5 @@
+const crypto = require('node:crypto');
+
 // ===== api/sheets.js =====
 // Pengganti Google Apps Script. Berjalan sebagai Vercel Serverless Function,
 // jauh lebih cepat karena tidak ada overhead "buka Spreadsheet dari nol" ala
@@ -152,6 +154,88 @@ async function uploadLogoToBlob(dataUrl, filenameHint) {
     console.error('[uploadLogoToBlob] gagal upload:', err && err.message ? err.message : err);
     return ''; // caller fallback ke data URI
   }
+}
+
+// ============================================================
+// ===== LOGIN DI SISI SERVER + TOKEN LINK OTOMATIS =====
+// ============================================================
+// LATAR BELAKANG (penting, jangan dibalik lagi ke cara lama):
+// Dulu pengecekan password terjadi di BROWSER: seluruh isi sheet Members -
+// TERMASUK kolom password - dikirim apa adanya ke HP pengguna, lalu
+// handleLogin() di frontend membandingkan sendiri. Akibatnya siapa pun yang
+// tahu slug masjid bisa buka /api/sheets?tenant=<slug>&bootstrap=1 langsung
+// di browser dan melihat SELURUH daftar anggota beserta passwordnya -
+// termasuk password pengurus, yang bisa dipakai approve setoran & ubah
+// keuangan. Endpoint ini memang publik, tidak pernah ada pengecekan izin.
+//
+// Sekarang: password TIDAK PERNAH lagi ikut terkirim ke browser (lihat
+// stripMemberSecret() di bawah), dan pencocokan password dilakukan DI SINI,
+// di server, lewat action 'login'.
+//
+// Rahasia penanda tangan token. Pakai LOGIN_TOKEN_SECRET kalau di-set;
+// kalau belum, jatuh balik ke GOOGLE_CLIENT_SECRET (sudah pasti ada, karena
+// tanpa itu API ini tidak jalan sama sekali) + pembeda tetap, supaya fitur
+// ini langsung berfungsi tanpa perlu nambah environment variable baru dulu.
+// Kalau suatu saat perlu membatalkan SEMUA link otomatis yang pernah
+// dikirim sekaligus, cukup set/ubah LOGIN_TOKEN_SECRET di Vercel.
+const AUTH_SECRET = process.env.LOGIN_TOKEN_SECRET
+  || ((process.env.GOOGLE_CLIENT_SECRET || 'alur-qurban') + '::login-token-v1');
+
+const LOGIN_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari
+
+function b64urlEncode(str) {
+  return Buffer.from(str, 'utf8').toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecode(str) {
+  const pad = str.replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(pad, 'base64').toString('utf8');
+}
+function signPayload(payload) {
+  return crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Token = <payload base64url>.<tanda tangan>. Payload berisi slug masjid,
+// id anggota, dan waktu kedaluwarsa. Tidak ada yang perlu disimpan di
+// Google Sheet - keaslian token dibuktikan dari tanda tangannya, jadi tidak
+// perlu kolom/sheet baru yang harus disiapkan manual.
+function makeLoginToken(tenantSlug, memberId, ttlMs) {
+  const exp = Date.now() + (ttlMs || LOGIN_TOKEN_TTL_MS);
+  const payload = JSON.stringify({ t: String(tenantSlug || ''), m: String(memberId), e: exp });
+  const encoded = b64urlEncode(payload);
+  return `${encoded}.${signPayload(encoded)}`;
+}
+
+// Balikin { tenant, memberId } kalau token asli & belum kedaluwarsa.
+// Selain itu null. Perbandingan tanda tangan pakai timingSafeEqual supaya
+// tidak bisa ditebak sedikit demi sedikit lewat selisih waktu respons.
+function verifyLoginToken(token) {
+  try {
+    const raw = String(token || '');
+    const dot = raw.lastIndexOf('.');
+    if (dot < 1) return null;
+    const encoded = raw.slice(0, dot);
+    const sig = raw.slice(dot + 1);
+    const expected = signPayload(encoded);
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    const data = JSON.parse(b64urlDecode(encoded));
+    if (!data || !data.m || !data.e) return null;
+    if (Date.now() > Number(data.e)) return null;
+    return { tenant: data.t || '', memberId: String(data.m) };
+  } catch (err) {
+    return null;
+  }
+}
+
+// Kolom rahasia yang TIDAK BOLEH ikut terkirim ke browser. Dipakai di
+// readSheet() & readAllSheetsBatch() - dua-duanya, jangan cuma salah satu.
+function stripMemberSecret(row) {
+  const clean = { ...row };
+  delete clean.password;
+  return clean;
 }
 
 const REGISTRY_TTL_MS = 30000; // Registry jarang berubah, cache lebih lama dari bootstrap biasa
@@ -437,6 +521,12 @@ async function readSheet(sheetId, sheetName, accessToken) {
   if (sheetName === 'SetoranInstan') {
     rows = rows.map(stripSetoranInstanFoto);
   }
+  // Password anggota TIDAK PERNAH boleh ikut keluar dari server - lihat
+  // komentar panjang di stripMemberSecret(). Pencocokan password sekarang
+  // dilakukan server-side lewat action 'login'.
+  if (sheetName === 'Members' || sheetName === 'Pendaftaran') {
+    rows = rows.map(stripMemberSecret);
+  }
   return rows;
 }
 
@@ -468,6 +558,10 @@ async function readAllSheetsBatch(sheetId, accessToken) {
       }
       if (name === 'SetoranInstan') {
         rows = rows.map(stripSetoranInstanFoto);
+      }
+      // Sama dgn readSheet() - password tidak pernah ikut ke browser.
+      if (name === 'Members' || name === 'Pendaftaran') {
+        rows = rows.map(stripMemberSecret);
       }
       result[name] = rows;
     });
@@ -1102,15 +1196,107 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      if (!sheet) {
-        return res.status(400).json({ error: 'Parameter sheet wajib diisi, contoh: ?sheet=Members' });
-      }
-
       let body = req.body;
       if (typeof body === 'string') {
         body = body ? JSON.parse(body) : {};
       }
       if (!body) body = {};
+
+      // ============================================================
+      // ===== LOGIN & TOKEN (tidak butuh parameter ?sheet=) =====
+      // ============================================================
+      // Sengaja ditangani SEBELUM pengecekan "sheet wajib diisi" di bawah.
+      if (action === 'login' || action === 'loginToken' || action === 'makeLoginTokens') {
+        if (!tenantRow) {
+          return res.status(400).json({ error: 'Parameter tenant wajib diisi, contoh: ?tenant=dhafinul&action=login' });
+        }
+
+        // Baca Members LANGSUNG (bukan lewat readSheet, karena readSheet
+        // sudah membuang kolom password - memang itu tujuannya). Hasil baca
+        // ini TIDAK PERNAH dikirim utuh ke browser; cuma dipakai
+        // mencocokkan password di sini, lalu yang dibalikin identitas
+        // seperlunya saja.
+        const rawData = await sheetsFetch(targetSheetId, `/values/${encodeURIComponent('Members')}`, accessToken);
+        const allMembers = valuesToObjects(rawData.values || []);
+        const isAdminRow = (row) => (row.role || '').toString().trim().toLowerCase() === 'admin';
+        const publicUser = (row) => ({
+          id: /^\d+$/.test(String(row.id || '').trim()) ? parseInt(row.id) : String(row.id || '').trim(),
+          name: row.name || '',
+          phone: row.phone || '',
+          role: isAdminRow(row) ? 'admin' : 'member'
+        });
+
+        // ----- Login biasa: cocokkan ID/nama + password -----
+        if (action === 'login') {
+          const uname = String(body.username == null ? '' : body.username).trim();
+          const pass = String(body.password == null ? '' : body.password);
+          if (!uname || !pass) {
+            return res.status(400).json({ error: 'Username dan password wajib diisi' });
+          }
+          const row = allMembers.find(m =>
+            (String(m.id || '').trim() === uname || String(m.name || '').trim() === uname) &&
+            String(m.password == null ? '' : m.password) === pass
+          );
+          if (!row) {
+            // Pesan sengaja disamakan utk "user tidak ada" & "password salah"
+            // supaya tidak jadi alat menebak ID mana yang terdaftar.
+            return res.status(401).json({ error: 'Username/ID atau password salah' });
+          }
+          return res.status(200).json({ ok: true, user: publicUser(row) });
+        }
+
+        // ----- Login lewat link otomatis dari WhatsApp -----
+        if (action === 'loginToken') {
+          const info = verifyLoginToken(body.token);
+          if (!info) {
+            return res.status(401).json({ error: 'Link sudah tidak berlaku' });
+          }
+          // Token terikat ke slug masjid tertentu - token masjid A tidak
+          // boleh bisa dipakai membuka masjid B.
+          if (info.tenant && info.tenant !== String(tenant || '')) {
+            return res.status(401).json({ error: 'Link tidak cocok dengan masjid ini' });
+          }
+          const row = allMembers.find(m => String(m.id || '').trim() === info.memberId);
+          if (!row) {
+            return res.status(401).json({ error: 'Anggota tidak ditemukan' });
+          }
+          // Pengurus WAJIB ketik password - akun admin bisa approve setoran &
+          // ubah keuangan, jadi terlalu berisiko kalau cukup modal link yang
+          // gampang ke-forward di WhatsApp.
+          if (isAdminRow(row)) {
+            return res.status(403).json({ error: 'Akun pengurus harus login dengan password' });
+          }
+          return res.status(200).json({ ok: true, user: publicUser(row) });
+        }
+
+        // ----- Admin membuat link otomatis utk anggota -----
+        // WAJIB menyertakan ID + password admin. Tanpa ini, siapa pun bisa
+        // minta dibuatkan token atas nama anggota mana pun - artinya fitur
+        // ini sendiri malah jadi pintu masuk baru.
+        if (action === 'makeLoginTokens') {
+          const adminRow = allMembers.find(m =>
+            String(m.id || '').trim() === String(body.adminId == null ? '' : body.adminId).trim() &&
+            String(m.password == null ? '' : m.password) === String(body.adminPassword == null ? '' : body.adminPassword)
+          );
+          if (!adminRow || !isAdminRow(adminRow)) {
+            return res.status(403).json({ error: 'Hanya pengurus yang boleh membuat link otomatis' });
+          }
+          const wanted = Array.isArray(body.memberIds) ? body.memberIds.map(v => String(v).trim()) : null;
+          const tokens = {};
+          allMembers.forEach(m => {
+            const mid = String(m.id || '').trim();
+            if (!mid) return;
+            if (wanted && !wanted.includes(mid)) return;
+            if (isAdminRow(m)) return; // admin tidak pernah dibuatkan link otomatis
+            tokens[mid] = makeLoginToken(tenant || '', mid);
+          });
+          return res.status(200).json({ ok: true, tokens, expiresInDays: Math.round(LOGIN_TOKEN_TTL_MS / 86400000) });
+        }
+      }
+
+      if (!sheet) {
+        return res.status(400).json({ error: 'Parameter sheet wajib diisi, contoh: ?sheet=Members' });
+      }
 
       invalidateBootstrapCache(cacheKey);
 

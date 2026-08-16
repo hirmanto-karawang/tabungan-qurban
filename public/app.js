@@ -1097,51 +1097,150 @@ async function handleLogin() {
         return;
     }
 
-    // Tidak ada prefetch background lagi sejak halaman dibuka (lihat komentar
-    // initApp() soal performa scroll di layar login) - jadi ini yang MEMICU
-    // fetch+parse data pertama kali begitu user klik Masuk, bukan tinggal
-    // pakai hasil prefetch spt sebelumnya. Wajar kalau butuh sesaat.
-    if (appData.members.length === 0) {
-        showAlert('Memuat data...', 'info');
+    // PENCOCOKAN PASSWORD SEKARANG DI SERVER, BUKAN DI SINI.
+    // Dulu blok ini men-download seluruh sheet Members (ensureDataLoaded()
+    // lebih dulu) lalu membandingkan m.password === password langsung di HP
+    // pengguna. Konsekuensinya kolom password HARUS ikut dikirim ke browser,
+    // dan karena endpoint /api/sheets itu publik tanpa pengecekan izin,
+    // siapa pun yang tahu slug masjid bisa membuka
+    // /api/sheets?tenant=<slug>&bootstrap=1 dan melihat password SEMUA
+    // anggota - termasuk pengurus. Server sekarang membuang kolom password
+    // (stripMemberSecret() di api/sheets.js) dan memverifikasi sendiri.
+    showAlert('Memeriksa...', 'info');
+    let result;
+    try {
+        const resp = await fetch(`${SHEETDB_CONFIG.ENDPOINT}?action=login${tenantParam()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ username, password })
+        });
+        result = await resp.json().catch(() => null);
+        if (!resp.ok || !result || !result.ok) {
+            showAlert((result && result.error) || 'Username/ID atau password salah', 'error');
+            return;
+        }
+    } catch (err) {
+        console.error('Login gagal:', err);
+        showAlert('Tidak bisa terhubung ke server. Cek koneksi internet Anda.', 'error');
+        return;
     }
+
+    currentUser = result.user;
+    // Password pengurus disimpan di MEMORI SAJA (variabel biasa), tidak
+    // pernah ke localStorage - dipakai membuktikan ke server bahwa yang
+    // minta dibuatkan link otomatis buat anggota memang benar pengurus
+    // (lihat ensureAutoLoginTokens()). Hilang sendiri begitu halaman
+    // di-reload; kalau begitu pengurus akan diminta ketik ulang sekali.
+    if (currentUser.role === 'admin') adminPassInMemory = password;
+    recordLogin(currentUser);
+    saveSession(currentUser);
     await ensureDataLoaded();
+    showApp();
+    showAlert(`Selamat datang, ${currentUser.name}!`, 'success');
+}
 
-    // Cocokkan dengan ID (angka) atau nama, password harus sama persis (termasuk angka 0 di depan)
-    const member = appData.members.find(m =>
-        (String(m.id) === username || String(m.name) === username) &&
-        String(m.password) === password
-    );
+// ===== TOKEN LINK OTOMATIS (sisi admin) =====
+// Cache token per anggota, cuma di memori selama halaman terbuka. Token
+// dibuat SERVER (butuh rahasia penanda tangan), jadi tidak bisa dibikin
+// sendiri di sini.
+let adminPassInMemory = '';
+let autoLoginTokenCache = {};
 
-    if (member) {
-        currentUser = {
-            id: member.id,
-            name: member.name,
-            phone: member.phone,
-            role: member.role === 'admin' ? 'admin' : 'member'
-        };
+// Ambilkan token untuk sekumpulan anggota sekaligus (1 request, bukan
+// per-orang). Dipanggil sebelum broadcast dikirim, supaya fillVariables()
+// yang sinkron tinggal membaca hasilnya dari cache.
+async function ensureAutoLoginTokens(memberIds) {
+    if (!currentUser || currentUser.role !== 'admin') return false;
+    const perlu = (memberIds || []).map(String).filter(id => !autoLoginTokenCache[id]);
+    if (perlu.length === 0) return true;
+
+    if (!adminPassInMemory) {
+        const p = prompt('Untuk membuat link masuk otomatis, ketik ulang password pengurus Anda sekali:');
+        if (!p) return false;
+        adminPassInMemory = p;
+    }
+
+    try {
+        const resp = await fetch(`${SHEETDB_CONFIG.ENDPOINT}?action=makeLoginTokens${tenantParam()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+                adminId: String(currentUser.id),
+                adminPassword: adminPassInMemory,
+                memberIds: perlu
+            })
+        });
+        const hasil = await resp.json().catch(() => null);
+        if (!resp.ok || !hasil || !hasil.ok) {
+            adminPassInMemory = ''; // password salah - minta lagi lain kali
+            showAlert((hasil && hasil.error) || 'Gagal membuat link otomatis', 'error');
+            return false;
+        }
+        Object.assign(autoLoginTokenCache, hasil.tokens || {});
+        return true;
+    } catch (err) {
+        console.error('Gagal membuat token auto-login:', err);
+        return false;
+    }
+}
+
+// Link khusus 1 anggota. Kalau tokennya belum ada (mis. anggota itu ternyata
+// pengurus, atau pembuatan token gagal), jatuh balik ke link biasa - anggota
+// tetap bisa masuk, cuma perlu mengetik ID & password seperti biasa.
+function autoLoginLinkFor(member) {
+    if (!member) return APP_URL;
+    const token = autoLoginTokenCache[String(member.id)];
+    return token ? `${APP_URL}?t=${encodeURIComponent(token)}` : APP_URL;
+}
+
+// ===== LOGIN OTOMATIS DARI LINK WHATSAPP =====
+// Admin bisa mengirim link berisi token (…/<slug>?t=…) lewat WhatsApp,
+// supaya anggota tinggal klik tanpa mengetik ID/password. Token ditandatangani
+// server, berlaku 30 hari, terikat ke satu masjid & satu anggota, dan TIDAK
+// berlaku untuk akun pengurus (lihat action 'loginToken' di api/sheets.js).
+//
+// Ini menggantikan kebiasaan lama menempelkan "ID: … Password: …" apa adanya
+// di badan pesan WhatsApp - password yang sekali terkirim berlaku selamanya
+// dan bisa dipakai siapa saja yang membaca chat itu, sedangkan token ini
+// kedaluwarsa sendiri dan bisa dibatalkan serentak dari sisi server.
+async function tryAutoLoginFromLink() {
+    let token = '';
+    try {
+        token = new URLSearchParams(window.location.search).get('t') || '';
+    } catch (e) { /* URL aneh - abaikan, lanjut ke layar login biasa */ }
+    if (!token) return false;
+
+    // Bersihkan token dari address bar SEGERA, apa pun hasilnya nanti -
+    // supaya tidak ikut ter-screenshot, ter-share, atau nyangkut di riwayat
+    // browser HP yang dipakai bergantian.
+    try {
+        const bersih = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, bersih);
+    } catch (e) { /* abaikan */ }
+
+    try {
+        const resp = await fetch(`${SHEETDB_CONFIG.ENDPOINT}?action=loginToken${tenantParam()}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ token })
+        });
+        const result = await resp.json().catch(() => null);
+        if (!resp.ok || !result || !result.ok) {
+            showAlert((result && result.error) || 'Link sudah tidak berlaku. Silakan masuk seperti biasa.', 'warning');
+            return false;
+        }
+        currentUser = result.user;
         recordLogin(currentUser);
         saveSession(currentUser);
+        await ensureDataLoaded();
         showApp();
-        showAlert(`Selamat datang, ${member.name}!`, 'success');
-        return;
+        showAlert(`Selamat datang, ${currentUser.name}!`, 'success');
+        return true;
+    } catch (err) {
+        console.error('Auto-login gagal:', err);
+        showAlert('Tidak bisa terhubung ke server. Silakan masuk seperti biasa.', 'warning');
+        return false;
     }
-
-    // Fallback demo login, jaga-jaga kalau Google Sheets API sedang bermasalah
-    const testUsers = [
-        { id: 1, name: 'Admin Masjid', username: 'DQH-001', password: '6789', phone: '089604697415', role: 'admin' }
-    ];
-    const demoUser = testUsers.find(u =>
-        (u.username === username || u.name === username) && u.password === password
-    );
-    if (demoUser) {
-        currentUser = { id: demoUser.id, name: demoUser.name, phone: demoUser.phone, role: demoUser.role };
-        saveSession(currentUser);
-        showApp();
-        showAlert(`Selamat datang, ${demoUser.name}! (mode demo)`, 'success');
-        return;
-    }
-
-    showAlert('Username/ID atau password salah', 'error');
 }
 
 // Catat jejak login ke sheet "LoginLog" - dasar buat menu "Log Aktivitas
@@ -10016,23 +10115,23 @@ document.addEventListener('click', e => {
 const MESSAGE_TEMPLATES = {
     upload_ack: {
         title: 'Konfirmasi Upload Bukti',
-        message: `Assalamu'alaikum {NAMA}!\n\nTerima kasih telah mengunggah bukti transfer Qurban sebesar Rp {NOMINAL}.\n\nStatus: MENUNGGU VERIFIKASI ADMIN\nAdmin akan memverifikasi dalam 1-2 jam kerja.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
+        message: `Assalamu'alaikum {NAMA}!\n\nTerima kasih telah mengunggah bukti transfer Qurban sebesar Rp {NOMINAL}.\n\nStatus: MENUNGGU VERIFIKASI ADMIN\nAdmin akan memverifikasi dalam 1-2 jam kerja.\n\nBarakallahu fiik.\n\n🔗 Buka aplikasi:\n{LINK}\nMasuk dengan ID: {ID}\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     approval: {
         title: 'Notifikasi Disetujui',
-        message: `Alhamdulillah, {NAMA}!\n\nTabungan Qurban Anda sebesar Rp {NOMINAL} telah DISETUJUI.\n\nTotal tabungan Anda: Rp {SALDO}\nProgress: {PROGRESS}%\n\nTerima kasih atas kepercayaannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
+        message: `Alhamdulillah, {NAMA}!\n\nTabungan Qurban Anda sebesar Rp {NOMINAL} telah DISETUJUI.\n\nTotal tabungan Anda: Rp {SALDO}\nProgress: {PROGRESS}%\n\nTerima kasih atas kepercayaannya.\n\n🔐 Buka aplikasi (langsung masuk, tanpa perlu ketik password):\n{LINK_OTOMATIS}\n\nLink ini pribadi, berlaku 30 hari. Mohon tidak diteruskan ke orang lain.\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     rejection: {
         title: 'Notifikasi Ditolak',
-        message: `Assalamu'alaikum {NAMA},\n\nMohon maaf, bukti transfer Qurban Anda belum dapat kami verifikasi karena bukti kurang jelas terbaca.\n\nSilakan unggah ulang bukti transfer yang lebih jelas melalui aplikasi.\n\nTerima kasih atas pengertiannya.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
+        message: `Assalamu'alaikum {NAMA},\n\nMohon maaf, bukti transfer Qurban Anda belum dapat kami verifikasi karena bukti kurang jelas terbaca.\n\nSilakan unggah ulang bukti transfer yang lebih jelas melalui aplikasi.\n\nTerima kasih atas pengertiannya.\n\n🔗 Buka aplikasi:\n{LINK}\nMasuk dengan ID: {ID}\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     reminder: {
         title: 'Pengingat Bulanan',
-        message: `Assalamu'alaikum {NAMA}!\n\nPengingat: saatnya menabung Qurban bulan ini.\n\nSaldo tabungan Anda saat ini: Rp {SALDO}\n\nSilakan transfer ke rekening DKM, lalu unggah bukti melalui aplikasi.\n\nBarakallahu fiik.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
+        message: `Assalamu'alaikum {NAMA}!\n\nPengingat: saatnya menabung Qurban bulan ini.\n\nSaldo tabungan Anda saat ini: Rp {SALDO}\n\nSilakan transfer ke rekening DKM, lalu unggah bukti melalui aplikasi.\n\nBarakallahu fiik.\n\n🔗 Buka aplikasi:\n{LINK}\nMasuk dengan ID: {ID}\n\nAdmin ${APP_CONFIG.mosqueName}`
     },
     recap: {
         title: 'Rekap Bulanan',
-        message: `REKAP TABUNGAN QURBAN\n{TANGGAL}\n\nAssalamu'alaikum {NAMA}!\n\nTabungan Anda: Rp {SALDO}\nTotal terkumpul: Rp {TOTAL}\nJumlah peserta: {PESERTA} anggota\nProgress: {PROGRESS}%\n\nJazakumullahu khairan.\n\n🔐 Akses Aplikasi:\nID: {ID}\nPassword: {PASSWORD}\nLink: {LINK}\n\nAdmin ${APP_CONFIG.mosqueName}`
+        message: `REKAP TABUNGAN QURBAN\n{TANGGAL}\n\nAssalamu'alaikum {NAMA}!\n\nTabungan Anda: Rp {SALDO}\nTotal terkumpul: Rp {TOTAL}\nJumlah peserta: {PESERTA} anggota\nProgress: {PROGRESS}%\n\nJazakumullahu khairan.\n\n🔗 Buka aplikasi:\n{LINK}\nMasuk dengan ID: {ID}\n\nAdmin ${APP_CONFIG.mosqueName}`
     }
 };
 
@@ -10129,7 +10228,15 @@ function fillVariables(text, member) {
         .replace(/\{PROGRESS\}/g, progress)
         .replace(/\{TANGGAL\}/g, new Date().toLocaleDateString('id-ID'))
         .replace(/\{ID\}/g, member ? String(member.id) : '-')
-        .replace(/\{PASSWORD\}/g, member ? (member.password || '-') : '-')
+        // {LINK_OTOMATIS} = link yang langsung membuka akun anggota ybs tanpa
+        // perlu ketik apa pun (berlaku 30 hari). Harus sudah di-cache lebih
+        // dulu lewat ensureAutoLoginTokens() - lihat sendBroadcastNow().
+        .replace(/\{LINK_OTOMATIS\}/g, autoLoginLinkFor(member))
+        // {PASSWORD} DIPERTAHANKAN cuma supaya template lama buatan admin
+        // (tersimpan di sheet "Templates") tidak error - tapi sekarang SELALU
+        // menghasilkan tanda "-", karena password memang tidak pernah lagi
+        // dikirim server ke browser. Pakai {LINK_OTOMATIS} sebagai gantinya.
+        .replace(/\{PASSWORD\}/g, '-')
         .replace(/\{LINK\}/g, APP_URL);
 }
 
@@ -10301,6 +10408,15 @@ async function sendBroadcastNow() {
     }
 
     if (!confirm(`Kirim pesan "${title}" ke ${targets.length} anggota?\n\nPengiriman akan diberi jeda beberapa detik antar pesan (bukan langsung semua) supaya nomor WhatsApp masjid tidak dianggap spam oleh WhatsApp.`)) return;
+
+    // Siapkan token link otomatis SEKALIGUS untuk semua penerima (1 request)
+    // SEBELUM pengiriman dimulai - fillVariables() di bawah sinkron, jadi
+    // token harus sudah ada di cache saat {LINK_OTOMATIS} diganti. Hanya
+    // dijalankan kalau template-nya memang memakai penanda itu.
+    if (/\{LINK_OTOMATIS\}/.test(message)) {
+        showAlert('Menyiapkan link masuk otomatis…', 'info');
+        await ensureAutoLoginTokens(targets.map(m => m.id));
+    }
 
     let sent = 0, failed = 0;
     for (let i = 0; i < targets.length; i++) {
@@ -11344,9 +11460,15 @@ function renderPrayerTimes(jadwal) {
     // "menyita" waktu scroll user selagi masih di layar login, PERSIS
     // mencontoh index.html (landing page) yang juga nol fetch data sebelum
     // ada aksi dari user.
-    if (loadSavedSession()) {
-        restoreSession();
-    }
+    // Urutan sengaja: link otomatis dari WhatsApp (?t=…) diperiksa DULU,
+    // baru sesi tersimpan. Alasannya, kalau HP itu dipakai bergantian
+    // (mis. HP keluarga), link yang baru diklik harus menang atas sesi
+    // anggota lain yang kebetulan masih tersimpan di browser tsb.
+    tryAutoLoginFromLink().then(berhasil => {
+        if (!berhasil && loadSavedSession()) {
+            restoreSession();
+        }
+    });
 
     // Waktu sholat: tampil terlepas dari status login (info umum, bukan data
     // pribadi), dan di-refresh tiap menit supaya highlight "sholat berikutnya" +
