@@ -4356,6 +4356,7 @@ function loadPenerimaList() {
               <td>${statusHtml}</td>
               <td style="white-space:nowrap;">
                 <button class="btn btn-ghost btn-small" onclick="lihatQrPenerima(${p.id})" title="Lihat/Cetak QR">🔳</button>
+                <button class="btn btn-ghost btn-small" onclick="kirimTiketWA(${p.id})" title="Kirim tiket lewat WhatsApp">📲</button>
                 <button class="btn btn-ghost btn-small" onclick="hapusPenerima(${p.id})" title="Hapus">🗑️</button>
               </td>
             </tr>`;
@@ -4506,6 +4507,7 @@ function loadKuponMudhohiList() {
               <td>${statusHtml}</td>
               <td style="white-space:nowrap;">
                 <button class="btn btn-ghost btn-small" onclick="lihatQrPenerima(${p.id})" title="Lihat/Cetak QR">🔳</button>
+                <button class="btn btn-ghost btn-small" onclick="kirimTiketWA(${p.id})" title="Kirim tiket lewat WhatsApp">📲</button>
                 <button class="btn btn-ghost btn-small" onclick="hapusPenerima(${p.id})" title="Hapus">🗑️</button>
               </td>
             </tr>`;
@@ -4609,6 +4611,7 @@ async function lihatQrPenerima(id) {
 
           <div class="actions" style="justify-content:center; margin-top:20px;">
             <button class="btn btn-primary btn-small" onclick="cetakTiketPenerima(${p.id})">🖨️ Cetak Tiket</button>
+            <button class="btn btn-secondary btn-small" onclick="kirimTiketWA(${p.id})">📲 Kirim WhatsApp</button>
           </div>
           ${buktiHtml}
         </div>`;
@@ -4625,6 +4628,227 @@ async function lihatQrPenerima(id) {
         colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.M
     });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ KIRIM TIKET LEWAT WHATSAPP (sebagai GAMBAR) ══
+// ══════════════════════════════════════════════════════════════
+// Kenapa digambar manual di <canvas>, bukan "memotret" kartu tiket yang
+// sudah tampil di layar pakai html2canvas: pemotretan DOM sudah terbukti
+// bermasalah di project ini waktu bikin PDF (layout grid/flex tidak
+// terbaca benar, elemen ber-posisi khusus hilang) - lihat riwayat commit
+// soal PDF. Menggambar sendiri memang lebih panjang kodenya, tapi hasilnya
+// pasti sama di semua HP.
+//
+// CATATAN PENTING soal logo: logo masjid SENGAJA tidak ikut digambar,
+// diganti monogram huruf awal. Sebabnya logo diambil dari domain lain
+// (Vercel Blob), dan menggambar gambar lintas-domain ke canvas membuat
+// canvas jadi "tercemar" (tainted) - canvas.toBlob() akan GAGAL TOTAL
+// karena alasan keamanan browser, jadi tiketnya malah tidak bisa dikirim
+// sama sekali. Monogram jauh lebih aman & tetap rapi.
+function _tulisTeksTerbungkus(ctx, teks, x, y, lebarMaks, tinggiBaris, maksBaris) {
+    const kata = String(teks || '').split(' ');
+    let baris = '', jml = 0;
+    for (let i = 0; i < kata.length; i++) {
+        const coba = baris ? baris + ' ' + kata[i] : kata[i];
+        if (ctx.measureText(coba).width > lebarMaks && baris) {
+            ctx.fillText(baris, x, y);
+            y += tinggiBaris;
+            baris = kata[i];
+            if (++jml >= (maksBaris || 99) - 1) break;
+        } else {
+            baris = coba;
+        }
+    }
+    if (baris) ctx.fillText(baris, x, y);
+    return y + tinggiBaris;
+}
+
+async function buatGambarTiket(p) {
+    await ensureQRCodeLib();
+
+    // QR digambar dulu ke elemen tersembunyi, lalu canvas-nya disalin ke
+    // kartu. qrcodejs membuat <canvas> (dan <img> cadangan) di dalam
+    // container yang diberikan.
+    const wadah = document.createElement('div');
+    wadah.style.cssText = 'position:fixed; left:-9999px; top:0;';
+    document.body.appendChild(wadah);
+    new QRCode(wadah, {
+        text: p.kodeTiket, width: 420, height: 420,
+        colorDark: '#0E3B34', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+    // Beri browser satu tarikan napas supaya QR selesai dirender.
+    await new Promise(r => setTimeout(r, 60));
+    const qrCanvas = wadah.querySelector('canvas');
+
+    const isMudhohi = p.kategori === 'mudhohi';
+    const W = 800, H = 1240;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+
+    // Latar
+    ctx.fillStyle = '#FAF7F0'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(40, 40, W - 80, H - 80);
+    ctx.strokeStyle = '#E4DBC5'; ctx.lineWidth = 3;
+    ctx.strokeRect(40, 40, W - 80, H - 80);
+
+    // Kepala
+    ctx.fillStyle = '#0E3B34'; ctx.fillRect(40, 40, W - 80, 190);
+    const namaMasjid = (APP_CONFIG.mosqueName || 'Masjid').trim();
+    ctx.fillStyle = 'rgba(231,200,120,.18)';
+    ctx.beginPath(); ctx.arc(135, 135, 52, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#E7C878'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#E7C878';
+    ctx.font = 'bold 48px Georgia, serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(namaMasjid.charAt(0).toUpperCase(), 135, 138);
+
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#FBF6E9'; ctx.font = 'bold 34px Georgia, serif';
+    _tulisTeksTerbungkus(ctx, namaMasjid, 210, 122, W - 260, 40, 2);
+    ctx.fillStyle = '#E7C878'; ctx.font = '600 19px monospace';
+    ctx.fillText(isMudhohi ? 'KUPON MUDHOHI' : 'E-TIKET PENERIMA', 210, 178);
+
+    // Nama penerima
+    let y = 300;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#869089'; ctx.font = '600 18px monospace';
+    ctx.fillText('NAMA PENERIMA', W / 2, y); y += 50;
+    ctx.fillStyle = '#182420'; ctx.font = 'bold 46px Georgia, serif';
+    y = _tulisTeksTerbungkus(ctx, p.nama || '-', W / 2, y, W - 160, 54, 2) + 14;
+
+    // Rincian
+    const rincian = isMudhohi
+        ? [['Kelompok Sapi', p.kelompokSapi || '-'], ['Jatah Daging', p.berat != null ? formatKg(p.berat) : '-']]
+        : [['Alokasi', p.alokasi || '-'], ...(p.alamat ? [['Alamat', p.alamat]] : [])];
+    rincian.forEach(([label, nilai]) => {
+        ctx.fillStyle = '#869089'; ctx.font = '600 17px monospace';
+        ctx.fillText(String(label).toUpperCase(), W / 2, y); y += 32;
+        ctx.fillStyle = '#0E3B34'; ctx.font = '600 27px Georgia, serif';
+        y = _tulisTeksTerbungkus(ctx, nilai, W / 2, y, W - 160, 34, 2) + 14;
+    });
+
+    // Item tambahan (kalau ada)
+    const item = p.itemTambahan || {};
+    const daftarItem = Object.keys(item).filter(k => Number(item[k]) > 0)
+        .map(k => `${k}: ${item[k]}`).join('  •  ');
+    if (daftarItem) {
+        ctx.fillStyle = '#869089'; ctx.font = '600 17px monospace';
+        ctx.fillText('ITEM TAMBAHAN', W / 2, y); y += 30;
+        ctx.fillStyle = '#B6893A'; ctx.font = '600 22px Georgia, serif';
+        y = _tulisTeksTerbungkus(ctx, daftarItem, W / 2, y, W - 160, 30, 2) + 10;
+    }
+
+    // Garis sobek
+    y = Math.max(y + 10, 700);
+    ctx.strokeStyle = '#E4DBC5'; ctx.lineWidth = 3;
+    ctx.setLineDash([12, 12]);
+    ctx.beginPath(); ctx.moveTo(70, y); ctx.lineTo(W - 70, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#FAF7F0';
+    ctx.beginPath(); ctx.arc(40, y, 26, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(W - 40, y, 26, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#E4DBC5'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(40, y, 26, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W - 40, y, 26, 0, Math.PI * 2); ctx.stroke();
+
+    // QR + kode
+    if (qrCanvas) {
+        const sisi = 340, qx = (W - sisi) / 2, qy = y + 45;
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(qx - 14, qy - 14, sisi + 28, sisi + 28);
+        ctx.drawImage(qrCanvas, qx, qy, sisi, sisi);
+        y = qy + sisi + 62;
+    } else {
+        y += 70;
+    }
+    ctx.fillStyle = '#182420'; ctx.font = 'bold 40px monospace';
+    ctx.fillText(p.kodeTiket || '-', W / 2, y); y += 44;
+    ctx.fillStyle = '#869089'; ctx.font = '17px Georgia, serif';
+    ctx.fillText('Tunjukkan tiket ini kepada panitia', W / 2, y);
+
+    document.body.removeChild(wadah);
+
+    const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+    return blob;
+}
+
+// Teks pendamping gambar (jadi caption di WhatsApp).
+function _teksTiket(p) {
+    const isMudhohi = p.kategori === 'mudhohi';
+    const baris = [
+        `Assalamu'alaikum ${p.nama || ''},`.trim(),
+        '',
+        isMudhohi
+            ? `Berikut kupon Mudhohi Anda dari ${APP_CONFIG.mosqueName}:`
+            : `Berikut e-tiket pengambilan daging qurban dari ${APP_CONFIG.mosqueName}:`,
+        '',
+        isMudhohi ? `Kelompok Sapi: ${p.kelompokSapi || '-'}` : `Alokasi: ${p.alokasi || '-'}`,
+        `Kode Tiket: ${p.kodeTiket}`,
+        '',
+        'Mohon tunjukkan tiket ini (gambar QR di atas) kepada panitia saat pengambilan.',
+        '',
+        `Panitia Qurban ${APP_CONFIG.mosqueName}`
+    ];
+    return baris.join('\n');
+}
+
+async function kirimTiketWA(id) {
+    const p = appData.penerimaQR.find(x => x.id === id);
+    if (!p) return;
+
+    showAlert('Menyiapkan gambar tiket…', 'info');
+    let blob;
+    try {
+        blob = await buatGambarTiket(p);
+    } catch (err) {
+        console.error('Gagal membuat gambar tiket:', err);
+        showAlert('Gagal membuat gambar tiket.', 'error');
+        return;
+    }
+    if (!blob) {
+        showAlert('Gagal membuat gambar tiket.', 'error');
+        return;
+    }
+
+    const namaFile = `tiket-${(p.nama || 'penerima').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}-${p.kodeTiket}.png`;
+    const file = new File([blob], namaFile, { type: 'image/png' });
+    const teks = _teksTiket(p);
+
+    // Jalur utama (HP): menu "Bagikan" bawaan sistem - dari situ admin pilih
+    // WhatsApp lalu pilih kontaknya, dan gambar terkirim SEBAGAI GAMBAR.
+    // Nomor tujuan memang tidak bisa diisi otomatis di jalur ini; itu batasan
+    // WhatsApp sendiri, bukan sesuatu yang bisa disiasati dari web.
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+            await navigator.share({
+                files: [file],
+                title: `E-Tiket ${p.nama}`,
+                text: teks
+            });
+            return; // selesai - user sudah memilih tujuan di menu berbagi
+        } catch (err) {
+            if (err && err.name === 'AbortError') return; // user membatalkan, wajar
+            console.warn('navigator.share gagal, pakai cara cadangan:', err);
+        }
+    }
+
+    // Jalur cadangan (laptop / HP yang tidak mendukung berbagi file):
+    // gambar diunduh, lalu WhatsApp dibuka berisi teksnya - admin tinggal
+    // melampirkan gambar yang barusan terunduh.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = namaFile;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    if (p.noHp) {
+        openWaTo(p.noHp, teks);
+        showAlert('Gambar tiket sudah diunduh. Lampirkan gambar itu di WhatsApp yang baru terbuka.', 'warning');
+    } else {
+        showAlert('Gambar tiket sudah diunduh (penerima ini belum ada nomor HP-nya).', 'warning');
+    }
 }
 
 // Buka jendela baru minimalis khusus cetak (bukan print halaman utama) -
