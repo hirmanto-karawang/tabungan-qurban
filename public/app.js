@@ -5014,39 +5014,77 @@ async function kirimTiketWA(id) {
     const file = new File([blob], namaFile, { type: 'image/png' });
     const teks = _teksTiket(p);
 
-    // Jalur utama (HP): menu "Bagikan" bawaan sistem - dari situ admin pilih
-    // WhatsApp lalu pilih kontaknya, dan gambar terkirim SEBAGAI GAMBAR.
-    // Nomor tujuan memang tidak bisa diisi otomatis di jalur ini; itu batasan
-    // WhatsApp sendiri, bukan sesuatu yang bisa disiasati dari web.
+    // ── URUTAN JALUR (penting, jangan dibalik) ─────────────────────────
+    // MASALAH YANG DISELESAIKAN: dulu jalur pertama adalah menu "Bagikan"
+    // bawaan HP. Gambarnya memang terkirim utuh, TAPI admin harus mencari
+    // sendiri kontak tujuannya di dalam WhatsApp - padahal nomor calon
+    // penerima tiket sering BELUM tersimpan di HP admin, jadi malah buntu.
+    //
+    // Padahal nomor penerima SUDAH ADA di aplikasi (kolom No. HP), dan
+    // link wa.me bisa membuka chat ke nomor mana pun TANPA perlu disimpan
+    // sebagai kontak lebih dulu. Yang tidak bisa lewat wa.me cuma
+    // melampirkan gambar. Jadi sekarang: gambar disalin ke papan klip,
+    // chat dibuka langsung ke nomor penerima, admin tinggal menempel.
+    if (p.noHp) {
+        let tersalin = false;
+        try {
+            if (navigator.clipboard && window.ClipboardItem) {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                tersalin = true;
+            }
+        } catch (err) {
+            // Umum terjadi kalau browser/HP tidak mengizinkan menyalin gambar
+            // (sebagian Android lama, atau halaman kehilangan fokus).
+            console.warn('Gagal menyalin gambar ke papan klip:', err);
+        }
+
+        // Gambar TETAP diunduh sebagai cadangan, walau penyalinan berhasil -
+        // kalau ternyata tempel gagal di WhatsApp, admin masih punya
+        // berkasnya untuk dilampirkan manual, tidak perlu ulang dari awal.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = namaFile;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+        const link = waMeLink(p.noHp, teks);
+        if (!link) {
+            showAlert('Nomor HP penerima tidak valid. Perbaiki dulu di daftar penerima.', 'error');
+            return;
+        }
+        // window.open sering DIBLOKIR browser kalau dipanggil setelah proses
+        // async panjang (di sini: bikin gambar + salin ke papan klip), karena
+        // dianggap tidak lagi berasal dari klik user. Kalau terblokir,
+        // pindah halaman langsung - di HP ini tetap membuka aplikasi
+        // WhatsApp seperti biasa, tinggal tekan Kembali untuk balik ke app.
+        const jendela = window.open(link, '_blank', 'noopener');
+        if (!jendela) window.location.href = link;
+        showAlert(tersalin
+            ? 'Chat WhatsApp ke penerima sudah dibuka. Tekan lama kolom pesan lalu pilih Tempel (Paste) untuk melampirkan gambar tiketnya.'
+            : 'Chat WhatsApp ke penerima sudah dibuka. Gambar tiket sudah diunduh — lampirkan lewat ikon penjepit (📎).',
+            tersalin ? 'success' : 'warning');
+        return;
+    }
+
+    // ── Penerima BELUM punya nomor HP di data ──
+    // Tidak ada tujuan yang bisa dibuka otomatis, jadi pakai menu "Bagikan"
+    // bawaan HP: admin memilih sendiri tujuannya di situ.
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
-            await navigator.share({
-                files: [file],
-                title: `E-Tiket ${p.nama}`,
-                text: teks
-            });
-            return; // selesai - user sudah memilih tujuan di menu berbagi
+            await navigator.share({ files: [file], title: `E-Tiket ${p.nama}`, text: teks });
+            return;
         } catch (err) {
             if (err && err.name === 'AbortError') return; // user membatalkan, wajar
             console.warn('navigator.share gagal, pakai cara cadangan:', err);
         }
     }
 
-    // Jalur cadangan (laptop / HP yang tidak mendukung berbagi file):
-    // gambar diunduh, lalu WhatsApp dibuka berisi teksnya - admin tinggal
-    // melampirkan gambar yang barusan terunduh.
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = namaFile;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-
-    if (p.noHp) {
-        openWaTo(p.noHp, teks);
-        showAlert('Gambar tiket sudah diunduh. Lampirkan gambar itu di WhatsApp yang baru terbuka.', 'warning');
-    } else {
-        showAlert('Gambar tiket sudah diunduh (penerima ini belum ada nomor HP-nya).', 'warning');
-    }
+    const url2 = URL.createObjectURL(blob);
+    const a2 = document.createElement('a');
+    a2.href = url2; a2.download = namaFile;
+    document.body.appendChild(a2); a2.click(); document.body.removeChild(a2);
+    setTimeout(() => URL.revokeObjectURL(url2), 10000);
+    showAlert('Gambar tiket sudah diunduh. Penerima ini belum ada nomor HP-nya di data, jadi kirim manual ya.', 'warning');
 }
 
 // Buka jendela baru minimalis khusus cetak (bukan print halaman utama) -
