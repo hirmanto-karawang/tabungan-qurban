@@ -3884,7 +3884,11 @@ function _woAktualCatatanHtml(beratMudhohi, seharusnya) {
     }
     const warna = selisih > 0 ? 'var(--brick)' : 'var(--gold)';
     const tanda = selisih > 0 ? '+' : '-';
-    return ` <span style="color:${warna};">(${tanda} ${formatKg(Math.abs(selisih))})</span>`;
+    // Ditampilkan sekalian TOTAL-nya (selisih per orang x 7 mudhohi per sapi,
+    // jumlah yang sama dipakai di seluruh perhitungan Mudhohi) - supaya
+    // panitia langsung tahu dampaknya ke stok daging, bukan cuma per orang.
+    const totalSelisih = Math.abs(selisih) * 7;
+    return ` <span style="color:${warna};">(${tanda} ${formatKg(Math.abs(selisih))} per orang, total ${tanda} ${formatKg(totalSelisih)})</span>`;
 }
 
 function woAktualSeharusnyaHtml(surveyId, totalAktual, beratMudhohiSaatIni) {
