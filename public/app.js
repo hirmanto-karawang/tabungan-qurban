@@ -3808,7 +3808,7 @@ function loadWoAktualList(containerId) {
                       <td>${r.alokasi || '—'}</td>
                       <td>${r.berat.toLocaleString('id-ID')} kg</td>
                       <td>${qtyRencana.toLocaleString('id-ID')}</td>
-                      <td><input type="number" id="woAktualQty_${s.id}_${r.id}" value="${qtyAktual || ''}" placeholder="0" min="0" step="1" style="width:90px;" oninput="updateWoAktualRowTotal(${s.id}, ${r.id}, ${r.berat})"></td>
+                      <td><input type="number" id="woAktualQty_${s.id}_${r.id}" data-berat="${r.berat}" value="${qtyAktual || ''}" placeholder="0" min="0" step="1" style="width:90px;" oninput="updateWoAktualRowTotal(${s.id}, ${r.id}, ${r.berat})"></td>
                       <td>${selisihHtml}</td>
                       <td id="woAktualRowTotal_${s.id}_${r.id}"><strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong></td>
                       <td><button class="btn btn-success btn-small" onclick="simpanWoAktualQty(${s.id}, ${r.id})" title="Simpan Qty Aktual">💾</button></td>
@@ -3819,7 +3819,7 @@ function loadWoAktualList(containerId) {
         tfootHtml = `
             <tr style="background:var(--sand); font-weight:700;">
               <td colspan="5">Total Aktual (termasuk Mudhohi)</td>
-              <td>${totalAktual.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
+              <td id="woAktualTotalAll_${s.id}">${totalAktual.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</td>
               <td></td>
             </tr>`;
 
@@ -3842,8 +3842,81 @@ function loadWoAktualList(containerId) {
                   <tfoot>${tfootHtml}</tfoot>
                 </table>
               </div>
+              ${woAktualSeharusnyaHtml(s.id, totalAktual, beratMudhohi)}
             </div>`;
     }).join('');
+}
+
+// ── "Berat daging untuk Mudhohi seharusnya" ──────────────────────────────
+// Acuan di baris Mudhohi (k.hakMudhohi) dihitung dari ESTIMASI berat daging
+// waktu survey (estimasiDaging / 3 / 7 = estimasiDaging / 21). Masalahnya,
+// setelah semua alokasi ditimbang & diinput, hasil AKTUAL sering meleset
+// dari estimasi itu - biasanya lebih ringan. Kalau panitia tetap memakai
+// acuan lama, jatah mudhohi jadi tidak sinkron dgn daging yang benar-benar
+// ada di tangan.
+//
+// Baris ini menghitung ulang jatah mudhohi memakai pola yang SAMA
+// (dibagi 21 = sepertiga bagian mudhohi, lalu dibagi 7 orang) tapi dari
+// TOTAL AKTUAL, bukan dari estimasi.
+function woAktualSeharusnyaHtml(surveyId, totalAktual, beratMudhohiSaatIni) {
+    const seharusnya = totalAktual > 0 ? totalAktual / 21 : 0;
+    const selisih = (beratMudhohiSaatIni || 0) > 0 ? (beratMudhohiSaatIni - seharusnya) : null;
+    let catatan = '';
+    if (selisih !== null && Math.abs(selisih) > 0.05) {
+        catatan = selisih > 0
+            ? ` <span style="color:var(--brick);">(input sekarang lebih berat ${formatKg(Math.abs(selisih))} per orang)</span>`
+            : ` <span style="color:var(--gold);">(input sekarang lebih ringan ${formatKg(Math.abs(selisih))} per orang)</span>`;
+    } else if (selisih !== null) {
+        catatan = ` <span style="color:var(--emerald-2);">(sudah pas)</span>`;
+    }
+    return `
+        <div class="info-box" style="margin-top:14px;">
+          <strong>Berat daging untuk Mudhohi seharusnya: <span id="woAktualSeharusnya_${surveyId}">${formatKg(seharusnya)}</span> per orang</strong>
+          <span id="woAktualSeharusnyaCatatan_${surveyId}">${catatan}</span>
+          <div style="margin-top:6px; font-size:12px; color:var(--ink-faint);">
+            Dihitung dari Total Aktual (termasuk Mudhohi) ÷ 21 — yaitu sepertiga bagian mudhohi, dibagi 7 orang.
+            Angka ini memakai hasil timbang yang benar-benar ada, bukan estimasi awal saat survey.
+          </div>
+        </div>`;
+}
+
+// Hitung ulang Total Aktual + "seharusnya" LIVE dari semua kotak isian yang
+// sedang tampil (belum tersimpan) - dipanggil tiap kali admin mengetik.
+// Tanpa ini, angka "seharusnya" akan basi & menyesatkan sampai halaman
+// dimuat ulang, padahal justru dipakai SAAT sedang menginput.
+function updateWoAktualRingkasan(surveyId) {
+    let total = 0;
+    // Selektor pakai garis bawah di ujung ("woAktualQty_1_") supaya sapi id 1
+    // tidak ikut menangkap kotak isian milik sapi id 12, 13, dst.
+    document.querySelectorAll(`input[id^="woAktualQty_${surveyId}_"]`).forEach(inp => {
+        total += (parseFloat(inp.dataset.berat) || 0) * (parseFloat(inp.value) || 0);
+    });
+    const inputMudhohi = document.getElementById(`woAktualMudhohiBerat_${surveyId}`);
+    const beratMudhohi = inputMudhohi ? (parseFloat(inputMudhohi.value) || 0) : 0;
+    total += beratMudhohi * 7;
+
+    const selTotal = document.getElementById(`woAktualTotalAll_${surveyId}`);
+    if (selTotal) selTotal.textContent = `${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg`;
+
+    const seharusnya = total > 0 ? total / 21 : 0;
+    const selSeharusnya = document.getElementById(`woAktualSeharusnya_${surveyId}`);
+    if (selSeharusnya) selSeharusnya.textContent = formatKg(seharusnya);
+
+    const selCatatan = document.getElementById(`woAktualSeharusnyaCatatan_${surveyId}`);
+    if (selCatatan) {
+        if (beratMudhohi <= 0) {
+            selCatatan.innerHTML = '';
+        } else {
+            const selisih = beratMudhohi - seharusnya;
+            if (Math.abs(selisih) <= 0.05) {
+                selCatatan.innerHTML = ` <span style="color:var(--emerald-2);">(sudah pas)</span>`;
+            } else if (selisih > 0) {
+                selCatatan.innerHTML = ` <span style="color:var(--brick);">(input sekarang lebih berat ${formatKg(Math.abs(selisih))} per orang)</span>`;
+            } else {
+                selCatatan.innerHTML = ` <span style="color:var(--gold);">(input sekarang lebih ringan ${formatKg(Math.abs(selisih))} per orang)</span>`;
+            }
+        }
+    }
 }
 
 // Update tampilan "Total Aktual" 1 baris (live, belum tersimpan) tiap kali
@@ -3973,6 +4046,7 @@ function updateWoAktualRowTotal(surveyId, rencanaId, beratPerUnit) {
     const qty = parseFloat(input.value) || 0;
     const total = beratPerUnit * qty;
     totalCell.innerHTML = `<strong>${total.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg</strong>`;
+    updateWoAktualRingkasan(surveyId);
 }
 
 // Update tampilan Total & Selisih baris "Mudhohi" (live, belum tersimpan)
@@ -4008,6 +4082,8 @@ function updateWoAktualMudhohiTotal(surveyId) {
         const performaText = performa === null ? '—' : (Math.round(performa * 10) / 10).toLocaleString('id-ID') + '%';
         performaCell.textContent = `performa ${performaText}`;
     }
+
+    updateWoAktualRingkasan(surveyId);
 }
 
 // Simpan Berat AKTUAL baris "Mudhohi" (Qty selalu dipaksa 7) ke sheet
