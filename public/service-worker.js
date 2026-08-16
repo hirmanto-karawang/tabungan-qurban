@@ -85,7 +85,14 @@ self.addEventListener('fetch', (event) => {
     // sumber utama - sebelumnya index.html pakai cache-first, akibatnya
     // browser/PWA yang sudah pernah buka app selalu menampilkan versi LAMA
     // walau sudah ada deploy baru, sampai semua tab ditutup total.
-    if (request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html')) {
+    //
+    // '/app.js' WAJIB ikut jalur network-first ini juga, JANGAN cache-first.
+    // Itu file kode utama aplikasi (dulu inline di app.html, sekarang
+    // eksternal) - kalau kena cacheFirstStrategy di bawah, user yang sudah
+    // pernah buka app bakal nyangkut di versi kode LAMA selamanya walau
+    // sudah ada deploy baru. Ini persis bug yang pernah kejadian dulu di
+    // index.html (lihat komentar di atas) - jangan diulang.
+    if (request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html') || url.pathname === '/app.js') {
         event.respondWith(networkFirstShellStrategy(request));
         return;
     }
