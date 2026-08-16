@@ -3,7 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tabungan Qurban — Masjid Dhafinul Jariyah</title>
+<!-- JUDUL SENGAJA NETRAL (nama platform), BUKAN nama salah satu masjid.
+     app.html ini file statis yang dipakai BARENG semua masjid; nama masjid
+     yang benar dipasang belakangan oleh applyBranding() lewat JavaScript,
+     setelah config tenant selesai diambil.
+     Dulu judul di sini di-hardcode "... Masjid Dhafinul Jariyah", akibatnya
+     preview link di WhatsApp SELALU nampilin Dhafinul untuk masjid mana pun
+     - karena robot pembuat preview tidak menjalankan JavaScript, cuma baca
+     HTML mentah ini. Preview yang benar per masjid sekarang dilayani
+     api/preview.js (lihat aturan User-Agent di vercel.json); judul netral di
+     sini jadi jaring pengaman terakhir - kalau jalur itu gagal, yang tampil
+     nama platform yang generik, BUKAN nama masjid yang keliru. -->
+<title>Alur Qurban — Tabungan &amp; Tata Kelola Qurban Masjid</title>
+<meta name="description" content="Kelola qurban masjid dalam satu alur: tabungan jamaah, survei hewan, distribusi daging, sampai laporan pertanggungjawaban.">
 <meta name="theme-color" content="#0E3B34">
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/favicon.ico">

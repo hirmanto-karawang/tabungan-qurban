@@ -1,5 +1,16 @@
 {
   "rewrites": [
+    {
+      "source": "/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*([Ww]hats[Aa]pp|facebookexternalhit|[Ff]acebot|[Tt]witterbot|[Tt]elegram[Bb]ot|[Ss]lackbot|[Ss]lack-[Ii]mg[Pp]roxy|[Dd]iscordbot|[Ll]inked[Ii]n[Bb]ot|[Ss]kype[Uu]ri[Pp]review|[Pp]interest|[Ww]hatsapp|[Gg]ooglebot|[Bb]ingbot|[Ee]mbedly|[Qq]uora [Ll]ink [Pp]review|[Vv]kShare|[Oo]utbrain|[Nn]uzzel|[Rr]edditbot|[Aa]pplebot).*"
+        }
+      ],
+      "destination": "/api/preview?slug=:slug"
+    },
     { "source": "/:path*", "destination": "/app.html" }
   ]
 }
