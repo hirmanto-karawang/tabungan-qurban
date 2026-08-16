@@ -3949,7 +3949,7 @@
             <div class="actions" style="margin-bottom:18px;">
               <button class="btn btn-success btn-small" id="kemasanSubmitBtn" onclick="simpanKemasanItem()">+ Tambah Item</button>
               <button class="btn btn-ghost btn-small" id="kemasanCancelBtn" onclick="batalEditKemasanItem()" style="display:none;">Batal Edit</button>
-              <button class="btn btn-ghost btn-small" onclick="isiDefaultKemasanPlastik()" title="Tambahkan 5 item plastik umum (Kresek Sablon, Plastik Daging/Jeroan/Tulang/Laundry) kalau belum ada">📦 Isi Default Plastik</button>
+              <button class="btn btn-ghost btn-small" onclick="isiDefaultKemasanPlastik()" title="Tambahkan 6 item plastik umum (Kresek Sablon, Plastik Daging/Jeroan/Tulang/Laundry, Kresek Mudhohi) kalau belum ada">📦 Isi Default Plastik</button>
             </div>
             <div class="table-container">
               <table>
@@ -10239,10 +10239,11 @@ function refreshKemasanInventaris() {
     renderKemasanHero();
     renderKemasanChecklist();
 
-    // Auto-isi 5 item plastik default (Kresek Sablon, Plastik
-    // Daging/Jeroan/Tulang/Laundry) kalau tabel Kemasan masih KOSONG SAMA SEKALI -
-    // supaya admin tidak perlu klik tombol "Isi Default Plastik" manual pas
-    // pertama kali buka tab ini (lihat isiDefaultKemasanPlastik()).
+    // Auto-isi 6 item plastik default (Kresek Sablon, Plastik
+    // Daging/Jeroan/Tulang/Laundry, Kresek Mudhohi) kalau tabel Kemasan masih
+    // KOSONG SAMA SEKALI - supaya admin tidak perlu klik tombol "Isi Default
+    // Plastik" manual pas pertama kali buka tab ini (lihat
+    // isiDefaultKemasanPlastik()).
     const kemasanAktif = appData.kemasanInventaris.filter(i => i.status !== 'batal' && i.kategori === 'kemasan');
     if (kemasanAktif.length === 0 && !kemasanDefaultSeeded) {
         kemasanDefaultSeeded = true;
@@ -10448,30 +10449,35 @@ async function simpanKemasanItem() {
     }
 }
 
-// Isi 5 item plastik yang umum dipakai (Kresek Sablon, Plastik
-// Daging/Jeroan/Tulang, Plastik Laundry). Kresek Sablon & Plastik Daging
-// ikut TOTAL ALOKASI (Qty rencana di Rencana Distribusi Daging Umum, lintas
-// semua alokasi) - dipilih basis 'rencanaDaging' (BUKAN 'paket'/aktual)
-// supaya kebutuhannya sudah bisa diperkirakan dari awal begitu rencana
-// disusun, tidak perlu nunggu semua penerima diinput satu-satu ke Penerima &
-// Tiket dulu. Plastik Jeroan/Tulang ikut Qty rencana di Rencana Distribusi
-// Bagian Lain utk jenis masing-masing. Plastik Laundry pakai basis 'kg'
-// (total estimasi Kg Daging) dengan rasioPerUnit 0.04 (= 1/25) supaya
-// kebutuhannya otomatis "Total Kg Daging / 25". Rasio default 1 (1 plastik
-// per unit basis) kecuali item yang punya rasioPerUnit sendiri - admin bebas
-// edit lewat ✏️ kalau butuh beda (mis. 2 plastik per paket). Item yang
-// namanya SUDAH ADA (persis sama, case-insensitive) dilewati - aman diklik
-// berkali-kali, tidak bikin dobel. Dipanggil OTOMATIS oleh
-// refreshKemasanInventaris() pas tabel Kemasan masih kosong (silent=true,
-// tanpa alert supaya tidak berisik pas cuma buka tab), ATAU manual lewat
-// tombol "Isi Default Plastik" (silent=false, ada alert konfirmasi).
+// Isi 6 item plastik yang umum dipakai (Kresek Sablon, Plastik
+// Daging/Jeroan/Tulang, Plastik Laundry, Kresek Mudhohi). Kresek Sablon &
+// Plastik Daging ikut TOTAL ALOKASI (Qty rencana di Rencana Distribusi
+// Daging Umum, lintas semua alokasi) - dipilih basis 'rencanaDaging' (BUKAN
+// 'paket'/aktual) supaya kebutuhannya sudah bisa diperkirakan dari awal
+// begitu rencana disusun, tidak perlu nunggu semua penerima diinput
+// satu-satu ke Penerima & Tiket dulu. Plastik Jeroan/Tulang ikut Qty rencana
+// di Rencana Distribusi Bagian Lain utk jenis masing-masing. Plastik
+// Laundry pakai basis 'kg' (total estimasi Kg Daging) dengan rasioPerUnit
+// 0.04 (= 1/25) supaya kebutuhannya otomatis "Total Kg Daging / 25". Kresek
+// Mudhohi pakai basis 'mudhohi' (totalKuponMudhohiAktif - jumlah KUPON
+// MUDHOHI aktif, yaitu peserta yang BENAR-BENAR dapat bagian sbg mudhohi,
+// BUKAN jumlah peserta tabungan qurban di SurveyPeserta yang masih menabung
+// menuju 1 bagian). Rasio default 1 (1 plastik per unit basis) kecuali item
+// yang punya rasioPerUnit sendiri - admin bebas edit lewat ✏️ kalau butuh
+// beda (mis. 2 plastik per paket). Item yang namanya SUDAH ADA (persis
+// sama, case-insensitive) dilewati - aman diklik berkali-kali, tidak bikin
+// dobel. Dipanggil OTOMATIS oleh refreshKemasanInventaris() pas tabel
+// Kemasan masih kosong (silent=true, tanpa alert supaya tidak berisik pas
+// cuma buka tab), ATAU manual lewat tombol "Isi Default Plastik"
+// (silent=false, ada alert konfirmasi).
 async function isiDefaultKemasanPlastik(silent) {
     const DEFAULTS = [
         { namaItem: 'Kresek Sablon', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
         { namaItem: 'Plastik Daging', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
         { namaItem: 'Plastik Jeroan', basisHitung: 'jeroan', catatan: 'Ikut total Qty rencana Jeroan di Rencana Distribusi Bagian Lain' },
         { namaItem: 'Plastik Tulang', basisHitung: 'tulang', catatan: 'Ikut total Qty rencana Tulang di Rencana Distribusi Bagian Lain' },
-        { namaItem: 'Plastik Laundry', basisHitung: 'kg', rasioPerUnit: 0.04, catatan: 'Otomatis: Total Estimasi Kg Daging ÷ 25 (1 plastik laundry per 25 kg daging)' }
+        { namaItem: 'Plastik Laundry', basisHitung: 'kg', rasioPerUnit: 0.04, catatan: 'Otomatis: Total Estimasi Kg Daging ÷ 25 (1 plastik laundry per 25 kg daging)' },
+        { namaItem: 'Kresek Mudhohi', basisHitung: 'mudhohi', catatan: 'Ikut total Kupon Mudhohi aktif (peserta yang benar-benar dapat bagian sbg mudhohi, bukan jumlah peserta tabungan)' }
     ];
 
     const existingNames = new Set(
@@ -10480,7 +10486,7 @@ async function isiDefaultKemasanPlastik(silent) {
     const toAdd = DEFAULTS.filter(d => !existingNames.has(d.namaItem.toLowerCase()));
 
     if (toAdd.length === 0) {
-        if (!silent) showAlert('Ke-5 item plastik default sudah ada semua', 'info');
+        if (!silent) showAlert('Ke-6 item plastik default sudah ada semua', 'info');
         return;
     }
 
