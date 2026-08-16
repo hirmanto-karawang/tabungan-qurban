@@ -10,11 +10,15 @@
 <link rel="apple-touch-icon" href="/icons/icon-180x180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Preconnect ke server Apps Script (backend data), supaya koneksi (DNS+TLS)
-     sudah siap dari awal sebelum request pertama benar-benar dikirim -->
-<link rel="preconnect" href="https://script.google.com">
-<link rel="preconnect" href="https://script.googleusercontent.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Font Google (Fraunces/Inter/IBM Plex Mono) - dimuat NON-BLOCKING pakai
+     pola preload+swap: browser download CSS font ini di background tanpa
+     menahan render awal (beda dari <link rel="stylesheet"> polos yang
+     render-blocking by default). onload menukar rel jadi 'stylesheet' pas
+     sudah siap; <noscript> jadi fallback kalau JS mati. &display=swap di URL
+     tetap dipertahankan supaya teks tampil pakai font sistem dulu (tidak
+     invisible) sebelum font custom ini kelar dimuat. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
 <style>
   :root{
     --ink: #182420;
