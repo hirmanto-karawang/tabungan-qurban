@@ -3936,14 +3936,21 @@ function updateWoAktualRingkasan(surveyId) {
 // mengikuti jumlah sapi (Mudhohi #1, #2, #3, ...) karena tiap sapi punya
 // hasil timbang mudhohi sendiri-sendiri; baris alokasi lain (RT 1, Panitia,
 // dst) dijumlahkan Aktual-nya dari SEMUA sapi karena nama alokasinya sama.
-// Ada kolom Plan/Aktual/Balance (konsisten dgn konvensi B/L di tabel Rencana
-// Distribusi Umum: Balance = Plan - Aktual) supaya beda-nya langsung kelihatan.
+// Kolom Plan/Aktual/Balance dgn Balance = AKTUAL - PLAN, jadi tandanya
+// mengikuti kenyataan lapangan: PLUS berarti realisasi MELEBIHI rencana,
+// MINUS berarti KURANG dari rencana.
+//
+// CATATAN: arah rumus ini SENGAJA dibalik dari versi awal (dulu
+// Plan - Aktual, mengikuti konvensi B/L di tabel Rencana Distribusi Umum).
+// Karena itu warnanya ikut dibalik juga - kalau cuma rumusnya yang dibalik
+// tanpa menyesuaikan warna, artinya jadi terbalik: kelebihan malah tampil
+// aman dan kekurangan tampil bahaya.
 function woAktualBalanceHtml(balance, hasData) {
     if (!hasData) return '<span style="color:var(--ink-faint);">—</span>';
     let color;
-    if (Math.abs(balance) <= 0.05) color = 'var(--emerald-2)';
-    else if (balance > 0) color = 'var(--gold)';
-    else color = 'var(--brick)';
+    if (Math.abs(balance) <= 0.05) color = 'var(--emerald-2)';   // pas
+    else if (balance > 0) color = 'var(--brick)';                 // melebihi rencana
+    else color = 'var(--gold)';                                   // kurang dari rencana
     return `<span style="color:${color}; font-weight:600;">${formatKg(balance)}</span>`;
 }
 
@@ -3969,7 +3976,7 @@ function renderWoAktualResume(containerId) {
         const beratMudhohi = existingMudhohi ? existingMudhohi.berat : 0;
         const totalMudhohiAktual = beratMudhohi * 7;
         const estimasiMudhohiFull = k.hakMudhohi * 7;
-        const balance = estimasiMudhohiFull - totalMudhohiAktual;
+        const balance = totalMudhohiAktual - estimasiMudhohiFull;
         grandPlan += estimasiMudhohiFull;
         grandAktual += totalMudhohiAktual;
 
@@ -3998,7 +4005,7 @@ function renderWoAktualResume(containerId) {
             });
             const planTotal = r.berat * r.qty;
             const aktualTotal = r.berat * totalQtyAktual;
-            const balance = planTotal - aktualTotal;
+            const balance = aktualTotal - planTotal;
             grandPlan += planTotal;
             grandAktual += aktualTotal;
 
@@ -4012,7 +4019,7 @@ function renderWoAktualResume(containerId) {
         }).join('');
     }
 
-    const grandBalance = grandPlan - grandAktual;
+    const grandBalance = grandAktual - grandPlan;
     // Performa keseluruhan = Aktual / Plan x 100% - seberapa dekat realisasi
     // hari pelaksanaan dengan rencana, digabung jadi 1 angka di baris Total.
     const grandPerforma = grandPlan > 0 ? (grandAktual / grandPlan * 100) : null;
@@ -4027,7 +4034,7 @@ function renderWoAktualResume(containerId) {
     container.innerHTML = `
         <div class="card" style="max-width:820px; margin-top:20px;">
           <h3 style="margin-top:0;">Resume Work Order Aktual</h3>
-          <p style="color:var(--ink-soft); font-size:13px; margin-top:-8px;">Ringkasan seluruh sapi (${appData.surveySapi.length} sapi) dalam satu tabel. Baris Mudhohi bernomor per sapi; baris alokasi lain dijumlahkan dari semua sapi. Balance = Plan − Aktual.</p>
+          <p style="color:var(--ink-soft); font-size:13px; margin-top:-8px;">Ringkasan seluruh sapi (${appData.surveySapi.length} sapi) dalam satu tabel. Baris Mudhohi bernomor per sapi; baris alokasi lain dijumlahkan dari semua sapi. Balance = Aktual − Plan.</p>
           <div class="table-container">
             <table>
               <thead><tr><th>Alokasi</th><th>Plan</th><th>Aktual</th><th>Balance</th></tr></thead>
