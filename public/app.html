@@ -242,13 +242,20 @@
     align-items:center;
     gap:13px;
     padding:9px 20px 9px 9px;
-    background: rgba(255,255,255,.05);
+    /* Sengaja background solid (BUKAN backdrop-filter:blur()) - blur di
+       belakang elemen itu salah satu properti CSS paling berat buat GPU HP
+       Android kelas menengah-bawah, apalagi kalau elemennya ada di area yang
+       ikut ke-scroll (browser harus re-sample & blur ulang tiap frame saat
+       scroll). Efek kaca buram-nya diganti warna solid sedikit lebih pekat
+       supaya tampilan tetap mirip tanpa beban render itu. Lihat juga
+       .login-hero::before yang di-nonaktifkan di mobile (media query 760px)
+       dengan alasan sama. */
+    background: rgba(20,50,45,.55);
     border:1px solid rgba(231,200,120,.28);
     border-radius:14px;
     margin-bottom:26px;
     width:fit-content;
     max-width:100%;
-    backdrop-filter: blur(6px);
   }
   .ws-logo-wrap{
     width:46px; height:46px;
@@ -2156,6 +2163,13 @@
     #loginScreen{ grid-template-columns: 1fr; }
     .login-hero{ padding: 40px 28px; min-height: 260px; }
     .hero-stats{ display:none; }
+    /* Matikan pattern titik-titik dekoratif (.login-hero::before) di HP -
+       murni dekorasi, tapi area yang di-cover sekarang lebih tinggi (hero
+       makin panjang krn 7 chip modul) jadi makin banyak yang perlu di-paint.
+       Dikombinasikan dgn backdrop-filter yang sudah dihapus di .workspace-card
+       di atas, ini mengurangi beban render halaman depan di HP kelas
+       menengah-bawah supaya scroll tidak terasa berat/tersendat. */
+    .login-hero::before{ display:none; }
     .login-panel{ padding: 32px 24px; }
     .stats-grid{ grid-template-columns: 1fr; }
     .hero-logo-container{ width:100px; height:100px; margin: 0 auto 24px; }
@@ -6361,40 +6375,70 @@ let ptrStartY = null;
 let ptrTracking = false;
 let ptrRefreshing = false;
 const PTR_THRESHOLD = 68; // jarak tarik (setelah resistance) buat memicu refresh
+// Referensi listener touchmove yang di-attach/lepas DINAMIS (lihat komentar
+// panjang di initPullToRefresh() soal kenapa ini penting utk performa scroll).
+let ptrMoveHandler = null;
 
 function initPullToRefresh() {
     const indicator = document.getElementById('ptrIndicator');
     if (!indicator) return;
+
+    // PENTING soal performa: touchmove HARUS TIDAK permanen ter-pasang di
+    // `document` dengan {passive:false}. Listener touchmove non-passive
+    // memaksa browser MENUNGGU thread JS selesai jalan (sinkron) SEBELUM bisa
+    // mulai scroll - bahkan kalau handler-nya langsung return tanpa ngapa2in
+    // (spt kasus kita di luar area gesture pull-to-refresh). Efeknya scroll
+    // jadi "berat"/tersendat di HAMPIR SEMUA gesture geser, apalagi di HP
+    // Android kelas menengah-bawah yang CPU-nya lebih lambat ngeeksekusi JS -
+    // persis keluhan "scroll susah, sampe perlu 3 jari". Solusinya: listener
+    // touchmove yang bisa preventDefault() cuma di-ATTACH saat benar2 lagi
+    // nge-drag dari posisi paling atas (touchstart), dan langsung DILEPAS
+    // begitu jelas ini bukan gesture pull-to-refresh atau saat jari diangkat.
+    // Di luar momen itu, TIDAK ADA listener touchmove non-passive sama sekali
+    // di halaman - scroll normal jalan full-speed pakai jalur compositor
+    // browser, tidak pernah nunggu JS.
+    function attachPtrMove() {
+        if (ptrMoveHandler) return;
+        ptrMoveHandler = (e) => {
+            if (!ptrTracking || ptrRefreshing) { detachPtrMove(); return; }
+            const deltaY = e.touches[0].clientY - ptrStartY;
+            if (deltaY <= 0 || window.scrollY > 0) {
+                indicator.classList.remove('visible', 'ready');
+                indicator.style.transform = 'translate(-50%, -60px)';
+                detachPtrMove();
+                return;
+            }
+
+            // Resistance supaya tidak langsung "nempel" ke jari - kesan lebih alami.
+            const pulled = Math.min(deltaY * 0.45, 90);
+            if (deltaY > 12) e.preventDefault();
+
+            indicator.classList.add('visible');
+            indicator.style.transform = `translate(-50%, ${pulled - 60}px)`;
+
+            const ready = pulled >= PTR_THRESHOLD;
+            indicator.classList.toggle('ready', ready);
+            document.getElementById('ptrText').textContent = ready ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
+        };
+        document.addEventListener('touchmove', ptrMoveHandler, { passive: false });
+    }
+
+    function detachPtrMove() {
+        if (!ptrMoveHandler) return;
+        document.removeEventListener('touchmove', ptrMoveHandler);
+        ptrMoveHandler = null;
+    }
 
     document.addEventListener('touchstart', (e) => {
         const appActive = document.getElementById('appContainer')?.classList.contains('active');
         if (!appActive || ptrRefreshing || window.scrollY > 0) { ptrTracking = false; return; }
         ptrStartY = e.touches[0].clientY;
         ptrTracking = true;
+        attachPtrMove();
     }, { passive: true });
 
-    document.addEventListener('touchmove', (e) => {
-        if (!ptrTracking || ptrRefreshing) return;
-        const deltaY = e.touches[0].clientY - ptrStartY;
-        if (deltaY <= 0 || window.scrollY > 0) {
-            indicator.classList.remove('visible', 'ready');
-            indicator.style.transform = 'translate(-50%, -60px)';
-            return;
-        }
-
-        // Resistance supaya tidak langsung "nempel" ke jari - kesan lebih alami.
-        const pulled = Math.min(deltaY * 0.45, 90);
-        if (deltaY > 12) e.preventDefault();
-
-        indicator.classList.add('visible');
-        indicator.style.transform = `translate(-50%, ${pulled - 60}px)`;
-
-        const ready = pulled >= PTR_THRESHOLD;
-        indicator.classList.toggle('ready', ready);
-        document.getElementById('ptrText').textContent = ready ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
-    }, { passive: false });
-
     document.addEventListener('touchend', () => {
+        detachPtrMove();
         if (!ptrTracking) return;
         ptrTracking = false;
 
