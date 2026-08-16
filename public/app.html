@@ -3930,6 +3930,7 @@
                   <option value="tulang">Per Rencana Tulang (Bagian Lain)</option>
                   <option value="jeroan">Per Rencana Jeroan (Bagian Lain)</option>
                   <option value="mudhohi">Per Kupon Mudhohi</option>
+                  <option value="sapi">Per Jumlah Sapi</option>
                 </select>
               </div>
               <div class="form-group">
@@ -5572,7 +5573,7 @@ async function loadDataFromSheets() {
         kategori: (row.kategori || '').toString().trim().toLowerCase() === 'inventaris' ? 'inventaris' : 'kemasan',
         basisHitung: (() => {
             const b = (row.basisHitung || '').toString().trim().toLowerCase();
-            const VALID_BASIS = { kg: 'kg', rencanadaging: 'rencanaDaging', tulang: 'tulang', jeroan: 'jeroan', mudhohi: 'mudhohi', paket: 'paket' };
+            const VALID_BASIS = { kg: 'kg', rencanadaging: 'rencanaDaging', tulang: 'tulang', jeroan: 'jeroan', mudhohi: 'mudhohi', sapi: 'sapi', paket: 'paket' };
             return VALID_BASIS[b] || 'paket';
         })(),
         rasioPerUnit: parseFloat(row.rasioPerUnit) || 0,
@@ -10153,6 +10154,14 @@ function totalKuponMudhohiAktif() {
     return appData.penerimaQR.filter(p => p.status !== 'batal' && p.kategori === 'mudhohi').length;
 }
 
+// Total jumlah SAPI yang disurvey (appData.surveySapi.length) - basis
+// hitung "Per Jumlah Sapi", dipakai utk item yang jumlahnya proporsional ke
+// banyaknya sapi (bukan ke jumlah kupon/paket), mis. Kresek Mudhohi = Total
+// Sapi x 7 (7 bagian mudhohi per sapi, rasioPerUnit=7).
+function totalSapiSurvei() {
+    return appData.surveySapi.length;
+}
+
 // Total Qty (RENCANA/target, BUKAN yang sudah benar-benar diisi ke
 // Penerima & Tiket) di Rencana Distribusi Daging (Umum) - dijumlah lintas
 // SEMUA alokasi (RT, Panitia, dst). Ini yang dipakai sbg basis default
@@ -10192,6 +10201,7 @@ function hitungKebutuhanKemasan(item) {
     else if (item.basisHitung === 'tulang') basisTotal = totalKuotaRencanaBagianLain('tulang');
     else if (item.basisHitung === 'jeroan') basisTotal = totalKuotaRencanaBagianLain('jeroan');
     else if (item.basisHitung === 'mudhohi') basisTotal = totalKuponMudhohiAktif();
+    else if (item.basisHitung === 'sapi') basisTotal = totalSapiSurvei();
     else basisTotal = totalPaketPenerima();
     return Math.ceil((item.rasioPerUnit || 0) * basisTotal);
 }
@@ -10204,7 +10214,8 @@ const KEMASAN_BASIS_LABEL = {
     rencanaDaging: 'Per Total Alokasi Daging (Rencana)',
     tulang: 'Per Rencana Tulang (Bagian Lain)',
     jeroan: 'Per Rencana Jeroan (Bagian Lain)',
-    mudhohi: 'Per Kupon Mudhohi'
+    mudhohi: 'Per Kupon Mudhohi',
+    sapi: 'Per Jumlah Sapi'
 };
 
 function kemasanSelisihColor(selisih) {
@@ -10393,7 +10404,7 @@ async function simpanKemasanItem() {
     const namaItem = document.getElementById('kemasanNamaItem').value.trim();
     const ukuran = document.getElementById('kemasanUkuran').value.trim();
     const basisHitungRaw = document.getElementById('kemasanBasisHitung').value;
-    const basisHitung = ['kg', 'rencanaDaging', 'tulang', 'jeroan', 'mudhohi'].includes(basisHitungRaw) ? basisHitungRaw : 'paket';
+    const basisHitung = ['kg', 'rencanaDaging', 'tulang', 'jeroan', 'mudhohi', 'sapi'].includes(basisHitungRaw) ? basisHitungRaw : 'paket';
     const rasioPerUnit = parseFloat(document.getElementById('kemasanRasioPerUnit').value) || 0;
     const stokTersedia = parseFloat(document.getElementById('kemasanStokTersedia').value) || 0;
     const catatan = document.getElementById('kemasanCatatan').value.trim();
@@ -10459,10 +10470,10 @@ async function simpanKemasanItem() {
 // di Rencana Distribusi Bagian Lain utk jenis masing-masing. Plastik
 // Laundry pakai basis 'kg' (total estimasi Kg Daging) dengan rasioPerUnit
 // 0.04 (= 1/25) supaya kebutuhannya otomatis "Total Kg Daging / 25". Kresek
-// Mudhohi pakai basis 'mudhohi' (totalKuponMudhohiAktif - jumlah KUPON
-// MUDHOHI aktif, yaitu peserta yang BENAR-BENAR dapat bagian sbg mudhohi,
-// BUKAN jumlah peserta tabungan qurban di SurveyPeserta yang masih menabung
-// menuju 1 bagian). Rasio default 1 (1 plastik per unit basis) kecuali item
+// Mudhohi pakai basis 'sapi' (totalSapiSurvei - jumlah SAPI yang disurvey,
+// BUKAN jumlah peserta tabungan qurban) dengan rasioPerUnit 7 supaya
+// kebutuhannya otomatis "Total Sapi x 7" (7 bagian mudhohi per sapi). Rasio
+// default 1 (1 plastik per unit basis) kecuali item
 // yang punya rasioPerUnit sendiri - admin bebas edit lewat ✏️ kalau butuh
 // beda (mis. 2 plastik per paket). Item yang namanya SUDAH ADA (persis
 // sama, case-insensitive) dilewati - aman diklik berkali-kali, tidak bikin
@@ -10477,7 +10488,7 @@ async function isiDefaultKemasanPlastik(silent) {
         { namaItem: 'Plastik Jeroan', basisHitung: 'jeroan', catatan: 'Ikut total Qty rencana Jeroan di Rencana Distribusi Bagian Lain' },
         { namaItem: 'Plastik Tulang', basisHitung: 'tulang', catatan: 'Ikut total Qty rencana Tulang di Rencana Distribusi Bagian Lain' },
         { namaItem: 'Plastik Laundry', basisHitung: 'kg', rasioPerUnit: 0.04, catatan: 'Otomatis: Total Estimasi Kg Daging ÷ 25 (1 plastik laundry per 25 kg daging)' },
-        { namaItem: 'Kresek Mudhohi', basisHitung: 'mudhohi', catatan: 'Ikut total Kupon Mudhohi aktif (peserta yang benar-benar dapat bagian sbg mudhohi, bukan jumlah peserta tabungan)' }
+        { namaItem: 'Kresek Mudhohi', basisHitung: 'sapi', rasioPerUnit: 7, catatan: 'Otomatis: Total Jumlah Sapi x 7 (7 bagian mudhohi per sapi)' }
     ];
 
     const existingNames = new Set(
