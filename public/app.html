@@ -16194,10 +16194,41 @@ function renderPrayerTimes(jadwal) {
     // Kalau tidak ada sesi tersimpan (benar-benar pertama kali/sudah logout),
     // tetap prefetch data di background seperti biasa supaya begitu user login
     // manual, datanya kemungkinan besar sudah siap.
+    //
+    // PENTING soal performa: prefetch ini nge-fetch 18 sheet SEKALIGUS
+    // (bootstrap) lalu di-parse (.map() per baris, utk tiap sheet) - kerjaan
+    // nyata di CPU, bukan cuma nunggu jaringan. Dulu dipanggil LANGSUNG saat
+    // initApp() jalan, persis pas user pertama kali melihat layar
+    // login/hero - hasil JSON yang datang bisa mendarat kapan saja (tergantung
+    // kecepatan jaringan), termasuk PERSIS saat user lagi coba scroll layar
+    // login, dan proses parse-nya (yang sinkron, blocking main thread) ikut
+    // "menyita" waktu yang harusnya dipakai buat merespon gesture scroll -
+    // di HP Android yang CPU-nya lebih lambat, ini bisa berasa scroll
+    // "berat"/nyangkut walau tidak ada satupun listener touch yang
+    // memblokirnya (beda mekanisme dari 2 perbaikan sebelumnya). Sekarang
+    // prefetch DITUNDA sampai browser benar2 idle (requestIdleCallback, atau
+    // setTimeout kalau browser tidak dukung/timeout 1.2 detik) - layar login
+    // dapat kesempatan "settle" & responsif dulu sebelum kerjaan berat ini
+    // mulai di background. Data tetap otomatis siap sebelum user selesai
+    // login manual (yang perlu waktu ketik ID+password), jadi tidak ada
+    // downside nyata.
     if (loadSavedSession()) {
+        // Sesi tersimpan -> restoreSession() panggil showApp() SEKETIKA di
+        // awal fungsinya (pindah dari layar login ke app), baru setelah itu
+        // await data - jadi TIDAK ditunda, supaya user yang sudah login
+        // tidak sempat lihat kedipan balik ke layar login.
         restoreSession();
     } else {
-        ensureDataLoaded();
+        // Belum ada sesi (masih di layar login) -> aman ditunda, lihat
+        // komentar panjang di atas deferPrefetch.
+        const deferPrefetch = (fn) => {
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(fn, { timeout: 1200 });
+            } else {
+                setTimeout(fn, 400);
+            }
+        };
+        deferPrefetch(() => ensureDataLoaded());
     }
 
     // Waktu sholat: tampil terlepas dari status login (info umum, bukan data
