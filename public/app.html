@@ -3949,7 +3949,7 @@
             <div class="actions" style="margin-bottom:18px;">
               <button class="btn btn-success btn-small" id="kemasanSubmitBtn" onclick="simpanKemasanItem()">+ Tambah Item</button>
               <button class="btn btn-ghost btn-small" id="kemasanCancelBtn" onclick="batalEditKemasanItem()" style="display:none;">Batal Edit</button>
-              <button class="btn btn-ghost btn-small" onclick="isiDefaultKemasanPlastik()" title="Tambahkan 4 item plastik umum (Kresek Sablon, Plastik Daging/Jeroan/Tulang) kalau belum ada">📦 Isi Default Plastik</button>
+              <button class="btn btn-ghost btn-small" onclick="isiDefaultKemasanPlastik()" title="Tambahkan 5 item plastik umum (Kresek Sablon, Plastik Daging/Jeroan/Tulang/Laundry) kalau belum ada">📦 Isi Default Plastik</button>
             </div>
             <div class="table-container">
               <table>
@@ -10236,8 +10236,8 @@ function refreshKemasanInventaris() {
     renderKemasanHero();
     renderKemasanChecklist();
 
-    // Auto-isi 4 item plastik default (Kresek Sablon, Plastik
-    // Daging/Jeroan/Tulang) kalau tabel Kemasan masih KOSONG SAMA SEKALI -
+    // Auto-isi 5 item plastik default (Kresek Sablon, Plastik
+    // Daging/Jeroan/Tulang/Laundry) kalau tabel Kemasan masih KOSONG SAMA SEKALI -
     // supaya admin tidak perlu klik tombol "Isi Default Plastik" manual pas
     // pertama kali buka tab ini (lihat isiDefaultKemasanPlastik()).
     const kemasanAktif = appData.kemasanInventaris.filter(i => i.status !== 'batal' && i.kategori === 'kemasan');
@@ -10437,14 +10437,17 @@ async function simpanKemasanItem() {
     }
 }
 
-// Isi 4 item plastik yang umum dipakai (Kresek Sablon, Plastik
-// Daging/Jeroan/Tulang). Kresek Sablon & Plastik Daging ikut TOTAL ALOKASI
-// (Qty rencana di Rencana Distribusi Daging Umum, lintas semua alokasi) -
-// dipilih basis 'rencanaDaging' (BUKAN 'paket'/aktual) supaya kebutuhannya
-// sudah bisa diperkirakan dari awal begitu rencana disusun, tidak perlu
-// nunggu semua penerima diinput satu-satu ke Penerima & Tiket dulu. Plastik
-// Jeroan/Tulang ikut Qty rencana di Rencana Distribusi Bagian Lain utk jenis
-// masing-masing. Rasio default 1 (1 plastik per unit basis) - admin bebas
+// Isi 5 item plastik yang umum dipakai (Kresek Sablon, Plastik
+// Daging/Jeroan/Tulang, Plastik Laundry). Kresek Sablon & Plastik Daging
+// ikut TOTAL ALOKASI (Qty rencana di Rencana Distribusi Daging Umum, lintas
+// semua alokasi) - dipilih basis 'rencanaDaging' (BUKAN 'paket'/aktual)
+// supaya kebutuhannya sudah bisa diperkirakan dari awal begitu rencana
+// disusun, tidak perlu nunggu semua penerima diinput satu-satu ke Penerima &
+// Tiket dulu. Plastik Jeroan/Tulang ikut Qty rencana di Rencana Distribusi
+// Bagian Lain utk jenis masing-masing. Plastik Laundry pakai basis 'kg'
+// (total estimasi Kg Daging) dengan rasioPerUnit 0.04 (= 1/25) supaya
+// kebutuhannya otomatis "Total Kg Daging / 25". Rasio default 1 (1 plastik
+// per unit basis) kecuali item yang punya rasioPerUnit sendiri - admin bebas
 // edit lewat ✏️ kalau butuh beda (mis. 2 plastik per paket). Item yang
 // namanya SUDAH ADA (persis sama, case-insensitive) dilewati - aman diklik
 // berkali-kali, tidak bikin dobel. Dipanggil OTOMATIS oleh
@@ -10456,7 +10459,8 @@ async function isiDefaultKemasanPlastik(silent) {
         { namaItem: 'Kresek Sablon', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
         { namaItem: 'Plastik Daging', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
         { namaItem: 'Plastik Jeroan', basisHitung: 'jeroan', catatan: 'Ikut total Qty rencana Jeroan di Rencana Distribusi Bagian Lain' },
-        { namaItem: 'Plastik Tulang', basisHitung: 'tulang', catatan: 'Ikut total Qty rencana Tulang di Rencana Distribusi Bagian Lain' }
+        { namaItem: 'Plastik Tulang', basisHitung: 'tulang', catatan: 'Ikut total Qty rencana Tulang di Rencana Distribusi Bagian Lain' },
+        { namaItem: 'Plastik Laundry', basisHitung: 'kg', rasioPerUnit: 0.04, catatan: 'Otomatis: Total Estimasi Kg Daging ÷ 25 (1 plastik laundry per 25 kg daging)' }
     ];
 
     const existingNames = new Set(
@@ -10465,7 +10469,7 @@ async function isiDefaultKemasanPlastik(silent) {
     const toAdd = DEFAULTS.filter(d => !existingNames.has(d.namaItem.toLowerCase()));
 
     if (toAdd.length === 0) {
-        if (!silent) showAlert('Ke-4 item plastik default sudah ada semua', 'info');
+        if (!silent) showAlert('Ke-5 item plastik default sudah ada semua', 'info');
         return;
     }
 
@@ -10479,7 +10483,7 @@ async function isiDefaultKemasanPlastik(silent) {
             ukuran: '',
             kategori: 'kemasan',
             basisHitung: d.basisHitung,
-            rasioPerUnit: 1,
+            rasioPerUnit: d.rasioPerUnit || 1,
             kebutuhanManual: 0,
             stokTersedia: 0,
             catatan: d.catatan,
