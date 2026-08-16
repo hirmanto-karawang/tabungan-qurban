@@ -3918,6 +3918,10 @@
                 <input type="text" id="kemasanNamaItem" placeholder="Contoh: Kantong Plastik Besar">
               </div>
               <div class="form-group">
+                <label>Ukuran (opsional)</label>
+                <input type="text" id="kemasanUkuran" placeholder="Contoh: 30x40cm, 1kg/pak">
+              </div>
+              <div class="form-group">
                 <label>Basis Hitung</label>
                 <select id="kemasanBasisHitung">
                   <option value="paket">Per Paket/Penerima (aktual)</option>
@@ -3949,8 +3953,8 @@
             </div>
             <div class="table-container">
               <table>
-                <thead><tr><th>Item</th><th>Basis</th><th>Rasio/Unit</th><th>Kebutuhan</th><th>Stok Tersedia</th><th>Selisih</th><th></th></tr></thead>
-                <tbody id="kemasanListBody"><tr><td colspan="7" class="loading">Memuat…</td></tr></tbody>
+                <thead><tr><th>Item</th><th>Ukuran</th><th>Basis</th><th>Rasio/Unit</th><th>Kebutuhan</th><th>Stok Tersedia</th><th>Selisih</th><th></th></tr></thead>
+                <tbody id="kemasanListBody"><tr><td colspan="8" class="loading">Memuat…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -5563,6 +5567,7 @@ async function loadDataFromSheets() {
     appData.kemasanInventaris = kemasanInventarisRows.map(row => ({
         id: parseInt(row.id) || 0,
         namaItem: row.namaItem || '',
+        ukuran: row.ukuran || '',
         kategori: (row.kategori || '').toString().trim().toLowerCase() === 'inventaris' ? 'inventaris' : 'kemasan',
         basisHitung: (() => {
             const b = (row.basisHitung || '').toString().trim().toLowerCase();
@@ -10262,7 +10267,7 @@ function loadKemasanList() {
 
     const rows = appData.kemasanInventaris.filter(i => i.status !== 'batal' && i.kategori !== 'inventaris');
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="loading">Belum ada item Kemasan. Tambahkan lewat form di atas.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="loading">Belum ada item Kemasan. Tambahkan lewat form di atas.</td></tr>';
         return;
     }
     tbody.innerHTML = rows.map(item => {
@@ -10277,6 +10282,7 @@ function loadKemasanList() {
         return `
             <tr>
               <td>${item.namaItem}${item.catatan ? `<div style="font-size:11px; color:var(--ink-faint);">${item.catatan}</div>` : ''}</td>
+              <td>${item.ukuran || '—'}</td>
               <td><span style="color:var(--ink-soft);">${basisLabel}</span></td>
               <td>${item.rasioPerUnit.toLocaleString('id-ID')}</td>
               <td>${kebutuhan.toLocaleString('id-ID')}</td>
@@ -10373,6 +10379,7 @@ function renderKemasanChecklist() {
 
 async function simpanKemasanItem() {
     const namaItem = document.getElementById('kemasanNamaItem').value.trim();
+    const ukuran = document.getElementById('kemasanUkuran').value.trim();
     const basisHitungRaw = document.getElementById('kemasanBasisHitung').value;
     const basisHitung = ['kg', 'rencanaDaging', 'tulang', 'jeroan', 'mudhohi'].includes(basisHitungRaw) ? basisHitungRaw : 'paket';
     const rasioPerUnit = parseFloat(document.getElementById('kemasanRasioPerUnit').value) || 0;
@@ -10383,10 +10390,10 @@ async function simpanKemasanItem() {
     if (rasioPerUnit <= 0) { showAlert('Rasio per Unit harus diisi', 'error'); return; }
 
     if (editingKemasanId) {
-        const success = await updateSheetDB('KemasanInventaris', 'id', editingKemasanId, { namaItem, basisHitung, rasioPerUnit, stokTersedia, catatan });
+        const success = await updateSheetDB('KemasanInventaris', 'id', editingKemasanId, { namaItem, ukuran, basisHitung, rasioPerUnit, stokTersedia, catatan });
         if (success) {
             const item = appData.kemasanInventaris.find(i => i.id === editingKemasanId);
-            if (item) { item.namaItem = namaItem; item.basisHitung = basisHitung; item.rasioPerUnit = rasioPerUnit; item.stokTersedia = stokTersedia; item.catatan = catatan; }
+            if (item) { item.namaItem = namaItem; item.ukuran = ukuran; item.basisHitung = basisHitung; item.rasioPerUnit = rasioPerUnit; item.stokTersedia = stokTersedia; item.catatan = catatan; }
             showAlert('Item diperbarui', 'success');
             batalEditKemasanItem();
             refreshKemasanInventaris();
@@ -10403,6 +10410,7 @@ async function simpanKemasanItem() {
     const record = {
         id: newId,
         namaItem,
+        ukuran,
         kategori: 'kemasan',
         basisHitung,
         rasioPerUnit,
@@ -10418,6 +10426,7 @@ async function simpanKemasanItem() {
         appData.kemasanInventaris.push(record);
         showAlert('Item ditambahkan', 'success');
         document.getElementById('kemasanNamaItem').value = '';
+        document.getElementById('kemasanUkuran').value = '';
         document.getElementById('kemasanRasioPerUnit').value = '';
         document.getElementById('kemasanStokTersedia').value = '';
         document.getElementById('kemasanCatatan').value = '';
@@ -10467,6 +10476,7 @@ async function isiDefaultKemasanPlastik(silent) {
         const record = {
             id: nextId,
             namaItem: d.namaItem,
+            ukuran: '',
             kategori: 'kemasan',
             basisHitung: d.basisHitung,
             rasioPerUnit: 1,
@@ -10498,6 +10508,7 @@ function editKemasanItem(id) {
 
     editingKemasanId = id;
     document.getElementById('kemasanNamaItem').value = item.namaItem;
+    document.getElementById('kemasanUkuran').value = item.ukuran || '';
     document.getElementById('kemasanBasisHitung').value = item.basisHitung;
     document.getElementById('kemasanRasioPerUnit').value = item.rasioPerUnit;
     document.getElementById('kemasanStokTersedia').value = item.stokTersedia;
@@ -10515,6 +10526,7 @@ function editKemasanItem(id) {
 function batalEditKemasanItem() {
     editingKemasanId = null;
     document.getElementById('kemasanNamaItem').value = '';
+    document.getElementById('kemasanUkuran').value = '';
     document.getElementById('kemasanBasisHitung').value = 'paket';
     document.getElementById('kemasanRasioPerUnit').value = '';
     document.getElementById('kemasanStokTersedia').value = '';

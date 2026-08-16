@@ -616,7 +616,12 @@ const TENANT_SHEET_TEMPLATE = {
   PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'itemTambahan', 'created_date'],
   PosBudget: ['id', 'nama', 'jenisPos', 'jumlahAnggaran', 'keterangan', 'status', 'created_date'],
   TransaksiKeuangan: ['id', 'posId', 'tanggal', 'jumlah', 'keterangan', 'status', 'created_date', 'bukti'],
-  KemasanInventaris: ['id', 'namaItem', 'kategori', 'basisHitung', 'rasioPerUnit', 'kebutuhanManual', 'stokTersedia', 'catatan', 'status', 'created_date'],
+  // "ukuran" - opsional, teks bebas isian MANUAL admin (mis. "30x40cm",
+  // "1kg/pak") - BEDA dari basisHitung/rasioPerUnit yang auto-hitung, ukuran
+  // murni catatan fisik/spek barang, tidak dipakai di kalkulasi apa pun.
+  // Cuma dipakai kategori 'kemasan' (form/tabel Inventaris tidak ada field
+  // ini) tapi kolomnya digabung di sheet yang sama.
+  KemasanInventaris: ['id', 'namaItem', 'ukuran', 'kategori', 'basisHitung', 'rasioPerUnit', 'kebutuhanManual', 'stokTersedia', 'catatan', 'status', 'created_date'],
   // Cuma dipakai 1 baris (id selalu 'lpj') - lihat komentar SHEET_NAMES di atas.
   LPJNarasi: ['id', 'narasi', 'updatedBy', 'updatedDate']
 };
