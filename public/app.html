@@ -5374,6 +5374,28 @@ async function fetchAllSheetsBootstrap() {
 }
 
 // ===== LOAD DATA FROM SHEETDB =====
+
+// Kasih kesempatan browser "bernapas" (proses input/scroll/paint yg tertunda)
+// di tengah-tengah kerjaan JS berat. loadDataFromSheets() di bawah mem-parse
+// ~18 sheet sekaligus (.map/.filter/.sort per sheet) - kalau semua itu jalan
+// dalam SATU long task tanpa jeda, main thread thread jadi tersita penuh buat
+// browser Android yang lebih lambat, sehingga sentuhan/scroll user kerasa
+// macet/berat SELAMA parsing itu berlangsung (bukan cuma pas awal buka app -
+// ini juga kejadian tiap kali switchTab() minta ensureDataLoaded() lagi).
+// yieldToMain() dipanggil di antara kelompok sheet supaya parsing dipecah
+// jadi beberapa task kecil, browser dapat jeda proses event tiap kelompok.
+function yieldToMain() {
+    return new Promise(resolve => {
+        if (typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function') {
+            scheduler.yield().then(resolve);
+        } else if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => resolve(), { timeout: 50 });
+        } else {
+            setTimeout(resolve, 0);
+        }
+    });
+}
+
 async function loadDataFromSheets() {
     // Coba mode cepat (1 request) dulu; kalau gagal, fallback ke cara lama (5 request)
     const bootstrap = await fetchAllSheetsBootstrap();
@@ -5425,6 +5447,10 @@ async function loadDataFromSheets() {
         // supaya bisa ada admin lebih dari satu orang.
         role: (row.role || '').toString().trim().toLowerCase() === 'admin' ? 'admin' : 'member'
     })).filter(m => m.id && m.name);
+
+    // Members selesai duluan (paling sering dibutuhkan cepat - login) baru
+    // kasih jeda ke browser sebelum lanjut parse sheet lain.
+    await yieldToMain();
 
     // Parse Savings
     appData.savings = savingsRows.map(row => ({
@@ -5507,6 +5533,8 @@ async function loadDataFromSheets() {
         loginAt: row.loginAt || ''
     })).filter(l => l.id);
 
+    await yieldToMain();
+
     // Parse SurveySapi. Kolom foto1..foto5 (base64) SENGAJA tidak dikirim di
     // load biasa (sama alasannya dengan Savings.fileData) - server balikin
     // flag hasFoto1..hasFoto5 saja, isi foto diambil on-demand lewat
@@ -5585,6 +5613,8 @@ async function loadDataFromSheets() {
         // di sheets.js), diambil on-demand lewat fetchSetoranInstanFileData().
         hasFile: !!row.hasFile
     })).filter(s => s.id);
+
+    await yieldToMain();
 
     // Parse DistribusiDaging (rencana pembagian daging per alokasi PER SAPI -
     // dasar Work Order, dikaitkan via surveyId, diinput manual oleh admin) -
@@ -5667,6 +5697,8 @@ async function loadDataFromSheets() {
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
+    await yieldToMain();
+
     // Parse PenerimaQR (daftar penerima BERNAMA per alokasi, buat e-tiket QR
     // & check-in hari pelaksanaan - lihat komentar SHEET_NAMES di
     // public/api/sheets.js utk skema kolom lengkap).
@@ -5708,6 +5740,8 @@ async function loadDataFromSheets() {
         created_date: row.created_date || ''
     })).filter(d => d.id);
 
+    await yieldToMain();
+
     // Parse PosBudget (pos anggaran modul Keuangan - tiap pos punya jenis
     // 'pemasukan' atau 'pengeluaran' supaya Anggaran vs Realisasi konsisten
     // maknanya per pos, lihat renderKeuanganPos()).
@@ -5735,6 +5769,8 @@ async function loadDataFromSheets() {
         status: row.status || 'aktif',
         created_date: row.created_date || ''
     })).filter(d => d.id);
+
+    await yieldToMain();
 
     // Parse KemasanInventaris (modul "Kemasan & Inventaris", 2 kategori):
     // - kategori 'kemasan': habis pakai yg skalanya otomatis dari rasioPerUnit
@@ -5974,8 +6010,10 @@ async function handleLogin() {
         return;
     }
 
-    // Data biasanya sudah di-prefetch di background sejak halaman dibuka,
-    // jadi ini seringnya langsung selesai instan (tinggal pakai hasil prefetch).
+    // Tidak ada prefetch background lagi sejak halaman dibuka (lihat komentar
+    // initApp() soal performa scroll di layar login) - jadi ini yang MEMICU
+    // fetch+parse data pertama kali begitu user klik Masuk, bukan tinggal
+    // pakai hasil prefetch spt sebelumnya. Wajar kalau butuh sesaat.
     if (appData.members.length === 0) {
         showAlert('Memuat data...', 'info');
     }
@@ -16191,44 +16229,28 @@ function renderPrayerTimes(jadwal) {
     // Kalau ada sesi login tersimpan (lihat SESSION_STORAGE_KEY), langsung
     // lanjutkan ke app tanpa lewat layar login - ini yang bikin pull-to-refresh
     // atau app dibuka ulang di HP tidak lagi terasa seperti "logout paksa".
-    // Kalau tidak ada sesi tersimpan (benar-benar pertama kali/sudah logout),
-    // tetap prefetch data di background seperti biasa supaya begitu user login
-    // manual, datanya kemungkinan besar sudah siap.
     //
-    // PENTING soal performa: prefetch ini nge-fetch 18 sheet SEKALIGUS
-    // (bootstrap) lalu di-parse (.map() per baris, utk tiap sheet) - kerjaan
-    // nyata di CPU, bukan cuma nunggu jaringan. Dulu dipanggil LANGSUNG saat
-    // initApp() jalan, persis pas user pertama kali melihat layar
-    // login/hero - hasil JSON yang datang bisa mendarat kapan saja (tergantung
-    // kecepatan jaringan), termasuk PERSIS saat user lagi coba scroll layar
-    // login, dan proses parse-nya (yang sinkron, blocking main thread) ikut
-    // "menyita" waktu yang harusnya dipakai buat merespon gesture scroll -
-    // di HP Android yang CPU-nya lebih lambat, ini bisa berasa scroll
-    // "berat"/nyangkut walau tidak ada satupun listener touch yang
-    // memblokirnya (beda mekanisme dari 2 perbaikan sebelumnya). Sekarang
-    // prefetch DITUNDA sampai browser benar2 idle (requestIdleCallback, atau
-    // setTimeout kalau browser tidak dukung/timeout 1.2 detik) - layar login
-    // dapat kesempatan "settle" & responsif dulu sebelum kerjaan berat ini
-    // mulai di background. Data tetap otomatis siap sebelum user selesai
-    // login manual (yang perlu waktu ketik ID+password), jadi tidak ada
-    // downside nyata.
+    // Kalau BELUM ada sesi (pertama kali buka / sudah logout, masih di layar
+    // login) - TIDAK prefetch data sama sekali di sini lagi. Riwayat: versi
+    // awal manggil ensureDataLoaded() LANGSUNG (blocking), lalu diganti
+    // ditunda pakai requestIdleCallback - ternyata keduanya TETAP bikin
+    // parsing 18-sheet (kerjaan CPU nyata, .map() per baris x 18 sheet)
+    // terjadi di device user SAAT layar login masih dipegang, cuma beda soal
+    // KAPAN persisnya dalam beberapa detik pertama - user tetap ngerasa berat
+    // krn kerjaannya toh tetap harus jalan di device yang sama.
+    //
+    // Sekarang murni TIDAK dikerjakan sampai benar2 dibutuhkan: handleLogin()
+    // sudah panggil ensureDataLoaded() sendiri sebelum cek username/password,
+    // dan handleGuestLogin() sudah panggil loadDataFromSheets() sendiri -
+    // keduanya independen dari prefetch ini (sudah begitu dari awal). Jadi
+    // menghapus prefetch di sini TIDAK bikin data telat muncul setelah user
+    // klik Masuk/Guest (tetap dimuat, cuma waktunya PERSIS saat dibutuhkan,
+    // bukan lebih awal) - tapi HILANGKAN SAMA SEKALI beban CPU yang tadinya
+    // "menyita" waktu scroll user selagi masih di layar login, PERSIS
+    // mencontoh index.html (landing page) yang juga nol fetch data sebelum
+    // ada aksi dari user.
     if (loadSavedSession()) {
-        // Sesi tersimpan -> restoreSession() panggil showApp() SEKETIKA di
-        // awal fungsinya (pindah dari layar login ke app), baru setelah itu
-        // await data - jadi TIDAK ditunda, supaya user yang sudah login
-        // tidak sempat lihat kedipan balik ke layar login.
         restoreSession();
-    } else {
-        // Belum ada sesi (masih di layar login) -> aman ditunda, lihat
-        // komentar panjang di atas deferPrefetch.
-        const deferPrefetch = (fn) => {
-            if (typeof requestIdleCallback === 'function') {
-                requestIdleCallback(fn, { timeout: 1200 });
-            } else {
-                setTimeout(fn, 400);
-            }
-        };
-        deferPrefetch(() => ensureDataLoaded());
     }
 
     // Waktu sholat: tampil terlepas dari status login (info umum, bukan data
