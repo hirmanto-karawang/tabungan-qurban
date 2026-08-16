@@ -3869,14 +3869,12 @@ function woAktualSeharusnyaHtml(surveyId, totalAktual, beratMudhohiSaatIni) {
     } else if (selisih !== null) {
         catatan = ` <span style="color:var(--emerald-2);">(sudah pas)</span>`;
     }
+    // Sengaja SATU baris saja - pakai <b>, BUKAN <strong>, karena CSS
+    // .info-box strong{display:block} bikin catatan selisih terlempar ke
+    // baris berikutnya sehingga kotaknya terlihat panjang.
     return `
         <div class="info-box" style="margin-top:14px;">
-          <strong>Berat daging untuk Mudhohi seharusnya: <span id="woAktualSeharusnya_${surveyId}">${formatKg(seharusnya)}</span> per orang</strong>
-          <span id="woAktualSeharusnyaCatatan_${surveyId}">${catatan}</span>
-          <div style="margin-top:6px; font-size:12px; color:var(--ink-faint);">
-            Dihitung dari Total Aktual (termasuk Mudhohi) ÷ 21 — yaitu sepertiga bagian mudhohi, dibagi 7 orang.
-            Angka ini memakai hasil timbang yang benar-benar ada, bukan estimasi awal saat survey.
-          </div>
+          Berat daging untuk Mudhohi seharusnya: <b id="woAktualSeharusnya_${surveyId}">${formatKg(seharusnya)}</b> per orang<span id="woAktualSeharusnyaCatatan_${surveyId}">${catatan}</span>
         </div>`;
 }
 
