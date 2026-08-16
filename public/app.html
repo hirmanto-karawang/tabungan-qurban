@@ -10220,11 +10220,26 @@ function switchKemasanTab(tabName, btn) {
 // Dipanggil tiap ada perubahan (tambah/edit/hapus item, atau buka tab) -
 // menyegarkan kedua tabel + hero + checklist sekaligus supaya selalu
 // konsisten satu sama lain.
+// Guard supaya auto-seed default plastik (lihat refreshKemasanInventaris())
+// cuma dicoba SEKALI per sesi - kalau admin sengaja hapus semua item
+// plastik default, tidak otomatis muncul lagi berulang-ulang tiap buka tab.
+let kemasanDefaultSeeded = false;
+
 function refreshKemasanInventaris() {
     loadKemasanList();
     loadInventarisList();
     renderKemasanHero();
     renderKemasanChecklist();
+
+    // Auto-isi 4 item plastik default (Kresek Sablon, Plastik
+    // Daging/Jeroan/Tulang) kalau tabel Kemasan masih KOSONG SAMA SEKALI -
+    // supaya admin tidak perlu klik tombol "Isi Default Plastik" manual pas
+    // pertama kali buka tab ini (lihat isiDefaultKemasanPlastik()).
+    const kemasanAktif = appData.kemasanInventaris.filter(i => i.status !== 'batal' && i.kategori === 'kemasan');
+    if (kemasanAktif.length === 0 && !kemasanDefaultSeeded) {
+        kemasanDefaultSeeded = true;
+        isiDefaultKemasanPlastik(true);
+    }
 }
 
 function renderKemasanHero() {
@@ -10423,8 +10438,11 @@ async function simpanKemasanItem() {
 // masing-masing. Rasio default 1 (1 plastik per unit basis) - admin bebas
 // edit lewat ✏️ kalau butuh beda (mis. 2 plastik per paket). Item yang
 // namanya SUDAH ADA (persis sama, case-insensitive) dilewati - aman diklik
-// berkali-kali, tidak bikin dobel.
-async function isiDefaultKemasanPlastik() {
+// berkali-kali, tidak bikin dobel. Dipanggil OTOMATIS oleh
+// refreshKemasanInventaris() pas tabel Kemasan masih kosong (silent=true,
+// tanpa alert supaya tidak berisik pas cuma buka tab), ATAU manual lewat
+// tombol "Isi Default Plastik" (silent=false, ada alert konfirmasi).
+async function isiDefaultKemasanPlastik(silent) {
     const DEFAULTS = [
         { namaItem: 'Kresek Sablon', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
         { namaItem: 'Plastik Daging', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
@@ -10438,7 +10456,7 @@ async function isiDefaultKemasanPlastik() {
     const toAdd = DEFAULTS.filter(d => !existingNames.has(d.namaItem.toLowerCase()));
 
     if (toAdd.length === 0) {
-        showAlert('Ke-4 item plastik default sudah ada semua', 'info');
+        if (!silent) showAlert('Ke-4 item plastik default sudah ada semua', 'info');
         return;
     }
 
@@ -10467,9 +10485,9 @@ async function isiDefaultKemasanPlastik() {
     }
 
     if (berhasil > 0) {
-        showAlert(`${berhasil} item plastik default ditambahkan - sesuaikan Rasio/Stok Tersedia sesuai kebutuhan`, 'success');
+        if (!silent) showAlert(`${berhasil} item plastik default ditambahkan - sesuaikan Rasio/Stok Tersedia sesuai kebutuhan`, 'success');
         refreshKemasanInventaris();
-    } else {
+    } else if (!silent) {
         showAlert('Gagal menambahkan item default, coba lagi.', 'error');
     }
 }
