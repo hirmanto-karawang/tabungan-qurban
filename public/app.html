@@ -4812,7 +4812,7 @@
       </div>
       <div class="modal-body" style="display:block;">
         <div id="uploadBuktiStep1">
-          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:0; margin-bottom:18px;">
+          <p id="uploadBuktiStep1Desc" style="color:var(--ink-soft); font-size:13.5px; margin-top:0; margin-bottom:18px;">
             Masukkan nomor WhatsApp yang Anda pakai saat daftar "Daftar Langsung" untuk mencari pendaftaran Anda.
           </p>
           <div class="form-group">
@@ -10864,7 +10864,7 @@ function loadSurveySapiMemberList() {
                 if (p.tipe === 'instan') {
                     const lunas = p.statusBayar === 'lunas';
                     const nama = p.atasNama || p.memberName;
-                    return `<span class="survey-participant-chip instan" onclick="openUploadBuktiInstanModalDirect(${p.id})" title="Klik untuk upload bukti transfer">${lunas ? '✓' : '👤'} ${nama} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span></span>`;
+                    return `<span class="survey-participant-chip instan" onclick="openUploadBuktiInstanModalDirect(${p.id})" title="Klik untuk konfirmasi nomor WA & upload bukti transfer">${lunas ? '✓' : '👤'} ${nama} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span></span>`;
                 }
                 return `<span class="survey-participant-chip">👤 ${p.memberName}</span>`;
             }).join('')
@@ -11185,16 +11185,31 @@ Mohon dihubungi untuk arahan pembayaran (transfer/tunai).
 // bukti (dikompres pakai compressImage() yang sama dgn upload bukti Tabungan
 // biasa) lalu disimpan ke kolom SurveyPeserta.buktiBayar via updateSheetDB().
 let uploadBuktiInstanState = { pesertaId: null, fotoBase64: null };
+// Diisi cuma pas modal dibuka dari chip nama peserta di daftar publik (lihat
+// openUploadBuktiInstanModalDirect di bawah) - dipakai cariPendaftaranInstan()
+// utk MEWAJIBKAN nomor WA yang diketik cocok dengan nomor peserta ini secara
+// spesifik, supaya orang lain tidak bisa asal klik nama orang lain lalu
+// langsung lihat status bayar/upload bukti atas nama dia (privasi jamaah).
+let uploadBuktiConfirmTarget = null;
+
+const UPLOAD_BUKTI_DESC_DEFAULT = 'Masukkan nomor WhatsApp yang Anda pakai saat daftar "Daftar Langsung" untuk mencari pendaftaran Anda.';
 
 function openUploadBuktiInstanModal() {
+    uploadBuktiConfirmTarget = null;
     resetUploadBuktiStep();
+    const desc = document.getElementById('uploadBuktiStep1Desc');
+    if (desc) desc.textContent = UPLOAD_BUKTI_DESC_DEFAULT;
     document.getElementById('uploadBuktiInstanModal').classList.add('show');
 }
 
-// Jalur pintas: diklik langsung dari chip peserta 'instan' di daftar publik
-// (lihat loadSurveySapiMemberList()) - skip langkah cari-by-nomor-HP krn
-// peserta-nya sudah jelas dari chip yang diklik. Tetap pakai modal yang sama
-// (uploadBuktiInstanModal), cuma langsung lompat ke step 2.
+// Diklik dari chip nama peserta 'instan' di daftar publik (lihat
+// loadSurveySapiMemberList()). DULU ini langsung lompat ke step 2 (skip
+// verifikasi) - resikonya siapa saja yang buka halaman publik bisa klik nama
+// orang lain dan langsung lihat status bayar + upload bukti atas nama orang
+// itu. Sekarang tetap mulai dari step 1 (masukkan nomor WA), tapi nomornya
+// WAJIB cocok dengan nomor peserta yang namanya diklik - lihat
+// cariPendaftaranInstan(). Nama peserta ditampilkan di step 1 supaya jelas
+// ini konfirmasi identitas, bukan pencarian bebas.
 function openUploadBuktiInstanModalDirect(pesertaId) {
     const peserta = appData.surveyPeserta.find(p => p.id === pesertaId && p.status !== 'batal' && p.tipe === 'instan');
     if (!peserta) {
@@ -11202,12 +11217,16 @@ function openUploadBuktiInstanModalDirect(pesertaId) {
         return;
     }
     resetUploadBuktiStep();
+    uploadBuktiConfirmTarget = peserta;
+    const nama = (peserta.atasNama || peserta.memberName || '').replace(/</g, '&lt;');
+    const desc = document.getElementById('uploadBuktiStep1Desc');
+    if (desc) desc.innerHTML = `Demi menjaga privasi, konfirmasi dulu nomor WhatsApp yang didaftarkan atas nama <strong>${nama}</strong> sebelum lanjut upload bukti transfer.`;
     document.getElementById('uploadBuktiInstanModal').classList.add('show');
-    showUploadBuktiStep2ForPeserta(peserta);
 }
 
 function closeUploadBuktiInstanModal() {
     document.getElementById('uploadBuktiInstanModal').classList.remove('show');
+    uploadBuktiConfirmTarget = null;
 }
 
 function resetUploadBuktiStep() {
@@ -11243,15 +11262,28 @@ function cariPendaftaranInstan() {
     }
 
     const normalized = normalizePhone(phoneInput);
-    // Cuma cari di antara peserta tipe 'instan' - peserta 'tabungan' punya
-    // akun & jalur upload sendiri (menu Upload Bukti Transfer), tidak relevan
-    // di sini.
-    const peserta = appData.surveyPeserta.find(p =>
-        p.status !== 'batal' && p.tipe === 'instan' && p.phone && normalizePhone(p.phone) === normalized
-    );
+    let peserta;
+
+    if (uploadBuktiConfirmTarget) {
+        // Mode konfirmasi privasi (dibuka dari klik nama di daftar publik) -
+        // nomor yang diketik HARUS cocok persis dengan nomor peserta target,
+        // tidak boleh nyasar ke pendaftaran orang lain.
+        if (uploadBuktiConfirmTarget.phone && normalizePhone(uploadBuktiConfirmTarget.phone) === normalized) {
+            peserta = uploadBuktiConfirmTarget;
+        }
+    } else {
+        // Jalur cari-bebas (dibuka dari tombol umum) - cuma cari di antara
+        // peserta tipe 'instan'; peserta 'tabungan' punya akun & jalur upload
+        // sendiri (menu Upload Bukti Transfer), tidak relevan di sini.
+        peserta = appData.surveyPeserta.find(p =>
+            p.status !== 'batal' && p.tipe === 'instan' && p.phone && normalizePhone(p.phone) === normalized
+        );
+    }
 
     if (!peserta) {
-        errorEl.textContent = 'Nomor tidak ditemukan. Pastikan sudah daftar "Daftar Langsung" dulu, atau hubungi admin kalau merasa sudah daftar.';
+        errorEl.textContent = uploadBuktiConfirmTarget
+            ? 'Nomor tidak cocok dengan data pendaftaran ini. Pastikan nomor yang dimasukkan sama dengan saat daftar "Daftar Langsung".'
+            : 'Nomor tidak ditemukan. Pastikan sudah daftar "Daftar Langsung" dulu, atau hubungi admin kalau merasa sudah daftar.';
         return;
     }
 
