@@ -70,7 +70,18 @@
      sudah melebar itu, BUKAN dari lebar layar asli - modal jadi kepotong di
      kanan meski CSS-nya sudah max-width:90vw. Ini pernah kejadian nyata di
      modal Upload Bukti Transfer (Qurban Instan) - lihat riwayat commit. */
-  html{ scroll-behavior:smooth; overscroll-behavior-y: none; overflow-x:hidden; }
+  /* touch-action:manipulation di html & body - kasih tahu browser SEDINI &
+     SEJELAS mungkin bahwa gestur yang dipakai di halaman ini cuma geser
+     (pan) + pinch-zoom, TIDAK ada double-tap-zoom. Riset resmi tim Chrome
+     (blog.chromium.org, "Smoothing out the scrolling experience in Chrome
+     on Android") nunjukkin Chrome di Android lebih sensitif dibanding
+     browser lain soal ambiguitas gestur pas main thread lagi sibuk - kasih
+     sinyal eksplisit di root elemen ini bikin browser (bukan cuma Chrome)
+     bisa langsung mulai scroll pakai compositor thread tanpa perlu
+     "menunggu" JS memutuskan, tanpa menghilangkan fungsi apa pun (pan &
+     pinch-zoom tetap jalan normal, cuma double-tap-zoom yg dimatikan -
+     efek samping yg lazim & aman di hampir semua web app modern). */
+  html{ scroll-behavior:smooth; overscroll-behavior-y: none; overflow-x:hidden; touch-action: manipulation; }
   body{
     font-family: var(--font-body);
     background: var(--paper);
@@ -86,6 +97,7 @@
     overscroll-behavior-y: none;
     overflow-x:hidden;
     max-width:100vw;
+    touch-action: manipulation;
   }
 
   a{ color:inherit; }
