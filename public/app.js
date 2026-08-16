@@ -3858,17 +3858,23 @@ function loadWoAktualList(containerId) {
 // Baris ini menghitung ulang jatah mudhohi memakai pola yang SAMA
 // (dibagi 21 = sepertiga bagian mudhohi, lalu dibagi 7 orang) tapi dari
 // TOTAL AKTUAL, bukan dari estimasi.
+// Catatan selisih ringkas: (+ 0,25 kg) kalau isian sekarang KELEBIHAN,
+// (- 0,5 kg) kalau KEKURANGAN, dibanding angka seharusnya. Dipakai bareng
+// oleh render awal & perhitungan ulang live supaya tidak beda bentuk.
+function _woAktualCatatanHtml(beratMudhohi, seharusnya) {
+    if (!beratMudhohi || beratMudhohi <= 0) return '';
+    const selisih = beratMudhohi - seharusnya;
+    if (Math.abs(selisih) <= 0.05) {
+        return ` <span style="color:var(--emerald-2);">(pas)</span>`;
+    }
+    const warna = selisih > 0 ? 'var(--brick)' : 'var(--gold)';
+    const tanda = selisih > 0 ? '+' : '-';
+    return ` <span style="color:${warna};">(${tanda} ${formatKg(Math.abs(selisih))})</span>`;
+}
+
 function woAktualSeharusnyaHtml(surveyId, totalAktual, beratMudhohiSaatIni) {
     const seharusnya = totalAktual > 0 ? totalAktual / 21 : 0;
-    const selisih = (beratMudhohiSaatIni || 0) > 0 ? (beratMudhohiSaatIni - seharusnya) : null;
-    let catatan = '';
-    if (selisih !== null && Math.abs(selisih) > 0.05) {
-        catatan = selisih > 0
-            ? ` <span style="color:var(--brick);">(input sekarang lebih berat ${formatKg(Math.abs(selisih))} per orang)</span>`
-            : ` <span style="color:var(--gold);">(input sekarang lebih ringan ${formatKg(Math.abs(selisih))} per orang)</span>`;
-    } else if (selisih !== null) {
-        catatan = ` <span style="color:var(--emerald-2);">(sudah pas)</span>`;
-    }
+    const catatan = _woAktualCatatanHtml(beratMudhohiSaatIni, seharusnya);
     // Sengaja SATU baris saja - pakai <b>, BUKAN <strong>, karena CSS
     // .info-box strong{display:block} bikin catatan selisih terlempar ke
     // baris berikutnya sehingga kotaknya terlihat panjang.
@@ -3901,20 +3907,7 @@ function updateWoAktualRingkasan(surveyId) {
     if (selSeharusnya) selSeharusnya.textContent = formatKg(seharusnya);
 
     const selCatatan = document.getElementById(`woAktualSeharusnyaCatatan_${surveyId}`);
-    if (selCatatan) {
-        if (beratMudhohi <= 0) {
-            selCatatan.innerHTML = '';
-        } else {
-            const selisih = beratMudhohi - seharusnya;
-            if (Math.abs(selisih) <= 0.05) {
-                selCatatan.innerHTML = ` <span style="color:var(--emerald-2);">(sudah pas)</span>`;
-            } else if (selisih > 0) {
-                selCatatan.innerHTML = ` <span style="color:var(--brick);">(input sekarang lebih berat ${formatKg(Math.abs(selisih))} per orang)</span>`;
-            } else {
-                selCatatan.innerHTML = ` <span style="color:var(--gold);">(input sekarang lebih ringan ${formatKg(Math.abs(selisih))} per orang)</span>`;
-            }
-        }
-    }
+    if (selCatatan) selCatatan.innerHTML = _woAktualCatatanHtml(beratMudhohi, seharusnya);
 }
 
 // Update tampilan "Total Aktual" 1 baris (live, belum tersimpan) tiap kali
