@@ -3987,6 +3987,7 @@
             <div class="actions" style="margin-bottom:18px;">
               <button class="btn btn-success btn-small" id="inventarisSubmitBtn" onclick="simpanInventarisItem()">+ Tambah Item</button>
               <button class="btn btn-ghost btn-small" id="inventarisCancelBtn" onclick="batalEditInventarisItem()" style="display:none;">Batal Edit</button>
+              <button class="btn btn-ghost btn-small" onclick="isiDefaultInventaris()" title="Tambahkan 2 item timbangan default (Timbangan Digital Besar/Kecil) kalau belum ada">⚖️ Isi Default Inventaris</button>
             </div>
             <div class="table-container">
               <table>
@@ -10225,10 +10226,12 @@ function switchKemasanTab(tabName, btn) {
 // Dipanggil tiap ada perubahan (tambah/edit/hapus item, atau buka tab) -
 // menyegarkan kedua tabel + hero + checklist sekaligus supaya selalu
 // konsisten satu sama lain.
-// Guard supaya auto-seed default plastik (lihat refreshKemasanInventaris())
-// cuma dicoba SEKALI per sesi - kalau admin sengaja hapus semua item
-// plastik default, tidak otomatis muncul lagi berulang-ulang tiap buka tab.
+// Guard supaya auto-seed default plastik/timbangan (lihat
+// refreshKemasanInventaris()) cuma dicoba SEKALI per sesi - kalau admin
+// sengaja hapus semua item default, tidak otomatis muncul lagi
+// berulang-ulang tiap buka tab.
 let kemasanDefaultSeeded = false;
+let inventarisDefaultSeeded = false;
 
 function refreshKemasanInventaris() {
     loadKemasanList();
@@ -10244,6 +10247,14 @@ function refreshKemasanInventaris() {
     if (kemasanAktif.length === 0 && !kemasanDefaultSeeded) {
         kemasanDefaultSeeded = true;
         isiDefaultKemasanPlastik(true);
+    }
+
+    // Auto-isi 2 item timbangan default (Timbangan Digital Besar/Kecil) kalau
+    // tabel Inventaris masih KOSONG SAMA SEKALI (lihat isiDefaultInventaris()).
+    const inventarisAktif = appData.kemasanInventaris.filter(i => i.status !== 'batal' && i.kategori === 'inventaris');
+    if (inventarisAktif.length === 0 && !inventarisDefaultSeeded) {
+        inventarisDefaultSeeded = true;
+        isiDefaultInventaris(true);
     }
 }
 
@@ -10500,6 +10511,62 @@ async function isiDefaultKemasanPlastik(silent) {
 
     if (berhasil > 0) {
         if (!silent) showAlert(`${berhasil} item plastik default ditambahkan - sesuaikan Rasio/Stok Tersedia sesuai kebutuhan`, 'success');
+        refreshKemasanInventaris();
+    } else if (!silent) {
+        showAlert('Gagal menambahkan item default, coba lagi.', 'error');
+    }
+}
+
+// Isi 2 item timbangan default (Timbangan Digital Besar/Kecil). Kebutuhan
+// diisi MANUAL (kategori 'inventaris', bukan auto-hitung dari basisHitung -
+// sama seperti item Inventaris lain). Item yang namanya SUDAH ADA (persis
+// sama, case-insensitive) dilewati - aman diklik berkali-kali, tidak bikin
+// dobel. Dipanggil OTOMATIS oleh refreshKemasanInventaris() pas tabel
+// Inventaris masih kosong (silent=true), ATAU manual lewat tombol "Isi
+// Default Inventaris" (silent=false, ada alert konfirmasi).
+async function isiDefaultInventaris(silent) {
+    const DEFAULTS = [
+        { namaItem: 'Timbangan Digital Besar (Warung)', kebutuhanManual: 2, catatan: 'Timbangan digital kapasitas besar utk penimbangan daging skala warung/lapak' },
+        { namaItem: 'Timbangan Digital Kecil (Rumah)', kebutuhanManual: 3, catatan: 'Timbangan digital kapasitas kecil utk penimbangan porsi per paket/rumah' }
+    ];
+
+    const existingNames = new Set(
+        appData.kemasanInventaris.filter(i => i.status !== 'batal').map(i => (i.namaItem || '').trim().toLowerCase())
+    );
+    const toAdd = DEFAULTS.filter(d => !existingNames.has(d.namaItem.toLowerCase()));
+
+    if (toAdd.length === 0) {
+        if (!silent) showAlert('Ke-2 item timbangan default sudah ada semua', 'info');
+        return;
+    }
+
+    let nextId = appData.kemasanInventaris.length > 0 ? Math.max(...appData.kemasanInventaris.map(i => i.id)) + 1 : 1;
+    let berhasil = 0;
+
+    for (const d of toAdd) {
+        const record = {
+            id: nextId,
+            namaItem: d.namaItem,
+            ukuran: '',
+            kategori: 'inventaris',
+            basisHitung: 'paket',
+            rasioPerUnit: 0,
+            kebutuhanManual: d.kebutuhanManual,
+            stokTersedia: 0,
+            catatan: d.catatan,
+            status: 'aktif',
+            created_date: new Date().toISOString()
+        };
+        const success = await appendSheetDB('KemasanInventaris', record);
+        if (success) {
+            appData.kemasanInventaris.push(record);
+            nextId++;
+            berhasil++;
+        }
+    }
+
+    if (berhasil > 0) {
+        if (!silent) showAlert(`${berhasil} item timbangan default ditambahkan - sesuaikan Kebutuhan/Stok Tersedia sesuai kebutuhan`, 'success');
         refreshKemasanInventaris();
     } else if (!silent) {
         showAlert('Gagal menambahkan item default, coba lagi.', 'error');
