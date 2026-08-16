@@ -757,7 +757,23 @@
   }
 
   /* TABLE */
-  .table-container{ overflow-x:auto; border:1px solid var(--border-soft); border-radius: var(--radius-md); }
+  /* KENAPA INI PENTING DI HP: setiap <table> global punya min-width:520px
+     (baris di bawah) - di layar HP (~360-414px) itu SELALU lebih lebar dari
+     layar, jadi SETIAP tabel di SETIAP menu (Survey Sapi, Distribusi Daging,
+     Keuangan, dst - hampir semua menu punya tabel) otomatis jadi area yang
+     bisa di-scroll HORIZONTAL (.table-container overflow-x:auto), bersarang
+     di dalam halaman yang scroll-nya VERTIKAL. Browser HP jadi harus nebak
+     dari gerakan jari pertama apakah maksud user itu geser tabel ke samping
+     atau scroll halaman ke bawah - kalau jari user sedikit saja miring pas
+     mulai geser (nyaris tidak terhindarkan pas nyentuh area tabel), browser
+     sering keliru mengunci ke scroll horizontal tabel, bikin scroll halaman
+     terasa "nyangkut"/berat - persis kalau lagi ada di menu yang isinya
+     tabel. touch-action:pan-x di sini bilang ke browser: elemen ini CUMA
+     boleh menangani gesture geser MENDATAR sendiri, gesture geser TEGAK
+     harus diteruskan ke halaman (bukan ditelan tabel) - jadi scroll vertikal
+     halaman tetap mulus meski jari sempat menyentuh tabel, tapi geser
+     mendatar utk lihat kolom yang terpotong tetap bisa dipakai. */
+  .table-container{ overflow-x:auto; touch-action: pan-x; border:1px solid var(--border-soft); border-radius: var(--radius-md); }
   table{ width:100%; border-collapse:collapse; font-size:13.6px; min-width:520px; }
   table thead{ background: var(--sand); }
   table th{
@@ -977,6 +993,11 @@
     scrollbar-width:none;
     position:relative;
     z-index:1;
+    /* Lihat komentar panjang di .table-container soal touch-action:pan-x -
+       strip ini juga scroll horizontal bersarang di halaman yang scroll
+       vertikal, dan ada persis di Dashboard (kartu paling atas), jadi rawan
+       "menelan" gesture scroll-ke-bawah user. */
+    touch-action: pan-x;
   }
   .prayer-times-row::-webkit-scrollbar{ display:none; }
   .prayer-time-chip{
@@ -1026,6 +1047,13 @@
     padding-bottom:16px;
     margin-bottom:18px;
     border-bottom:1px solid var(--border-soft);
+    /* Sama alasan spt .table-container: strip pill-tab ini ada di PALING
+       ATAS hampir semua menu (Laporan Tabungan, Laporan Iuran, Distribusi
+       Daging, Survey Sapi, Keuangan, Kemasan) - persis area yang disentuh
+       duluan begitu user coba scroll ke bawah pas baru buka menu. Tanpa
+       pan-x, gesture scroll-ke-bawah bisa "ketelan" jadi geser-tab-horizontal
+       kalau jari sedikit miring. */
+    touch-action: pan-x;
   }
   .report-tabs::-webkit-scrollbar{ display:none; }
   .report-tab-btn{
