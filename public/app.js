@@ -4640,12 +4640,57 @@ async function lihatQrPenerima(id) {
 // soal PDF. Menggambar sendiri memang lebih panjang kodenya, tapi hasilnya
 // pasti sama di semua HP.
 //
-// CATATAN PENTING soal logo: logo masjid SENGAJA tidak ikut digambar,
-// diganti monogram huruf awal. Sebabnya logo diambil dari domain lain
-// (Vercel Blob), dan menggambar gambar lintas-domain ke canvas membuat
-// canvas jadi "tercemar" (tainted) - canvas.toBlob() akan GAGAL TOTAL
-// karena alasan keamanan browser, jadi tiketnya malah tidak bisa dikirim
-// sama sekali. Monogram jauh lebih aman & tetap rapi.
+// SOAL LOGO MASJID:
+// Menggambar gambar dari domain lain ke canvas bisa membuat canvas jadi
+// "tercemar" (tainted) - dan canvas yang tercemar TIDAK BISA diubah jadi
+// file gambar (canvas.toBlob() gagal), artinya tiketnya malah tidak bisa
+// dikirim sama sekali. Karena itu logo tidak ditempel begitu saja:
+//   1. Kalau logoFile berupa path lokal (mis. "logo-masjid.jpg", seperti
+//      punya Dhafinul) - satu domain dgn aplikasi, aman, tidak ada isu.
+//   2. Kalau berupa URL domain lain (Vercel Blob) - dimuat dengan
+//      crossOrigin='anonymous' supaya browser meminta izin CORS lebih dulu.
+//      Vercel Blob mengizinkan ini, jadi umumnya berhasil.
+//   3. Apa pun hasilnya, dicek dulu lewat _muatLogoAman(): logo digambar ke
+//      canvas uji 1x1 lalu dicoba dibaca. Kalau ternyata tetap tercemar
+//      (atau gagal dimuat/kelamaan), otomatis kembali ke monogram huruf
+//      awal. Jadi tiket SELALU bisa dikirim - logo cuma bonus, bukan syarat.
+
+// Muat logo & pastikan aman dipakai di canvas. Balikin <img> kalau aman,
+// null kalau tidak (pemanggil tinggal pakai monogram).
+function _muatLogoAman(url) {
+    return new Promise(resolve => {
+        if (!url) return resolve(null);
+        const img = new Image();
+        let selesai = false;
+        const beres = (hasil) => { if (!selesai) { selesai = true; resolve(hasil); } };
+        // Jangan sampai pembuatan tiket menggantung cuma gara-gara logo
+        // lambat/tidak bisa diakses.
+        const timer = setTimeout(() => beres(null), 5000);
+        img.onload = () => {
+            clearTimeout(timer);
+            try {
+                const uji = document.createElement('canvas');
+                uji.width = 1; uji.height = 1;
+                const u = uji.getContext('2d');
+                u.drawImage(img, 0, 0, 1, 1);
+                u.getImageData(0, 0, 1, 1); // melempar error kalau tercemar
+                beres(img);
+            } catch (e) {
+                console.warn('Logo tidak bisa dipakai di gambar tiket (izin lintas domain), pakai monogram:', e);
+                beres(null);
+            }
+        };
+        img.onerror = () => { clearTimeout(timer); beres(null); };
+        // crossOrigin WAJIB diset SEBELUM src, kalau sesudah tidak berpengaruh.
+        try {
+            const absolut = new URL(url, window.location.href);
+            if (absolut.origin !== window.location.origin) img.crossOrigin = 'anonymous';
+            img.src = absolut.href;
+        } catch (e) {
+            img.src = url; // URL aneh - coba apa adanya
+        }
+    });
+}
 function _tulisTeksTerbungkus(ctx, teks, x, y, lebarMaks, tinggiBaris, maksBaris) {
     const kata = String(teks || '').split(' ');
     let baris = '', jml = 0;
@@ -4664,6 +4709,54 @@ function _tulisTeksTerbungkus(ctx, teks, x, y, lebarMaks, tinggiBaris, maksBaris
     return y + tinggiBaris;
 }
 
+// Hitung berapa baris sebuah teks akan memakan, TANPA menggambar - dipakai
+// menghitung tinggi kartu dulu sebelum menggambar, supaya tidak ada ruang
+// kosong menganga di bawah (tinggi canvas harus ditetapkan di awal).
+function _hitungBaris(ctx, teks, lebarMaks, maksBaris) {
+    const kata = String(teks == null ? '' : teks).split(' ').filter(Boolean);
+    if (kata.length === 0) return 0;
+    let baris = '', jml = 1;
+    for (const k of kata) {
+        const coba = baris ? baris + ' ' + k : k;
+        if (ctx.measureText(coba).width > lebarMaks && baris) {
+            if (++jml >= (maksBaris || 99)) return maksBaris || jml;
+            baris = k;
+        } else {
+            baris = coba;
+        }
+    }
+    return jml;
+}
+
+function _kotakMembulat(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+// Tulis teks dgn jarak antar huruf (letter-spacing) - dipakai utk kode tiket
+// & label kecil, meniru CSS versi cetak. Canvas tidak punya letterSpacing di
+// semua browser, jadi digambar per huruf.
+function _tulisRenggang(ctx, teks, x, y, spasi, rata) {
+    const s = String(teks == null ? '' : teks);
+    let total = 0;
+    for (const ch of s) total += ctx.measureText(ch).width + spasi;
+    total -= spasi;
+    let cx = rata === 'center' ? x - total / 2 : x;
+    const rataLama = ctx.textAlign;
+    ctx.textAlign = 'left';
+    for (const ch of s) {
+        ctx.fillText(ch, cx, y);
+        cx += ctx.measureText(ch).width + spasi;
+    }
+    ctx.textAlign = rataLama;
+    return total;
+}
+
 async function buatGambarTiket(p) {
     await ensureQRCodeLib();
 
@@ -4678,95 +4771,200 @@ async function buatGambarTiket(p) {
         colorDark: '#0E3B34', colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.M
     });
-    // Beri browser satu tarikan napas supaya QR selesai dirender.
-    await new Promise(r => setTimeout(r, 60));
+    // Logo dimuat BARENGAN dgn jeda render QR (bukan berurutan) supaya
+    // pembuatan tiket tidak terasa lebih lambat gara-gara nunggu logo.
+    const [, logoImg] = await Promise.all([
+        new Promise(r => setTimeout(r, 60)), // beri napas supaya QR selesai dirender
+        _muatLogoAman(APP_CONFIG.logoFile)
+    ]);
     const qrCanvas = wadah.querySelector('canvas');
 
     const isMudhohi = p.kategori === 'mudhohi';
-    const W = 800, H = 1240;
+    const namaMasjid = (APP_CONFIG.mosqueName || 'Masjid').trim();
+
+    // ── Ukuran mengikuti versi CETAK (cetakTiketPenerima) ──
+    // Kartu cetak lebarnya 330px; di sini digambar 720px supaya tajam saat
+    // dilihat di HP. Semua ukuran font/jarak di bawah = ukuran CSS versi
+    // cetak x S, jadi proporsinya benar-benar sama, bukan kira-kira.
+    const S = 720 / 330;
+    const W = 800;
+    const KARTU_X = (W - 720) / 2, KARTU_W = 720;
+    const PAD = Math.round(20 * S);          // .body padding kiri/kanan
+    const ISI_W = KARTU_W - PAD * 2;
+
+    // Baris rincian - SAMA PERSIS dgn statRows versi cetak (label kiri,
+    // nilai kanan), termasuk No. HP & Item Tambahan yang di versi lama
+    // sempat berbeda.
+    const itemText = !isMudhohi ? formatItemTambahanText(p.itemTambahan) : '';
+    const stats = isMudhohi
+        ? [['Kelompok Sapi', p.kelompokSapi || '—'], ['Jatah Daging', p.berat != null ? formatKg(p.berat) : '—']]
+        : [['Alokasi', p.alokasi || '—'],
+           ...(p.noHp ? [['No. HP', p.noHp]] : []),
+           ...(p.alamat ? [['Alamat', p.alamat]] : []),
+           ...(itemText ? [['Item Tambahan', itemText]] : [])];
+
+    // ── Pengukuran dulu, menggambar belakangan ──
+    const ukur = document.createElement('canvas').getContext('2d');
+    const F_NAMA = `bold ${Math.round(21 * S)}px Georgia, 'Times New Roman', serif`;
+    const F_STAT = `${Math.round(12.5 * S)}px Georgia, 'Times New Roman', serif`;
+    ukur.font = F_NAMA;
+    const barisNama = Math.max(1, _hitungBaris(ukur, p.nama || '-', ISI_W, 2));
+    ukur.font = F_STAT;
+    const TINGGI_STAT = Math.round(19 * S);
+    let tinggiStats = 0;
+    const barisStat = stats.map(([label, nilai]) => {
+        const lebarLabel = ukur.measureText(String(label)).width + 20;
+        const n = Math.max(1, _hitungBaris(ukur, nilai, ISI_W - lebarLabel, 3));
+        tinggiStats += n * TINGGI_STAT + Math.round(8 * S);
+        return n;
+    });
+
+    const T_HEAD = Math.round(70 * S);
+    const T_BODY = Math.round(22 * S) + barisNama * Math.round(27 * S) + Math.round(12 * S) + tinggiStats + Math.round(10 * S);
+    const SISI_QR = Math.round(190 * S);
+    const T_QR = Math.round(20 * S) + SISI_QR + Math.round(14 * S) + Math.round(20 * S) + Math.round(10 * S) + Math.round(16 * S) + Math.round(14 * S);
+    const T_FOOT = Math.round(26 * S);
+    const KARTU_H = T_HEAD + T_BODY + T_QR + T_FOOT;
+    const MARGIN = Math.round(26 * S);
+    const H = KARTU_H + MARGIN * 2;
+
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
 
-    // Latar
-    ctx.fillStyle = '#FAF7F0'; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(40, 40, W - 80, H - 80);
-    ctx.strokeStyle = '#E4DBC5'; ctx.lineWidth = 3;
-    ctx.strokeRect(40, 40, W - 80, H - 80);
+    // Latar halaman (versi cetak: body putih)
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
 
-    // Kepala
-    ctx.fillStyle = '#0E3B34'; ctx.fillRect(40, 40, W - 80, 190);
-    const namaMasjid = (APP_CONFIG.mosqueName || 'Masjid').trim();
-    ctx.fillStyle = 'rgba(231,200,120,.18)';
-    ctx.beginPath(); ctx.arc(135, 135, 52, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#E7C878'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = '#E7C878';
-    ctx.font = 'bold 48px Georgia, serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(namaMasjid.charAt(0).toUpperCase(), 135, 138);
+    const KARTU_Y = MARGIN, RADIUS = Math.round(14 * S);
 
+    // Badan kartu + garis tepi emerald (versi cetak: border 1.5px #0E3B34)
+    ctx.save();
+    _kotakMembulat(ctx, KARTU_X, KARTU_Y, KARTU_W, KARTU_H, RADIUS);
+    ctx.clip();
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(KARTU_X, KARTU_Y, KARTU_W, KARTU_H);
+
+    // ── KEPALA (emerald) ──
+    ctx.fillStyle = '#0E3B34';
+    ctx.fillRect(KARTU_X, KARTU_Y, KARTU_W, T_HEAD);
+
+    const HPAD = Math.round(18 * S);
+    const LOGO = Math.round(34 * S);
+    const logoX = KARTU_X + HPAD, logoY = KARTU_Y + (T_HEAD - LOGO) / 2;
+    const LOGO_R = Math.round(8 * S); // versi cetak: border-radius 8px (kotak membulat, BUKAN lingkaran)
+
+    ctx.save();
+    _kotakMembulat(ctx, logoX, logoY, LOGO, LOGO, LOGO_R);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.fillRect(logoX, logoY, LOGO, LOGO);
+    if (logoImg) {
+        // object-fit: contain (versi cetak) - seluruh logo terlihat, tidak
+        // terpotong, dgn sedikit padding spt CSS-nya.
+        const pad = Math.round(3 * S);
+        const muat = LOGO - pad * 2;
+        const lw = logoImg.naturalWidth || muat, lh = logoImg.naturalHeight || muat;
+        const skala = Math.min(muat / lw, muat / lh);
+        const dw = lw * skala, dh = lh * skala;
+        ctx.drawImage(logoImg, logoX + (LOGO - dw) / 2, logoY + (LOGO - dh) / 2, dw, dh);
+    } else {
+        ctx.fillStyle = '#DCBB79';
+        ctx.font = `bold ${Math.round(15 * S)}px Georgia, serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(namaMasjid.charAt(0).toUpperCase(), logoX + LOGO / 2, logoY + LOGO / 2 + 1);
+    }
+    ctx.restore();
+
+    const teksX = logoX + LOGO + Math.round(10 * S);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#FBF6E9'; ctx.font = 'bold 34px Georgia, serif';
-    _tulisTeksTerbungkus(ctx, namaMasjid, 210, 122, W - 260, 40, 2);
-    ctx.fillStyle = '#E7C878'; ctx.font = '600 19px monospace';
-    ctx.fillText(isMudhohi ? 'KUPON MUDHOHI' : 'E-TIKET PENERIMA', 210, 178);
+    ctx.fillStyle = '#FBF8F1';
+    ctx.font = `bold ${Math.round(14.5 * S)}px Georgia, 'Times New Roman', serif`;
+    const namaY = KARTU_Y + T_HEAD / 2 - Math.round(2 * S);
+    _tulisTeksTerbungkus(ctx, namaMasjid, teksX, namaY, KARTU_W - (teksX - KARTU_X) - HPAD, Math.round(18 * S), 2);
+    ctx.fillStyle = '#DCBB79';
+    ctx.font = `${Math.round(9 * S)}px Georgia, serif`;
+    _tulisRenggang(ctx, (isMudhohi ? 'KUPON MUDHOHI' : 'E-TIKET PENERIMA'), teksX, namaY + Math.round(15 * S), Math.round(1.5 * S), 'left');
 
-    // Nama penerima
-    let y = 300;
+    // ── BADAN ──
+    let y = KARTU_Y + T_HEAD + Math.round(22 * S) + Math.round(16 * S);
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#869089'; ctx.font = '600 18px monospace';
-    ctx.fillText('NAMA PENERIMA', W / 2, y); y += 50;
-    ctx.fillStyle = '#182420'; ctx.font = 'bold 46px Georgia, serif';
-    y = _tulisTeksTerbungkus(ctx, p.nama || '-', W / 2, y, W - 160, 54, 2) + 14;
+    ctx.fillStyle = '#0E3B34';
+    ctx.font = F_NAMA;
+    y = _tulisTeksTerbungkus(ctx, p.nama || '-', KARTU_X + KARTU_W / 2, y, ISI_W, Math.round(27 * S), 2);
+    y += Math.round(6 * S);
 
-    // Rincian
-    const rincian = isMudhohi
-        ? [['Kelompok Sapi', p.kelompokSapi || '-'], ['Jatah Daging', p.berat != null ? formatKg(p.berat) : '-']]
-        : [['Alokasi', p.alokasi || '-'], ...(p.alamat ? [['Alamat', p.alamat]] : [])];
-    rincian.forEach(([label, nilai]) => {
-        ctx.fillStyle = '#869089'; ctx.font = '600 17px monospace';
-        ctx.fillText(String(label).toUpperCase(), W / 2, y); y += 32;
-        ctx.fillStyle = '#0E3B34'; ctx.font = '600 27px Georgia, serif';
-        y = _tulisTeksTerbungkus(ctx, nilai, W / 2, y, W - 160, 34, 2) + 14;
+    // Baris rincian: label kiri abu-abu, nilai kanan emerald tebal
+    stats.forEach(([label, nilai], i) => {
+        ctx.font = F_STAT;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#777777';
+        ctx.fillText(String(label), KARTU_X + PAD, y);
+        const lebarLabel = ctx.measureText(String(label)).width + 20;
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#0E3B34';
+        ctx.font = `bold ${Math.round(12.5 * S)}px Georgia, 'Times New Roman', serif`;
+        const kananX = KARTU_X + KARTU_W - PAD;
+        const lebarNilai = ISI_W - lebarLabel;
+        // Nilai panjang (alamat/item tambahan) dibungkus ke bawah, tetap
+        // rata kanan spt versi cetak.
+        const kata = String(nilai).split(' ');
+        let baris = '', barisTerkumpul = [];
+        for (const k of kata) {
+            const coba = baris ? baris + ' ' + k : k;
+            if (ctx.measureText(coba).width > lebarNilai && baris) { barisTerkumpul.push(baris); baris = k; }
+            else baris = coba;
+        }
+        if (baris) barisTerkumpul.push(baris);
+        barisTerkumpul.slice(0, 3).forEach((b, bi) => {
+            ctx.fillText(b, kananX, y + bi * TINGGI_STAT);
+        });
+        y += Math.max(1, Math.min(3, barisTerkumpul.length)) * TINGGI_STAT + Math.round(8 * S);
     });
 
-    // Item tambahan (kalau ada)
-    const item = p.itemTambahan || {};
-    const daftarItem = Object.keys(item).filter(k => Number(item[k]) > 0)
-        .map(k => `${k}: ${item[k]}`).join('  •  ');
-    if (daftarItem) {
-        ctx.fillStyle = '#869089'; ctx.font = '600 17px monospace';
-        ctx.fillText('ITEM TAMBAHAN', W / 2, y); y += 30;
-        ctx.fillStyle = '#B6893A'; ctx.font = '600 22px Georgia, serif';
-        y = _tulisTeksTerbungkus(ctx, daftarItem, W / 2, y, W - 160, 30, 2) + 10;
-    }
-
-    // Garis sobek
-    y = Math.max(y + 10, 700);
-    ctx.strokeStyle = '#E4DBC5'; ctx.lineWidth = 3;
-    ctx.setLineDash([12, 12]);
-    ctx.beginPath(); ctx.moveTo(70, y); ctx.lineTo(W - 70, y); ctx.stroke();
+    // ── PERFORASI (versi cetak: garis putus-putus EMAS, selebar kartu) ──
+    y += Math.round(6 * S);
+    ctx.strokeStyle = '#B6893A';
+    ctx.lineWidth = Math.max(2, Math.round(1.5 * S));
+    ctx.setLineDash([Math.round(6 * S), Math.round(5 * S)]);
+    ctx.beginPath(); ctx.moveTo(KARTU_X, y); ctx.lineTo(KARTU_X + KARTU_W, y); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#FAF7F0';
-    ctx.beginPath(); ctx.arc(40, y, 26, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(W - 40, y, 26, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#E4DBC5'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(40, y, 26, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(W - 40, y, 26, 0, Math.PI * 2); ctx.stroke();
 
-    // QR + kode
+    // ── QR + KODE + STATUS ──
+    y += Math.round(20 * S);
     if (qrCanvas) {
-        const sisi = 340, qx = (W - sisi) / 2, qy = y + 45;
-        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(qx - 14, qy - 14, sisi + 28, sisi + 28);
-        ctx.drawImage(qrCanvas, qx, qy, sisi, sisi);
-        y = qy + sisi + 62;
-    } else {
-        y += 70;
+        ctx.drawImage(qrCanvas, KARTU_X + (KARTU_W - SISI_QR) / 2, y, SISI_QR, SISI_QR);
     }
-    ctx.fillStyle = '#182420'; ctx.font = 'bold 40px monospace';
-    ctx.fillText(p.kodeTiket || '-', W / 2, y); y += 44;
-    ctx.fillStyle = '#869089'; ctx.font = '17px Georgia, serif';
-    ctx.fillText('Tunjukkan tiket ini kepada panitia', W / 2, y);
+    y += SISI_QR + Math.round(24 * S);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#8A6423';
+    ctx.font = `bold ${Math.round(16 * S)}px 'Courier New', Courier, monospace`;
+    _tulisRenggang(ctx, p.kodeTiket || '-', KARTU_X + KARTU_W / 2, y, Math.round(3 * S), 'center');
+    y += Math.round(20 * S);
+
+    ctx.fillStyle = '#0E3B34';
+    ctx.font = `bold ${Math.round(11 * S)}px Georgia, serif`;
+    _tulisRenggang(ctx, p.diambil ? '✓ SUDAH DIAMBIL' : 'BELUM DIAMBIL', KARTU_X + KARTU_W / 2, y, Math.round(.5 * S), 'center');
+
+    // ── KAKI (versi cetak: pita krem) ──
+    const footY = KARTU_Y + KARTU_H - T_FOOT;
+    ctx.fillStyle = '#F0E9DA';
+    ctx.fillRect(KARTU_X, footY, KARTU_W, T_FOOT);
+    ctx.fillStyle = '#5C584F';
+    ctx.font = `${Math.round(9 * S)}px Georgia, serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    _tulisRenggang(ctx, 'ALUR QURBAN · TATA KELOLA QURBAN MASJID', KARTU_X + KARTU_W / 2, footY + T_FOOT / 2, Math.round(1 * S), 'center');
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.restore(); // lepas clip kartu
+
+    // Garis tepi kartu digambar TERAKHIR supaya tidak tertimpa isi
+    ctx.strokeStyle = '#0E3B34';
+    ctx.lineWidth = Math.max(2, Math.round(1.5 * S));
+    _kotakMembulat(ctx, KARTU_X, KARTU_Y, KARTU_W, KARTU_H, RADIUS);
+    ctx.stroke();
 
     document.body.removeChild(wadah);
 
