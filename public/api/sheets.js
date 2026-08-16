@@ -587,47 +587,51 @@ async function readAllSheetsBatch(sheetId, accessToken) {
   }
 }
 
+// ── KOLOM MENYUSUL OTOMATIS ──────────────────────────────────────────────
+// Baik appendRow (tambah baris) maupun updateRows (ubah baris) sama-sama
+// bekerja berdasarkan HEADER YANG ADA DI SHEET. Artinya field yang belum
+// punya kolom DIBUANG DIAM-DIAM - tanpa error, tanpa peringatan apa pun.
+//
+// Ini sudah pernah bikin masalah nyata: sheet PenerimaQR milik masjid lama
+// belum punya kolom kategori/berat/kelompokSapi/sourcePesertaId/itemTambahan,
+// jadi Kupon Mudhohi yang digenerate tersimpan tanpa ciri apa pun - muncul
+// di daftar penerima biasa dgn Alokasi kosong, dan penanda anti-duplikatnya
+// ikut hilang sehingga tombol Generate bisa bikin kupon dobel.
+//
+// Fungsi ini menambahkan judul kolom yang belum ada (menurut SKEMA RESMI
+// TENANT_SHEET_TEMPLATE) ke baris 1, lalu mengembalikan daftar header
+// terbaru. Sheet masjid lama menyusul sendiri begitu ada data masuk.
+//
+// SENGAJA dibatasi ke TENANT_SHEET_TEMPLATE, BUKAN semua key di record -
+// supaya salah ketik nama field di kode tidak diam-diam bikin kolom sampah.
+// Kolom baru ditaruh di UJUNG kanan; posisi tidak masalah karena semua
+// baca/tulis dicocokkan lewat NAMA kolom, bukan urutannya.
+async function pastikanKolomLengkap(sheetId, sheetName, headers, accessToken) {
+  const skema = TENANT_SHEET_TEMPLATE[sheetName] || [];
+  const kolomHilang = skema.filter(h => !headers.includes(h));
+  if (kolomHilang.length === 0) return headers;
+
+  const headerBaru = headers.concat(kolomHilang);
+  await sheetsFetch(sheetId, `/values:batchUpdate`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      valueInputOption: 'RAW',
+      data: [{
+        range: `${sheetName}!A1:${columnToLetter(headerBaru.length - 1)}1`,
+        values: [headerBaru]
+      }]
+    })
+  });
+  console.log(`[pastikanKolomLengkap] Kolom menyusul ditambahkan ke "${sheetName}":`, kolomHilang.join(', '));
+  return headerBaru;
+}
+
 async function appendRow(sheetId, sheetName, record, accessToken) {
   // Ambil header dulu buat tahu urutan kolom
   const headerData = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName)}!1:1`, accessToken);
   let headers = (headerData.values && headerData.values[0]) || [];
+  headers = await pastikanKolomLengkap(sheetId, sheetName, headers, accessToken);
 
-  // ── KOLOM MENYUSUL OTOMATIS ────────────────────────────────────────────
-  // newRow di bawah dibentuk dari HEADER YANG ADA DI SHEET. Artinya field
-  // yang belum punya kolom di sheet DIBUANG DIAM-DIAM - tanpa error, tanpa
-  // peringatan apa pun. Ini sudah pernah bikin masalah nyata: sheet
-  // PenerimaQR milik masjid lama belum punya kolom kategori/berat/
-  // kelompokSapi/sourcePesertaId/itemTambahan, jadi Kupon Mudhohi yang
-  // digenerate tersimpan tanpa ciri apa pun - muncul di daftar penerima
-  // biasa dgn Alokasi kosong, dan penanda anti-duplikatnya ikut hilang
-  // sehingga tombol Generate bisa bikin kupon dobel.
-  //
-  // Sekarang: kalau ada kolom di SKEMA RESMI (TENANT_SHEET_TEMPLATE) yang belum ada
-  // di sheet, judulnya ditambahkan dulu di baris 1, baru datanya ditulis.
-  // Sheet masjid lama otomatis menyusul sendiri begitu ada data masuk,
-  // tidak perlu lagi menambah kolom manual tiap ada fitur baru.
-  //
-  // SENGAJA dibatasi ke TENANT_SHEET_TEMPLATE, BUKAN semua key di record - supaya
-  // salah ketik nama field di kode tidak diam-diam bikin kolom sampah baru.
-  // Kolom baru ditaruh di UJUNG kanan; posisi tidak masalah karena semua
-  // baca/tulis dicocokkan lewat NAMA kolom, bukan urutannya.
-  const skema = TENANT_SHEET_TEMPLATE[sheetName] || [];
-  const kolomHilang = skema.filter(h => !headers.includes(h));
-  if (kolomHilang.length > 0) {
-    const headerBaru = headers.concat(kolomHilang);
-    await sheetsFetch(sheetId, `/values:batchUpdate`, accessToken, {
-      method: 'POST',
-      body: JSON.stringify({
-        valueInputOption: 'RAW',
-        data: [{
-          range: `${sheetName}!A1:${columnToLetter(headerBaru.length - 1)}1`,
-          values: [headerBaru]
-        }]
-      })
-    });
-    console.log(`[appendRow] Kolom menyusul ditambahkan ke "${sheetName}":`, kolomHilang.join(', '));
-    headers = headerBaru;
-  }
 
   const newRow = headers.map(h => (record[h] !== undefined ? record[h] : ''));
 
@@ -656,9 +660,17 @@ async function updateRows(sheetId, sheetName, keyColumn, keyValue, updates, acce
   const values = data.values || [];
   if (values.length === 0) return { success: false, updated: 0 };
 
-  const headers = values[0];
+  let headers = values[0];
   const keyColIndex = headers.indexOf(keyColumn);
   if (keyColIndex === -1) return { success: false, updated: 0, error: `Kolom ${keyColumn} tidak ditemukan` };
+
+  // Sama seperti appendRow: kolom yang belum ada di sheet ditambahkan dulu,
+  // kalau tidak update-nya DIBUANG DIAM-DIAM di baris "if (colIdx !== -1)"
+  // di bawah. Ini nyata terpakai: penanda waSentAt (tombol kirim WA jadi
+  // hijau) ditulis lewat jalur UPDATE, bukan append - tanpa ini, tandanya
+  // hilang lagi tiap kali data dimuat ulang, dan tidak ada error apa pun
+  // yang muncul sebagai petunjuk.
+  headers = await pastikanKolomLengkap(sheetId, sheetName, headers, accessToken);
 
   const lastColLetter = columnToLetter(headers.length - 1);
   const batchData = [];
