@@ -2295,25 +2295,15 @@
   }
 </style>
 
-<!-- Chart Library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-
-<!-- PDF Export Library - jsPDF murni (tanpa html2canvas), digambar manual
-     supaya reliable di semua perangkat termasuk HP (tidak bergantung pada
-     screenshot DOM/dialog print yang ternyata tidak konsisten di mobile) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
-
-<!-- Excel Export Library (dipakai untuk export CSV/Excel sederhana) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-<!-- Excel Export Library dengan styling (warna, font, gambar chart) untuk Laporan -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-
-<!-- QR Code Generator - dipakai buat cetak e-tiket QR di menu Penerima & Tiket -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-<!-- QR Code Scanner (kamera) - dipakai buat check-in/scan tiket pas hari pelaksanaan -->
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- Chart.js/jsPDF/xlsx/exceljs/qrcodejs/html5-qrcode SENGAJA TIDAK dimuat
+     pakai tag script-src statis di sini lagi. Dulu ke-6 library ini (total
+     lebih dari 2MB) di-download dan dieksekusi di SETIAP kunjungan/tab,
+     padahal masing-masing cuma dipakai di 1 fitur spesifik (grafik
+     Keuangan/Laporan/LPJ, export PDF, export Excel, cetak QR tiket, scan
+     kamera). Sekarang di-load ON-DEMAND lewat loadScriptOnce()/ensureXxx()
+     (lihat awal blok script utama di bawah) pas fitur itu beneran dipakai -
+     supaya buka app pertama kali jauh lebih cepat, terutama di HP/koneksi
+     lambat. -->
 
 </head>
 <body>
@@ -4841,6 +4831,50 @@
   </div>
 
 <script>
+// ================================================================
+// ===== LAZY LOAD LIBRARI CDN BERAT (Chart.js/jsPDF/xlsx/exceljs/  =====
+// ===== qrcodejs/html5-qrcode) - lihat catatan di <head>.          =====
+// ================================================================
+// loadScriptOnce(url): suntik <script src> ke <head> on-demand, cache
+// promise-nya per URL supaya dipanggil berkali-kali (mis. tiap kali export
+// PDF diklik) tidak double-download / double-eksekusi library yang sama.
+const _loadedScripts = {};
+function loadScriptOnce(url) {
+    if (_loadedScripts[url]) return _loadedScripts[url];
+    _loadedScripts[url] = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = () => resolve();
+        s.onerror = () => { delete _loadedScripts[url]; reject(new Error('Gagal memuat library dari ' + url)); };
+        document.head.appendChild(s);
+    });
+    return _loadedScripts[url];
+}
+function ensureChartJs() {
+    if (typeof Chart !== 'undefined') return Promise.resolve();
+    return loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js');
+}
+function ensureJsPDF() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+    return loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js');
+}
+function ensureXLSX() {
+    if (typeof XLSX !== 'undefined') return Promise.resolve();
+    return loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+}
+function ensureExcelJS() {
+    if (typeof ExcelJS !== 'undefined') return Promise.resolve();
+    return loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');
+}
+function ensureQRCodeLib() {
+    if (typeof QRCode !== 'undefined') return Promise.resolve();
+    return loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js');
+}
+function ensureHtml5Qrcode() {
+    if (typeof Html5Qrcode !== 'undefined') return Promise.resolve();
+    return loadScriptOnce('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+}
+
 // ================================================================
 // ===== APP_CONFIG - SATU-SATUNYA TEMPAT YANG PERLU DIEDIT     =====
 // ===== kalau aplikasi ini mau dipakai masjid/DKM lain.         =====
@@ -9030,7 +9064,7 @@ async function hapusPenerima(id) {
 // Tampilkan QR (pakai modal previewModal yang sama dengan preview bukti
 // transfer/foto survey - lihat showPreview()/viewSurveyFotos()) + tombol
 // cetak.
-function lihatQrPenerima(id) {
+async function lihatQrPenerima(id) {
     const p = appData.penerimaQR.find(x => x.id === id);
     if (!p) return;
 
@@ -9114,6 +9148,7 @@ function lihatQrPenerima(id) {
 
     const qrEl = document.getElementById('qrCodeContainer');
     qrEl.innerHTML = '';
+    await ensureQRCodeLib();
     new QRCode(qrEl, {
         text: p.kodeTiket,
         width: 200,
@@ -9254,8 +9289,10 @@ async function startQrScanner() {
     const box = document.getElementById('qrReaderBox');
     if (!box) return;
 
-    if (typeof Html5Qrcode === 'undefined') {
-        showAlert('Library scanner QR gagal dimuat, cek koneksi internet lalu reload halaman.', 'error');
+    try {
+        await ensureHtml5Qrcode();
+    } catch (err) {
+        showAlert('Library scanner QR gagal dimuat, cek koneksi internet lalu coba lagi.', 'error');
         return;
     }
 
@@ -9694,7 +9731,7 @@ function renderKeuanganRingkasan() {
 // Chart.js tidak salah ukur lebar canvas yang masih display:none.
 let keuanganChart = null;
 
-function renderKeuanganChart() {
+async function renderKeuanganChart() {
     const canvas = document.getElementById('keuanganChart');
     const emptyBox = document.getElementById('keuanganChartEmpty');
     if (!canvas) return;
@@ -9732,6 +9769,7 @@ function renderKeuanganChart() {
     const ctx = canvas.getContext('2d');
     if (keuanganChart) keuanganChart.destroy();
 
+    await ensureChartJsReady();
     keuanganChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -11549,24 +11587,6 @@ const REPORT_PALETTE = [
     REPORT_COLORS.inkSoft
 ];
 
-// Styling global Chart.js sekali di awal - font & tooltip premium, dipakai semua chart
-if (typeof Chart !== 'undefined') {
-    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
-    Chart.defaults.color = REPORT_COLORS.inkSoft;
-    Chart.defaults.plugins.tooltip.backgroundColor = REPORT_COLORS.ink;
-    Chart.defaults.plugins.tooltip.titleColor = REPORT_COLORS.goldSoft;
-    Chart.defaults.plugins.tooltip.bodyColor = '#fff';
-    Chart.defaults.plugins.tooltip.borderColor = REPORT_COLORS.gold;
-    Chart.defaults.plugins.tooltip.borderWidth = 1;
-    Chart.defaults.plugins.tooltip.padding = 12;
-    Chart.defaults.plugins.tooltip.cornerRadius = 10;
-    Chart.defaults.plugins.tooltip.titleFont = { family: "'IBM Plex Mono', monospace", size: 12, weight: '600' };
-    Chart.defaults.plugins.tooltip.bodyFont = { family: "'IBM Plex Mono', monospace", size: 13, weight: '600' };
-    Chart.defaults.plugins.tooltip.displayColors = false;
-    Chart.defaults.animation.duration = 900;
-    Chart.defaults.animation.easing = 'easeOutQuart';
-}
-
 // Plugin custom: tampilkan total di tengah doughnut chart, biar terasa "dashboard premium"
 const centerTotalPlugin = {
     id: 'centerTotal',
@@ -11587,7 +11607,39 @@ const centerTotalPlugin = {
         ctx.restore();
     }
 };
-if (typeof Chart !== 'undefined') Chart.register(centerTotalPlugin);
+
+// Styling global Chart.js (font & tooltip premium) + register centerTotalPlugin
+// - SATU KALI, dipanggil lewat ensureChartJsReady() (bukan langsung dieksekusi
+// di top-level lagi) karena Chart.js sekarang di-lazy-load (lihat
+// ensureChartJs() di awal <script>), jadi belum tentu `Chart` sudah ada saat
+// baris ini pertama kali di-parse.
+let _chartJsSetupDone = false;
+function setupChartJsDefaults() {
+    if (_chartJsSetupDone) return;
+    _chartJsSetupDone = true;
+    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+    Chart.defaults.color = REPORT_COLORS.inkSoft;
+    Chart.defaults.plugins.tooltip.backgroundColor = REPORT_COLORS.ink;
+    Chart.defaults.plugins.tooltip.titleColor = REPORT_COLORS.goldSoft;
+    Chart.defaults.plugins.tooltip.bodyColor = '#fff';
+    Chart.defaults.plugins.tooltip.borderColor = REPORT_COLORS.gold;
+    Chart.defaults.plugins.tooltip.borderWidth = 1;
+    Chart.defaults.plugins.tooltip.padding = 12;
+    Chart.defaults.plugins.tooltip.cornerRadius = 10;
+    Chart.defaults.plugins.tooltip.titleFont = { family: "'IBM Plex Mono', monospace", size: 12, weight: '600' };
+    Chart.defaults.plugins.tooltip.bodyFont = { family: "'IBM Plex Mono', monospace", size: 13, weight: '600' };
+    Chart.defaults.plugins.tooltip.displayColors = false;
+    Chart.defaults.animation.duration = 900;
+    Chart.defaults.animation.easing = 'easeOutQuart';
+    Chart.register(centerTotalPlugin);
+}
+// Dipakai SEMUA fungsi drawXxxChart()/renderXxxChart() di bawah, gantikan
+// ensureChartJs() polos - supaya library ke-load DAN styling/plugin-nya
+// ke-setup, keduanya cuma sekali walau dipanggil berkali-kali dari banyak tab.
+async function ensureChartJsReady() {
+    await ensureChartJs();
+    setupChartJsDefaults();
+}
 
 // Bikin gradient vertikal buat canvas (dipakai bar & line chart)
 function makeVerticalGradient(ctx, chartArea, colorTop, colorBottom) {
@@ -11864,7 +11916,7 @@ function getSapiStatistics() {
     return sapiStats;
 }
 
-function drawSapiChart() {
+async function drawSapiChart() {
     const sapiStats = getSapiStatistics();
     const sortedKeys = Object.keys(sapiStats).sort((a, b) => a - b);
     const labels = sortedKeys.map(s => `Sapi #${s}`);
@@ -11876,6 +11928,7 @@ function drawSapiChart() {
 
     if (laporanCharts.sapi) laporanCharts.sapi.destroy();
 
+    await ensureChartJsReady();
     laporanCharts.sapi = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -11917,7 +11970,7 @@ function drawSapiChart() {
     });
 }
 
-function drawDistributionChart() {
+async function drawDistributionChart() {
     const sapiStats = getSapiStatistics();
     const sortedKeys = Object.keys(sapiStats).sort((a, b) => a - b);
     const labels = sortedKeys.map(s => `Sapi #${s}`);
@@ -11929,6 +11982,7 @@ function drawDistributionChart() {
 
     if (laporanCharts.distribution) laporanCharts.distribution.destroy();
 
+    await ensureChartJsReady();
     laporanCharts.distribution = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -11969,7 +12023,7 @@ function drawDistributionChart() {
     laporanCharts.distribution.update();
 }
 
-function drawMonthlyChart() {
+async function drawMonthlyChart() {
     const monthlyData = {};
     
     appData.savings.filter(s => s.status === 'APPROVED').forEach(trans => {
@@ -11990,6 +12044,7 @@ function drawMonthlyChart() {
 
     if (laporanCharts.monthly) laporanCharts.monthly.destroy();
 
+    await ensureChartJsReady();
     laporanCharts.monthly = new Chart(ctx, {
         type: 'line',
         data: {
@@ -12069,7 +12124,8 @@ function exportTransactionCSV() {
 
 // Helper export Excel sederhana (1 sheet, tanpa styling) - dipakai tombol
 // "Export Excel" di tab Detail Transaksi.
-function downloadExcel(data, filenameBase) {
+async function downloadExcel(data, filenameBase) {
+    await ensureXLSX();
     const ws = XLSX.utils.aoa_to_sheet(data);
     const colCount = data.reduce((max, row) => Math.max(max, row.length), 0);
     ws['!cols'] = Array.from({ length: colCount }, (_, c) => {
@@ -12106,6 +12162,7 @@ async function exportLaporanExcel(evt) {
         const totalTransactions = appData.savings.length;
         const average = totalMembers > 0 ? Math.round(totalApproved / totalMembers) : 0;
 
+        await ensureExcelJS();
         const wb = new ExcelJS.Workbook();
         wb.creator = `Tabungan Qurban - ${APP_CONFIG.mosqueName}`;
         wb.created = new Date();
@@ -12367,7 +12424,7 @@ function loadTopGrupIuran() {
     }).join('');
 }
 
-function drawIuranGrupChart() {
+async function drawIuranGrupChart() {
     const stats = getIuranStatistics();
     const sorted = Object.values(stats.bySurvey);
     const labels = sorted.map(g => surveyKode(g.survey));
@@ -12379,6 +12436,7 @@ function drawIuranGrupChart() {
 
     if (laporanIuranCharts.grup) laporanIuranCharts.grup.destroy();
 
+    await ensureChartJsReady();
     laporanIuranCharts.grup = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -12554,7 +12612,7 @@ function loadIuranAnalisisTab() {
     loadIuranStatistics();
 }
 
-function drawIuranDistributionChart() {
+async function drawIuranDistributionChart() {
     const stats = getIuranStatistics();
     const sorted = Object.values(stats.bySurvey);
     const labels = sorted.map(g => surveyKode(g.survey));
@@ -12566,6 +12624,7 @@ function drawIuranDistributionChart() {
 
     if (laporanIuranCharts.distribution) laporanIuranCharts.distribution.destroy();
 
+    await ensureChartJsReady();
     laporanIuranCharts.distribution = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -12599,7 +12658,7 @@ function drawIuranDistributionChart() {
     });
 }
 
-function drawIuranTipeChart() {
+async function drawIuranTipeChart() {
     const stats = getIuranStatistics();
     const allPeserta = Object.values(stats.bySurvey).flatMap(g => g.peserta);
     const tabunganCount = allPeserta.filter(p => p.tipe !== 'instan').length;
@@ -12610,6 +12669,7 @@ function drawIuranTipeChart() {
 
     if (laporanIuranCharts.tipe) laporanIuranCharts.tipe.destroy();
 
+    await ensureChartJsReady();
     laporanIuranCharts.tipe = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -12667,6 +12727,7 @@ async function exportLaporanIuranExcel(evt) {
         const stats = getIuranStatistics();
         const sortedGrup = Object.values(stats.bySurvey).sort((a, b) => b.totalTerkumpul - a.totalTerkumpul);
 
+        await ensureExcelJS();
         const wb = new ExcelJS.Workbook();
         wb.creator = `Tabungan Qurban - ${APP_CONFIG.mosqueName}`;
         wb.created = new Date();
@@ -12787,14 +12848,15 @@ function printLaporanIuran() {
 
 // PDF sederhana (jsPDF murni, sama pola dgn exportLaporanPDF()) - hero + tabel
 // ringkas per grup sapi + tabel semua peserta (nama/tipe/terkumpul/status).
-function exportLaporanIuranPDF(evt) {
+async function exportLaporanIuranPDF(evt) {
     const btn = evt?.currentTarget || evt?.target;
     const originalHTML = btn ? btn.innerHTML : null;
     if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
 
     try {
+        await ensureJsPDF();
         if (!window.jspdf || !window.jspdf.jsPDF) {
-            throw new Error('Library PDF belum termuat. Coba refresh halaman lalu ulangi.');
+            throw new Error('Library PDF gagal dimuat. Cek koneksi internet lalu coba lagi.');
         }
         const { jsPDF } = window.jspdf;
         const c = REPORT_COLORS;
@@ -13331,9 +13393,10 @@ function renderLpjTopSapiList() {
 const lpjCharts = {};
 
 // Grafik batang Rencana vs Aktual per alokasi (Top 8 alokasi terbesar
-// menurut Rencana) - Chart.js sudah dimuat sekali di tab Laporan Tabungan,
-// dipakai ulang di sini tanpa perlu load CDN lagi.
-function renderLpjDistribusiChart(rencanaByAlokasi, aktualByAlokasi) {
+// menurut Rencana). ensureChartJs() di bawah cuma download CDN kalau Chart.js
+// BELUM dimuat (mis. tab LPJ dibuka duluan tanpa lewat Laporan Tabungan
+// dulu - LPJ kelihatan buat guest juga) - kalau sudah ada, langsung lanjut.
+async function renderLpjDistribusiChart(rencanaByAlokasi, aktualByAlokasi) {
     const canvas = document.getElementById('lpjDistribusiChart');
     const emptyBox = document.getElementById('lpjDistribusiChartEmpty');
     if (!canvas) return;
@@ -13356,6 +13419,7 @@ function renderLpjDistribusiChart(rencanaByAlokasi, aktualByAlokasi) {
     const ctx = canvas.getContext('2d');
     if (lpjCharts.distribusi) lpjCharts.distribusi.destroy();
 
+    await ensureChartJsReady();
     lpjCharts.distribusi = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -13395,7 +13459,7 @@ function renderLpjDistribusiChart(rencanaByAlokasi, aktualByAlokasi) {
 // Donut "Peruntukan Dana" - realisasi pengeluaran per Pos Budget (Top 6 +
 // gabungan "Lainnya") supaya publik lihat uang dipakai buat apa saja, bukan
 // cuma 1 angka total pengeluaran yang abstrak.
-function renderLpjDanaChart(realisasiPerPosKeluar) {
+async function renderLpjDanaChart(realisasiPerPosKeluar) {
     const canvas = document.getElementById('lpjDanaChart');
     const emptyBox = document.getElementById('lpjDanaChartEmpty');
     if (!canvas) return;
@@ -13420,6 +13484,7 @@ function renderLpjDanaChart(realisasiPerPosKeluar) {
     const ctx = canvas.getContext('2d');
     if (lpjCharts.dana) lpjCharts.dana.destroy();
 
+    await ensureChartJsReady();
     lpjCharts.dana = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -13445,14 +13510,15 @@ function renderLpjDanaChart(realisasiPerPosKeluar) {
 
 // PDF LPJ - sama pola dgn exportLaporanPDF() (jsPDF murni, digambar manual,
 // TIDAK screenshot DOM) supaya reliable di semua perangkat termasuk HP.
-function exportLPJPDF(evt) {
+async function exportLPJPDF(evt) {
     const btn = evt?.currentTarget || evt?.target;
     const originalHTML = btn ? btn.innerHTML : null;
     if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
 
     try {
+        await ensureJsPDF();
         if (!window.jspdf || !window.jspdf.jsPDF) {
-            throw new Error('Library PDF belum termuat. Coba refresh halaman lalu ulangi.');
+            throw new Error('Library PDF gagal dimuat. Cek koneksi internet lalu coba lagi.');
         }
         const { jsPDF } = window.jspdf;
         const c = REPORT_COLORS;
@@ -13658,14 +13724,15 @@ function showQuickToast(message) {
 // tidak bisa diandalkan di HP (banyak browser mobile tidak mendukung dialog
 // print / "Save as PDF"). jsPDF murni bekerja identik di semua perangkat
 // karena tidak butuh screenshot ataupun dialog print sama sekali.
-function exportLaporanPDF(evt) {
+async function exportLaporanPDF(evt) {
     const btn = evt?.currentTarget || evt?.target;
     const originalHTML = btn ? btn.innerHTML : null;
     if (btn) { btn.disabled = true; btn.innerHTML = '<span>Menyiapkan...</span>'; }
 
     try {
+        await ensureJsPDF();
         if (!window.jspdf || !window.jspdf.jsPDF) {
-            throw new Error('Library PDF belum termuat. Coba refresh halaman lalu ulangi.');
+            throw new Error('Library PDF gagal dimuat. Cek koneksi internet lalu coba lagi.');
         }
         const { jsPDF } = window.jspdf;
         const c = REPORT_COLORS;
