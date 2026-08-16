@@ -3920,10 +3920,11 @@
               <div class="form-group">
                 <label>Basis Hitung</label>
                 <select id="kemasanBasisHitung">
-                  <option value="paket">Per Paket/Penerima</option>
+                  <option value="paket">Per Paket/Penerima (aktual)</option>
                   <option value="kg">Per Kg Daging</option>
-                  <option value="tulang">Per Item Tambahan Tulang</option>
-                  <option value="jeroan">Per Item Tambahan Jeroan</option>
+                  <option value="rencanaDaging">Per Total Alokasi Daging (Rencana)</option>
+                  <option value="tulang">Per Rencana Tulang (Bagian Lain)</option>
+                  <option value="jeroan">Per Rencana Jeroan (Bagian Lain)</option>
                   <option value="mudhohi">Per Kupon Mudhohi</option>
                 </select>
               </div>
@@ -3944,7 +3945,7 @@
             <div class="actions" style="margin-bottom:18px;">
               <button class="btn btn-success btn-small" id="kemasanSubmitBtn" onclick="simpanKemasanItem()">+ Tambah Item</button>
               <button class="btn btn-ghost btn-small" id="kemasanCancelBtn" onclick="batalEditKemasanItem()" style="display:none;">Batal Edit</button>
-              <button class="btn btn-ghost btn-small" onclick="isiDefaultKemasanPlastik()" title="Tambahkan 4 item plastik umum (Daging/Jeroan/Tulang/Mudhohi) kalau belum ada">📦 Isi Default Plastik</button>
+              <button class="btn btn-ghost btn-small" onclick="isiDefaultKemasanPlastik()" title="Tambahkan 4 item plastik umum (Kresek Sablon, Plastik Daging/Jeroan/Tulang) kalau belum ada">📦 Isi Default Plastik</button>
             </div>
             <div class="table-container">
               <table>
@@ -5565,7 +5566,8 @@ async function loadDataFromSheets() {
         kategori: (row.kategori || '').toString().trim().toLowerCase() === 'inventaris' ? 'inventaris' : 'kemasan',
         basisHitung: (() => {
             const b = (row.basisHitung || '').toString().trim().toLowerCase();
-            return ['kg', 'tulang', 'jeroan', 'mudhohi'].includes(b) ? b : 'paket';
+            const VALID_BASIS = { kg: 'kg', rencanadaging: 'rencanaDaging', tulang: 'tulang', jeroan: 'jeroan', mudhohi: 'mudhohi', paket: 'paket' };
+            return VALID_BASIS[b] || 'paket';
         })(),
         rasioPerUnit: parseFloat(row.rasioPerUnit) || 0,
         kebutuhanManual: parseFloat(row.kebutuhanManual) || 0,
@@ -10140,26 +10142,49 @@ function totalEstimasiKgDaging() {
 }
 
 // Jumlah kupon Mudhohi AKTIF (kategori 'mudhohi' di PenerimaQR, lihat
-// generateKuponMudhohi()) - basis hitung "Per Kupon Mudhohi", dipakai antara
-// lain utk item default "Plastik Mudhohi".
+// generateKuponMudhohi()) - basis hitung "Per Kupon Mudhohi".
 function totalKuponMudhohiAktif() {
     return appData.penerimaQR.filter(p => p.status !== 'batal' && p.kategori === 'mudhohi').length;
 }
 
+// Total Qty (RENCANA/target, BUKAN yang sudah benar-benar diisi ke
+// Penerima & Tiket) di Rencana Distribusi Daging (Umum) - dijumlah lintas
+// SEMUA alokasi (RT, Panitia, dst). Ini yang dipakai sbg basis default
+// "jumlah total alokasi" utk item kemasan spt Kresek Sablon/Plastik Daging,
+// supaya kebutuhan kemasan sudah bisa diperkirakan dari awal (pas rencana
+// sudah disusun), tidak perlu nunggu semua penerima diinput satu-satu dulu.
+function totalKuotaRencanaDaging() {
+    return appData.rencanaDistribusi
+        .filter(r => r.status !== 'batal')
+        .reduce((sum, r) => sum + (r.qty || 0), 0);
+}
+
+// Total Qty (RENCANA) di Rencana Distribusi Bagian Lain utk 1 jenis
+// (tulang/jeroan), dijumlah lintas SEMUA alokasi - basis default kemasan
+// Plastik Jeroan/Plastik Tulang ("ikut rencana di bagian lain").
+function totalKuotaRencanaBagianLain(jenis) {
+    return appData.rencanaDistribusiLain
+        .filter(r => r.status !== 'batal' && r.jenis === jenis)
+        .reduce((sum, r) => sum + (r.qty || 0), 0);
+}
+
 // Kebutuhan dibulatkan ke atas (Math.ceil) - tidak mungkin beli/pakai
 // setengah kantong plastik/alat. Item 'inventaris' pakai kebutuhanManual
-// langsung (tidak ikut skala paket/kg). basisHitung: 'paket' (total
-// penerima+mudhohi), 'kg' (estimasi daging), 'tulang'/'jeroan' (total Item
-// Tambahan jenis tsb yang sudah dititip ke penerima - lihat
-// totalItemTambahanSemuaPenerima()), 'mudhohi' (jumlah kupon mudhohi aktif).
+// langsung (tidak ikut skala paket/kg). basisHitung: 'paket' (jumlah
+// penerima yang SUDAH diinput di Penerima & Tiket), 'kg' (estimasi daging),
+// 'rencanaDaging' (total Qty RENCANA - target - di Rencana Distribusi Daging
+// Umum, lintas semua alokasi), 'tulang'/'jeroan' (total Qty RENCANA di
+// Rencana Distribusi Bagian Lain utk jenis tsb), 'mudhohi' (jumlah kupon
+// mudhohi aktif).
 function hitungKebutuhanKemasan(item) {
     if (item.kategori === 'inventaris') {
         return Math.ceil(item.kebutuhanManual || 0);
     }
     let basisTotal;
     if (item.basisHitung === 'kg') basisTotal = totalEstimasiKgDaging();
-    else if (item.basisHitung === 'tulang') basisTotal = totalItemTambahanSemuaPenerima('tulang');
-    else if (item.basisHitung === 'jeroan') basisTotal = totalItemTambahanSemuaPenerima('jeroan');
+    else if (item.basisHitung === 'rencanaDaging') basisTotal = totalKuotaRencanaDaging();
+    else if (item.basisHitung === 'tulang') basisTotal = totalKuotaRencanaBagianLain('tulang');
+    else if (item.basisHitung === 'jeroan') basisTotal = totalKuotaRencanaBagianLain('jeroan');
     else if (item.basisHitung === 'mudhohi') basisTotal = totalKuponMudhohiAktif();
     else basisTotal = totalPaketPenerima();
     return Math.ceil((item.rasioPerUnit || 0) * basisTotal);
@@ -10168,10 +10193,11 @@ function hitungKebutuhanKemasan(item) {
 // Label tampilan utk tiap basisHitung - dipakai di loadKemasanList() &
 // renderKemasanChecklist() supaya konsisten.
 const KEMASAN_BASIS_LABEL = {
-    paket: 'Per Paket/Penerima',
+    paket: 'Per Paket/Penerima (aktual)',
     kg: 'Per Kg Daging',
-    tulang: 'Per Item Tambahan Tulang',
-    jeroan: 'Per Item Tambahan Jeroan',
+    rencanaDaging: 'Per Total Alokasi Daging (Rencana)',
+    tulang: 'Per Rencana Tulang (Bagian Lain)',
+    jeroan: 'Per Rencana Jeroan (Bagian Lain)',
     mudhohi: 'Per Kupon Mudhohi'
 };
 
@@ -10333,7 +10359,7 @@ function renderKemasanChecklist() {
 async function simpanKemasanItem() {
     const namaItem = document.getElementById('kemasanNamaItem').value.trim();
     const basisHitungRaw = document.getElementById('kemasanBasisHitung').value;
-    const basisHitung = ['kg', 'tulang', 'jeroan', 'mudhohi'].includes(basisHitungRaw) ? basisHitungRaw : 'paket';
+    const basisHitung = ['kg', 'rencanaDaging', 'tulang', 'jeroan', 'mudhohi'].includes(basisHitungRaw) ? basisHitungRaw : 'paket';
     const rasioPerUnit = parseFloat(document.getElementById('kemasanRasioPerUnit').value) || 0;
     const stokTersedia = parseFloat(document.getElementById('kemasanStokTersedia').value) || 0;
     const catatan = document.getElementById('kemasanCatatan').value.trim();
@@ -10387,19 +10413,23 @@ async function simpanKemasanItem() {
     }
 }
 
-// Isi 4 item plastik yang umum dipakai (Daging/Jeroan/Tulang/Mudhohi), tiap
-// item basisHitung-nya dipasang ke sumber data yang paling relevan supaya
-// kebutuhannya kehitung otomatis tanpa admin perlu ngerti detail basis-nya -
-// lihat hitungKebutuhanKemasan(). Rasio default 1 (1 plastik per unit basis)
-// - admin bebas edit lewat ✏️ kalau butuh beda (mis. 2 plastik per paket).
-// Item yang namanya SUDAH ADA (persis sama, case-insensitive) dilewati -
-// aman diklik berkali-kali, tidak bikin dobel.
+// Isi 4 item plastik yang umum dipakai (Kresek Sablon, Plastik
+// Daging/Jeroan/Tulang). Kresek Sablon & Plastik Daging ikut TOTAL ALOKASI
+// (Qty rencana di Rencana Distribusi Daging Umum, lintas semua alokasi) -
+// dipilih basis 'rencanaDaging' (BUKAN 'paket'/aktual) supaya kebutuhannya
+// sudah bisa diperkirakan dari awal begitu rencana disusun, tidak perlu
+// nunggu semua penerima diinput satu-satu ke Penerima & Tiket dulu. Plastik
+// Jeroan/Tulang ikut Qty rencana di Rencana Distribusi Bagian Lain utk jenis
+// masing-masing. Rasio default 1 (1 plastik per unit basis) - admin bebas
+// edit lewat ✏️ kalau butuh beda (mis. 2 plastik per paket). Item yang
+// namanya SUDAH ADA (persis sama, case-insensitive) dilewati - aman diklik
+// berkali-kali, tidak bikin dobel.
 async function isiDefaultKemasanPlastik() {
     const DEFAULTS = [
-        { namaItem: 'Plastik Daging', basisHitung: 'paket', catatan: 'Kantong per paket daging (semua penerima termasuk Mudhohi)' },
-        { namaItem: 'Plastik Jeroan', basisHitung: 'jeroan', catatan: 'Kantong utk jatah Item Tambahan Jeroan yang dititip ke penerima' },
-        { namaItem: 'Plastik Tulang', basisHitung: 'tulang', catatan: 'Kantong utk jatah Item Tambahan Tulang yang dititip ke penerima' },
-        { namaItem: 'Plastik Mudhohi', basisHitung: 'mudhohi', catatan: 'Kantong khusus paket Kupon Mudhohi' }
+        { namaItem: 'Kresek Sablon', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
+        { namaItem: 'Plastik Daging', basisHitung: 'rencanaDaging', catatan: 'Ikut total Qty rencana di Rencana Distribusi Daging (Umum), lintas semua alokasi' },
+        { namaItem: 'Plastik Jeroan', basisHitung: 'jeroan', catatan: 'Ikut total Qty rencana Jeroan di Rencana Distribusi Bagian Lain' },
+        { namaItem: 'Plastik Tulang', basisHitung: 'tulang', catatan: 'Ikut total Qty rencana Tulang di Rencana Distribusi Bagian Lain' }
     ];
 
     const existingNames = new Set(
