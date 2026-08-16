@@ -2836,6 +2836,21 @@ function switchDistribusiTab(tabName, btn, scope) {
     btn.classList.add('active');
 }
 
+// Pindah antar pill-tab di menu WO Aktual (Resume / Work Order). Pola sama
+// dengan switchDistribusiTab() di atas, tapi tanpa varian member - menu WO
+// Aktual memang khusus admin.
+function switchWoAktualTab(tabName, btn) {
+    const container = document.getElementById('woAktual');
+    if (!container) return;
+
+    container.querySelectorAll('.sub-tab-content').forEach(tab => tab.style.display = 'none');
+    const panel = document.getElementById('woAktual' + tabName.charAt(0).toUpperCase() + tabName.slice(1) + 'Tab');
+    if (panel) panel.style.display = 'block';
+
+    container.querySelectorAll('.report-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+}
+
 // Angka hero card (Total Estimasi Daging/Share Warga/Rencana Distribusi/
 // Jumlah Sapi) - dihitung sekali, dipakai buat isi hero admin & member
 // sekaligus (angkanya sama, cuma beda tempat tampil).

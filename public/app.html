@@ -3678,15 +3678,38 @@
            pelaksanaan qurban. Terpisah dari Work Order rencana di tab Survey
            Sapi supaya rencana (dengan batas kuota) tidak tertimpa/tercampur
            dengan angka riil di lapangan (bebas, tidak dibatasi kuota). -->
+      <!-- Penyajian mengikuti pola tab Distribusi Daging: satu kartu dgn
+           pill-tab di atas, isinya dipecah jadi Resume & Work Order - supaya
+           halaman tidak memanjang ke bawah dan konsisten dgn menu lain. -->
       <div id="woAktual" class="tab-content">
-        <div class="card" style="max-width:820px;">
-          <h2>Work Order Aktual</h2>
-          <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:0;">
-            Input jumlah AKTUAL saat hari pelaksanaan qurban, per alokasi per sapi. Qty di sini BEBAS (tidak dibatasi kuota rencana) karena di lapangan kadang tidak persis sesuai Work Order awal. Kolom "Qty Rencana (WO)" ditampilkan sebagai pembanding saja. Baris <strong>Mudhohi</strong> di paling atas khusus: Berat diisi manual (hasil timbang), Qty tetap 7, Selisih = Estimasi Hak Mudhohi − Aktual Penimbangan.
-          </p>
+        <div class="card report-card">
+          <div class="report-tabs">
+            <button class="report-tab-btn active" onclick="switchWoAktualTab('resume', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a1 1 0 011-1h1a1 1 0 011 1v14M11 19V9a1 1 0 011-1h1a1 1 0 011 1v10M18 19v-6a1 1 0 011-1h1a1 1 0 011 1v6"/></svg>
+              <span>Resume</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchWoAktualTab('workOrder', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              <span>Work Order</span>
+            </button>
+          </div>
+
+          <div id="woAktualResumeTab" class="sub-tab-content">
+            <h3>Resume Work Order Aktual</h3>
+            <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+              Rekap hasil aktual seluruh sapi dalam satu tabel - Rencana, Aktual, dan selisihnya per alokasi.
+            </p>
+            <div id="woAktualResume"></div>
+          </div>
+
+          <div id="woAktualWorkOrderTab" class="sub-tab-content" style="display:none;">
+            <h3>Input Work Order Aktual</h3>
+            <p style="color:var(--ink-soft); font-size:14px; margin-top:-6px; margin-bottom:18px;">
+              Isi jumlah AKTUAL hari pelaksanaan, per alokasi per sapi. Qty di sini BEBAS (tidak dibatasi kuota rencana) karena di lapangan kadang tidak persis sesuai Work Order awal - kolom "Qty Rencana (WO)" cuma pembanding. Baris <strong>Mudhohi</strong> khusus: Berat diisi manual dari hasil timbang, Qty tetap 7.
+            </p>
+            <div id="woAktualList"></div>
+          </div>
         </div>
-        <div id="woAktualResume"></div>
-        <div id="woAktualList"></div>
       </div>
 
       <!-- Tab: Penerima & Tiket (khusus Admin) - daftar penerima BERNAMA per
