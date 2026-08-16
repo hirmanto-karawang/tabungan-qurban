@@ -802,6 +802,10 @@ async function loadDataFromSheets() {
         lokasiLat: (row.lokasiLat !== undefined && row.lokasiLat !== '') ? parseFloat(row.lokasiLat) : null,
         lokasiLng: (row.lokasiLng !== undefined && row.lokasiLng !== '') ? parseFloat(row.lokasiLng) : null,
         hasFotoAmbil: !!row.hasFotoAmbil,
+        // Waktu terakhir tiket ini diproses kirim lewat WhatsApp - dipakai
+        // menandai tombol 📲 jadi hijau supaya panitia tahu mana yang sudah
+        // digarap. Kosong = belum pernah.
+        waSentAt: row.waSentAt || '',
         // Baris lama (sebelum fitur Kupon Mudhohi ada) tidak punya kolom-kolom
         // ini di sheet - kosong dianggap kategori 'umum' (penerima biasa lewat
         // alokasi Rencana Distribusi), BUKAN 'mudhohi'. sourcePesertaId
@@ -4489,7 +4493,7 @@ function loadPenerimaList() {
               <td>${statusHtml}</td>
               <td style="white-space:nowrap;">
                 <button class="btn btn-ghost btn-small" onclick="lihatQrPenerima(${p.id})" title="Lihat/Cetak QR">🔳</button>
-                <button class="btn btn-ghost btn-small" onclick="kirimTiketWA(${p.id})" title="Kirim tiket lewat WhatsApp">📲</button>
+                ${tombolKirimWaHtml(p)}
                 <button class="btn btn-ghost btn-small" onclick="hapusPenerima(${p.id})" title="Hapus">🗑️</button>
               </td>
             </tr>`;
@@ -4640,7 +4644,7 @@ function loadKuponMudhohiList() {
               <td>${statusHtml}</td>
               <td style="white-space:nowrap;">
                 <button class="btn btn-ghost btn-small" onclick="lihatQrPenerima(${p.id})" title="Lihat/Cetak QR">🔳</button>
-                <button class="btn btn-ghost btn-small" onclick="kirimTiketWA(${p.id})" title="Kirim tiket lewat WhatsApp">📲</button>
+                ${tombolKirimWaHtml(p)}
                 <button class="btn btn-ghost btn-small" onclick="hapusPenerima(${p.id})" title="Hapus">🗑️</button>
               </td>
             </tr>`;
@@ -5125,6 +5129,36 @@ function _teksTiket(p) {
     return baris.join('\n');
 }
 
+// Tombol 📲 di daftar - HIJAU kalau tiketnya sudah pernah diproses kirim,
+// abu-abu kalau belum. Murni penanda follow-up buat panitia (lihat komentar
+// waSentAt di TENANT_SHEET_TEMPLATE soal kenapa ini bukan tanda "terkirim").
+function tombolKirimWaHtml(p) {
+    const sudah = !!p.waSentAt;
+    const kapan = sudah ? new Date(p.waSentAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    const judul = sudah
+        ? `Sudah pernah dikirim (${kapan}) - klik lagi utk kirim ulang`
+        : 'Kirim tiket lewat WhatsApp';
+    return `<button class="btn ${sudah ? 'btn-success' : 'btn-ghost'} btn-small" onclick="kirimTiketWA(${p.id})" title="${judul}">📲</button>`;
+}
+
+// Catat bahwa tiket ini sudah diproses kirim: simpan waktunya ke sheet,
+// perbarui juga salinan di memori + tampilan supaya tombolnya langsung
+// hijau tanpa perlu menunggu muat ulang data.
+async function tandaiTiketTerkirimWa(p) {
+    const waktu = new Date().toISOString();
+    p.waSentAt = waktu; // langsung di memori dulu spy tampilan responsif
+    try {
+        loadPenerimaList();
+        loadKuponMudhohiList();
+    } catch (e) { /* fungsi render mungkin belum ada di konteks tertentu */ }
+    // Simpan ke sheet - kalau gagal (offline dst), tanda hijau tetap tampil
+    // di layar ini, tapi akan hilang setelah data dimuat ulang. Sengaja TIDAK
+    // dibikin gagalkan seluruh proses kirim, karena kirimnya sendiri sudah
+    // terlanjur jalan.
+    const ok = await updateSheetDB('PenerimaQR', 'id', p.id, { waSentAt: waktu });
+    if (!ok) console.warn('Gagal menyimpan penanda kirim WA utk penerima id', p.id);
+}
+
 async function kirimTiketWA(id) {
     const p = appData.penerimaQR.find(x => x.id === id);
     if (!p) return;
@@ -5196,6 +5230,7 @@ async function kirimTiketWA(id) {
             ? 'Chat WhatsApp ke penerima sudah dibuka. Tekan lama kolom pesan lalu pilih Tempel (Paste) untuk melampirkan gambar tiketnya.'
             : 'Chat WhatsApp ke penerima sudah dibuka. Gambar tiket sudah diunduh — lampirkan lewat ikon penjepit (📎).',
             tersalin ? 'success' : 'warning');
+        await tandaiTiketTerkirimWa(p);
         return;
     }
 
@@ -5205,6 +5240,7 @@ async function kirimTiketWA(id) {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
             await navigator.share({ files: [file], title: `E-Tiket ${p.nama}`, text: teks });
+            await tandaiTiketTerkirimWa(p);
             return;
         } catch (err) {
             if (err && err.name === 'AbortError') return; // user membatalkan, wajar

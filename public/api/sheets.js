@@ -784,7 +784,13 @@ const TENANT_SHEET_TEMPLATE = {
   // RencanaDistribusiLain (beda dari Work Order Sapi yang per-sapi) - ini
   // titipan manual admin per penerima, bebas. Kosong/tidak ke-parse = {}.
   // Lihat formatItemTambahanText()/renderItemTambahanBadges() di app.html.
-  PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'itemTambahan', 'created_date'],
+    // "waSentAt" - waktu terakhir tiket ini DIPROSES kirim lewat WhatsApp
+  // oleh admin (tombol 📲). CATATAN JUJUR: ini BUKAN tanda terkirim/
+  // terbaca - link wa.me cuma MEMBUKA chat, aplikasi tidak pernah tahu
+  // apakah admin benar-benar menekan Kirim. Gunanya murni penanda
+  // follow-up: mana yang sudah pernah digarap, mana yang belum -
+  // supaya panitia tidak dobel kerja / ada yang kelewat.
+  PenerimaQR: ['id', 'alokasi', 'nama', 'noHp', 'alamat', 'kodeTiket', 'status', 'diambil', 'waktuAmbil', 'lokasiLat', 'lokasiLng', 'fotoAmbil', 'kategori', 'berat', 'kelompokSapi', 'sourcePesertaId', 'itemTambahan', 'waSentAt', 'created_date'],
   PosBudget: ['id', 'nama', 'jenisPos', 'jumlahAnggaran', 'keterangan', 'status', 'created_date'],
   TransaksiKeuangan: ['id', 'posId', 'tanggal', 'jumlah', 'keterangan', 'status', 'created_date', 'bukti'],
   // "ukuran" - opsional, teks bebas isian MANUAL admin (mis. "30x40cm",
