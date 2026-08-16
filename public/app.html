@@ -70,7 +70,7 @@
      sudah melebar itu, BUKAN dari lebar layar asli - modal jadi kepotong di
      kanan meski CSS-nya sudah max-width:90vw. Ini pernah kejadian nyata di
      modal Upload Bukti Transfer (Qurban Instan) - lihat riwayat commit. */
-  html{ scroll-behavior:smooth; overscroll-behavior-y: contain; overflow-x:hidden; }
+  html{ scroll-behavior:smooth; overscroll-behavior-y: none; overflow-x:hidden; }
   body{
     font-family: var(--font-body);
     background: var(--paper);
@@ -78,7 +78,12 @@
     min-height:100vh;
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
-    overscroll-behavior-y: contain;
+    /* Disamakan dgn public/index.html (landing page, yang scroll-nya selalu
+       terasa ringan di HP): "none" (bukan "contain") - keduanya sama2
+       mematikan pull-to-refresh bawaan browser, tapi "none" juga mematikan
+       efek rubber-band/glow di ujung scroll sepenuhnya, sedikit lebih murah
+       utk browser dibanding "contain" yang masih mengizinkan efek itu lokal. */
+    overscroll-behavior-y: none;
     overflow-x:hidden;
     max-width:100vw;
   }
@@ -6403,70 +6408,56 @@ let ptrStartY = null;
 let ptrTracking = false;
 let ptrRefreshing = false;
 const PTR_THRESHOLD = 68; // jarak tarik (setelah resistance) buat memicu refresh
-// Referensi listener touchmove yang di-attach/lepas DINAMIS (lihat komentar
-// panjang di initPullToRefresh() soal kenapa ini penting utk performa scroll).
-let ptrMoveHandler = null;
 
 function initPullToRefresh() {
     const indicator = document.getElementById('ptrIndicator');
     if (!indicator) return;
 
-    // PENTING soal performa: touchmove HARUS TIDAK permanen ter-pasang di
-    // `document` dengan {passive:false}. Listener touchmove non-passive
-    // memaksa browser MENUNGGU thread JS selesai jalan (sinkron) SEBELUM bisa
-    // mulai scroll - bahkan kalau handler-nya langsung return tanpa ngapa2in
-    // (spt kasus kita di luar area gesture pull-to-refresh). Efeknya scroll
-    // jadi "berat"/tersendat di HAMPIR SEMUA gesture geser, apalagi di HP
-    // Android kelas menengah-bawah yang CPU-nya lebih lambat ngeeksekusi JS -
-    // persis keluhan "scroll susah, sampe perlu 3 jari". Solusinya: listener
-    // touchmove yang bisa preventDefault() cuma di-ATTACH saat benar2 lagi
-    // nge-drag dari posisi paling atas (touchstart), dan langsung DILEPAS
-    // begitu jelas ini bukan gesture pull-to-refresh atau saat jari diangkat.
-    // Di luar momen itu, TIDAK ADA listener touchmove non-passive sama sekali
-    // di halaman - scroll normal jalan full-speed pakai jalur compositor
-    // browser, tidak pernah nunggu JS.
-    function attachPtrMove() {
-        if (ptrMoveHandler) return;
-        ptrMoveHandler = (e) => {
-            if (!ptrTracking || ptrRefreshing) { detachPtrMove(); return; }
-            const deltaY = e.touches[0].clientY - ptrStartY;
-            if (deltaY <= 0 || window.scrollY > 0) {
-                indicator.classList.remove('visible', 'ready');
-                indicator.style.transform = 'translate(-50%, -60px)';
-                detachPtrMove();
-                return;
-            }
-
-            // Resistance supaya tidak langsung "nempel" ke jari - kesan lebih alami.
-            const pulled = Math.min(deltaY * 0.45, 90);
-            if (deltaY > 12) e.preventDefault();
-
-            indicator.classList.add('visible');
-            indicator.style.transform = `translate(-50%, ${pulled - 60}px)`;
-
-            const ready = pulled >= PTR_THRESHOLD;
-            indicator.classList.toggle('ready', ready);
-            document.getElementById('ptrText').textContent = ready ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
-        };
-        document.addEventListener('touchmove', ptrMoveHandler, { passive: false });
-    }
-
-    function detachPtrMove() {
-        if (!ptrMoveHandler) return;
-        document.removeEventListener('touchmove', ptrMoveHandler);
-        ptrMoveHandler = null;
-    }
-
+    // SEMUA listener di sini {passive:true} DAN TIDAK PERNAH panggil
+    // e.preventDefault() - ini persis "logika landing page" (public/index.html)
+    // yang sama sekali tidak punya listener touch custom dan selalu terasa
+    // ringan. Versi sebelumnya sempat pakai touchmove {passive:false} (baik
+    // permanen maupun di-attach/lepas dinamis) supaya bisa preventDefault()
+    // pas nge-drag dari atas - ternyata tetap berpotensi bikin scroll di
+    // dalam menu (yang isinya banyak tabel/strip horizontal) terasa berat di
+    // sebagian HP Android, krn browser tetap harus menunggu keputusan JS di
+    // momen listener itu aktif. Sekarang preventDefault() DIHAPUS TOTAL -
+    // pencegahan reload/rubber-band bawaan browser saat pull-to-refresh
+    // cukup diserahkan ke CSS overscroll-behavior-y (lihat komentar di
+    // bagian atas <style>), bukan lagi tugas JS. Konsekuensinya: animasi
+    // indikator custom ini murni kosmetik (mengikuti jari lewat perhitungan
+    // deltaY seperti biasa), tapi TIDAK PERNAH memblokir apapun - jadi
+    // browser bebas scroll instan tanpa nunggu JS sama sekali, di semua
+    // gesture, di semua menu, sama seperti landing page.
     document.addEventListener('touchstart', (e) => {
         const appActive = document.getElementById('appContainer')?.classList.contains('active');
         if (!appActive || ptrRefreshing || window.scrollY > 0) { ptrTracking = false; return; }
         ptrStartY = e.touches[0].clientY;
         ptrTracking = true;
-        attachPtrMove();
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!ptrTracking || ptrRefreshing) return;
+        const deltaY = e.touches[0].clientY - ptrStartY;
+        if (deltaY <= 0 || window.scrollY > 0) {
+            indicator.classList.remove('visible', 'ready');
+            indicator.style.transform = 'translate(-50%, -60px)';
+            ptrTracking = false;
+            return;
+        }
+
+        // Resistance supaya tidak langsung "nempel" ke jari - kesan lebih alami.
+        const pulled = Math.min(deltaY * 0.45, 90);
+
+        indicator.classList.add('visible');
+        indicator.style.transform = `translate(-50%, ${pulled - 60}px)`;
+
+        const ready = pulled >= PTR_THRESHOLD;
+        indicator.classList.toggle('ready', ready);
+        document.getElementById('ptrText').textContent = ready ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
     }, { passive: true });
 
     document.addEventListener('touchend', () => {
-        detachPtrMove();
         if (!ptrTracking) return;
         ptrTracking = false;
 
