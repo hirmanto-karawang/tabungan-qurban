@@ -16126,7 +16126,15 @@ async function loadPrayerTimes() {
 
     if (!jadwal) {
         try {
-            const resp = await fetch(`https://api.myquran.com/v2/sholat/jadwal/${PRAYER_LOCATION_ID}/${y}/${m}/${d}`);
+            // AbortController 8 detik - API pihak ketiga ini kadang lambat,
+            // dan tanpa batas waktu, request-nya bisa nggantung lama di
+            // background tepat pas beberapa detik pertama halaman dibuka -
+            // ikut menyita jalur jaringan yg lagi dipakai fetch2 lain
+            // (tenant-config, dst) di koneksi HP yang pas-pasan.
+            const ctrl = new AbortController();
+            const timeoutId = setTimeout(() => ctrl.abort(), 8000);
+            const resp = await fetch(`https://api.myquran.com/v2/sholat/jadwal/${PRAYER_LOCATION_ID}/${y}/${m}/${d}`, { signal: ctrl.signal });
+            clearTimeout(timeoutId);
             const data = await resp.json();
             if (data && data.status && data.data && data.data.jadwal) {
                 jadwal = data.data.jadwal;
@@ -16266,9 +16274,22 @@ function renderPrayerTimes(jadwal) {
 // akal buat di-"install" adalah aplikasi tenant-nya, bukan halaman promosi.
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js').catch(err => {
-            console.warn('[SW] Registrasi gagal:', err);
-        });
+        // Ditunda dikit lagi (idle callback / fallback setTimeout) - install()
+        // service worker langsung nge-fetch beberapa aset (lihat CACHE_ASSETS
+        // di service-worker.js) yang tetap makan jalur jaringan HP, walau
+        // sekarang sudah jauh lebih kecil (app.html/index.html sudah dibuang
+        // dari daftar itu krn redundan). Jeda ini kasih prioritas ke fetch2
+        // yang lebih genting punya halaman sendiri (tenant-config, dst) duluan.
+        const registerSW = () => {
+            navigator.serviceWorker.register('/service-worker.js').catch(err => {
+                console.warn('[SW] Registrasi gagal:', err);
+            });
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(registerSW, { timeout: 3000 });
+        } else {
+            setTimeout(registerSW, 1500);
+        }
     });
 }
 </script>

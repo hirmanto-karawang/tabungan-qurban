@@ -1,21 +1,33 @@
 /**
  * SERVICE WORKER - OFFLINE CAPABILITY & CACHING
- * Versi: 1.2.0
+ * Versi: 1.3.0
  * Handle offline mode dan sync data ke Google Sheets
  */
 
 // NAIKKAN angka di belakang string ini (v2, v3, dst) SETIAP kali ada
 // perubahan besar - itu memicu activate() membuang cache lama, jadi user
 // yang sudah pernah buka app tidak nyangkut di versi lama selamanya.
-const CACHE_VERSION = 'tabungan-qurban-v5';
+const CACHE_VERSION = 'tabungan-qurban-v6';
 // PENTING: cache.addAll() di install() di bawah GAGAL TOTAL (install error,
 // SW tidak pernah aktif) kalau SATU SAJA path di sini 404 - makanya
 // '/styles.css' (tidak pernah ada, semua CSS inline di index.html/app.html)
 // dibuang dari daftar ini. Cuma masukkan path yang beneran ada di public/.
+//
+// '/index.html' & '/app.html' SENGAJA TIDAK ada di sini (beda dari versi
+// sebelumnya) - install() jalan PERSIS di detik-detik pertama halaman baru
+// dibuka, dan cache.addAll() di bawah nge-fetch ulang semua path ini dari
+// NOL, termasuk app.html yang isinya ~750KB (satu file HTML+JS-nya raksasa).
+// Itu artinya file yang SAMA PERSIS baru saja didownload buat nampilin
+// halaman yang sedang dibuka user, didownload LAGI oleh SW di background,
+// tepat berbarengan dgn fetch tenant-config & jadwal sholat punya app.html
+// sendiri - di koneksi HP yang pas-pasan/lambat, semua fetch ini rebutan
+// jalur yang sama, bikin respon jaringan telat datang & terasa "macet"
+// beberapa detik pertama (termasuk pengaruh ke scroll/sentuhan). Padahal
+// fetch handler networkFirstShellStrategy() di bawah SUDAH otomatis
+// nyimpen index.html/app.html ke cache tiap kali berhasil di-fetch normal -
+// jadi eager-cache di sini murni REDUNDAN utk 2 file itu, tinggal dibuang.
 const CACHE_ASSETS = [
     '/',
-    '/index.html',
-    '/app.html',
     '/manifest.json',
     '/favicon.ico',
     '/offline.html'
