@@ -62,7 +62,15 @@
      halaman dari nol dan bikin app "kelempar" balik ke layar login). Sebagai
      gantinya dipakai gesture tarik-untuk-refresh custom (lihat #ptrIndicator
      + initPullToRefresh() di JS) yang cuma me-refresh data, bukan reload. */
-  html{ scroll-behavior:smooth; overscroll-behavior-y: contain; }
+  /* overflow-x:hidden di html/body ini PENTING utk mobile - tanpa ini, kalau
+     ADA SATU SAJA elemen di halaman manapun yang melebar horizontal (tabel
+     lebar tanpa wrapper, dsb), browser mobile memperlebar "layout viewport"
+     mengikuti elemen itu - efeknya SEMUA satuan vw/vh di seluruh halaman
+     (termasuk modal-content max-width:90vw) jadi dihitung dari lebar yang
+     sudah melebar itu, BUKAN dari lebar layar asli - modal jadi kepotong di
+     kanan meski CSS-nya sudah max-width:90vw. Ini pernah kejadian nyata di
+     modal Upload Bukti Transfer (Qurban Instan) - lihat riwayat commit. */
+  html{ scroll-behavior:smooth; overscroll-behavior-y: contain; overflow-x:hidden; }
   body{
     font-family: var(--font-body);
     background: var(--paper);
@@ -71,6 +79,8 @@
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
     overscroll-behavior-y: contain;
+    overflow-x:hidden;
+    max-width:100vw;
   }
 
   a{ color:inherit; }
@@ -4720,7 +4730,7 @@
 
   <!-- Modal Preview Bukti Transfer -->
   <div id="previewModal" class="modal-overlay">
-    <div class="modal-content" style="width:600px;">
+    <div class="modal-content" style="width:min(600px, 92vw);">
       <div class="modal-header">
         <div class="modal-title" id="previewTitle">Bukti Transfer</div>
         <button class="modal-close" onclick="closePreviewModal()">&times;</button>
@@ -4737,7 +4747,7 @@
        transfer di sini (sesuai keputusan: bayar belakangan, admin follow-up
        via WA). Lihat openInstantJoinModal()/submitInstantJoin(). -->
   <div id="instantJoinModal" class="modal-overlay">
-    <div class="modal-content" style="width:440px;">
+    <div class="modal-content" style="width:min(440px, 92vw);">
       <div class="modal-header">
         <div class="modal-title">Daftar Langsung Ikut Qurban</div>
         <button class="modal-close" onclick="closeInstantJoinModal()">&times;</button>
@@ -4795,7 +4805,7 @@
        Lihat komentar TENANT_SHEET_TEMPLATE.SurveyPeserta di sheets.js utk
        skema kolom buktiBayar/hasBuktiBayar. -->
   <div id="uploadBuktiInstanModal" class="modal-overlay">
-    <div class="modal-content" style="width:440px;">
+    <div class="modal-content" style="width:min(440px, 92vw);">
       <div class="modal-header">
         <div class="modal-title">Upload Bukti Transfer</div>
         <button class="modal-close" onclick="closeUploadBuktiInstanModal()">&times;</button>
