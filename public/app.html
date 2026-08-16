@@ -2826,6 +2826,31 @@
             Setiap keputusan langsung tersimpan ke tab Savings dan tercatat di tab Verifications sebagai jejak audit. Status hanya berubah di layar setelah Google Sheets berhasil diperbarui.
           </div>
         </div>
+
+        <!-- Cicilan peserta "Daftar Langsung" (Qurban Instan) - digabung ke
+             tab Verifikasi yang sama (bukan tab terpisah) sesuai keputusan
+             desain: 1 tempat buat admin cek semua yang butuh verifikasi. -->
+        <div class="card" style="margin-top:20px;">
+          <h2>Setoran Qurban Instan</h2>
+          <p style="color:var(--ink-soft); font-size:13.5px; margin-top:-10px; margin-bottom:20px;">
+            Cicilan bukti transfer dari peserta "Daftar Langsung" (bisa lebih dari satu kali per peserta, mis. bayar sebagian dulu lalu pelunasan).
+          </p>
+
+          <div id="setoranInstanSummary" style="margin-bottom:20px; display:flex; gap:8px; flex-wrap:wrap;"></div>
+
+          <h3 style="margin-top:0;">Menunggu Verifikasi</h3>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Tanggal</th><th>Peserta</th><th>Grup Sapi</th><th>Nominal</th><th>Bukti</th><th>Aksi</th></tr></thead>
+              <tbody id="setoranInstanPendingTableBody"><tr><td colspan="6" class="loading">Memuat…</td></tr></tbody>
+            </table>
+          </div>
+
+          <div class="info-box">
+            <strong>Catatan</strong>
+            Setiap cicilan yang disetujui langsung dijumlah ke total pembayaran peserta (lihat tab Survey Sapi &amp; Laporan Iuran Qurban). Kalau totalnya sudah mencapai iuran, peserta otomatis berstatus Lunas.
+          </div>
+        </div>
       </div>
 
       <!-- Tab: Approval Anggota Baru (Admin) -->
@@ -4801,9 +4826,9 @@
        - tidak ada akun login, jadi identifikasi dilakukan dgn nomor WhatsApp
        yang dipakai saat submitInstantJoin() (1 nomor = 1 pendaftaran, karena
        sudah di-dedupe di sana). Alurnya 2 langkah: cari pendaftaran by nomor
-       HP (cariPendaftaranInstan()), lalu upload foto (submitBuktiInstan()).
-       Lihat komentar TENANT_SHEET_TEMPLATE.SurveyPeserta di sheets.js utk
-       skema kolom buktiBayar/hasBuktiBayar. -->
+       HP (cariPendaftaranInstan()), lalu upload cicilan - nominal+tanggal+foto
+       (submitSetoranInstan()), bisa berkali-kali per peserta. Lihat komentar
+       TENANT_SHEET_TEMPLATE.SetoranInstan di sheets.js utk skema kolomnya. -->
   <div id="uploadBuktiInstanModal" class="modal-overlay">
     <div class="modal-content" style="width:min(440px, 92vw);">
       <div class="modal-header">
@@ -4824,8 +4849,23 @@
         </div>
 
         <div id="uploadBuktiStep2" style="display:none;">
-          <div id="uploadBuktiInfo" class="lpj-trust-badge" style="margin-bottom:18px;"></div>
+          <div id="uploadBuktiInfo" class="lpj-trust-badge" style="margin-bottom:14px;"></div>
 
+          <div id="uploadBuktiRiwayat" style="margin-bottom:16px;"></div>
+
+          <!-- Cicilan: peserta bisa upload beberapa kali (mis. bayar Rp 1jt
+               dulu, pelunasan menyusul) - tiap kali submit, riwayat di atas
+               nambah baris baru, modal TIDAK ditutup otomatis (lihat
+               submitSetoranInstan()) supaya bisa langsung lihat status
+               terbaru / upload cicilan berikutnya. -->
+          <div class="form-group">
+            <label>Nominal Transfer</label>
+            <input type="number" id="uploadBuktiNominal" min="1" step="1000" placeholder="Contoh: 1000000">
+          </div>
+          <div class="form-group">
+            <label>Tanggal Transfer</label>
+            <input type="date" id="uploadBuktiTanggal">
+          </div>
           <div class="form-group">
             <label>Foto Bukti Transfer</label>
             <div id="uploadBuktiSlot" class="survey-foto-slot" style="width:150px;aspect-ratio:1/1;margin-top:6px;">
@@ -4838,7 +4878,7 @@
             <div id="uploadBuktiError" style="color:var(--brick); font-size:13px; margin-top:8px;"></div>
           </div>
 
-          <button class="btn btn-success btn-block" id="uploadBuktiSubmitBtn" onclick="submitBuktiInstan()" disabled>Kirim Bukti Transfer</button>
+          <button class="btn btn-success btn-block" id="uploadBuktiSubmitBtn" onclick="submitSetoranInstan()" disabled>Kirim Bukti Transfer</button>
           <button class="btn btn-ghost btn-block" style="margin-top:8px;" onclick="resetUploadBuktiStep()">&larr; Cari Nomor Lain</button>
         </div>
       </div>
@@ -5047,7 +5087,11 @@ let appData = {
     kemasanInventaris: [],
     // Bukan array - LPJNarasi cuma 1 baris config (narasi/kata pengantar tab
     // LPJ), jadi disimpan sbg object langsung, lihat loadDataFromSheets().
-    lpjNarasi: { narasi: '', updatedBy: '', updatedDate: '' }
+    lpjNarasi: { narasi: '', updatedBy: '', updatedDate: '' },
+    // Cicilan pembayaran peserta tipe 'instan' (Daftar Langsung/Qurban
+    // Instan) - lihat komentar TENANT_SHEET_TEMPLATE.SetoranInstan di
+    // sheets.js & pesertaInstanBayarSummary() di bawah.
+    setoranInstan: []
 };
 
 let currentUser = null;
@@ -5306,6 +5350,7 @@ async function loadDataFromSheets() {
     const transaksiKeuanganRows = bootstrap ? (bootstrap.TransaksiKeuangan || []) : await fetchSheetDBTable('TransaksiKeuangan');
     const kemasanInventarisRows = bootstrap ? (bootstrap.KemasanInventaris || []) : await fetchSheetDBTable('KemasanInventaris');
     const lpjNarasiRows = bootstrap ? (bootstrap.LPJNarasi || []) : await fetchSheetDBTable('LPJNarasi');
+    const setoranInstanRows = bootstrap ? (bootstrap.SetoranInstan || []) : await fetchSheetDBTable('SetoranInstan');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -5468,6 +5513,31 @@ async function loadDataFromSheets() {
         // lewat fetchSurveyPesertaBuktiData() saat admin klik "Lihat Bukti".
         hasBuktiBayar: !!row.hasBuktiBayar
     })).filter(p => p.id);
+
+    // Parse SetoranInstan - cicilan pembayaran peserta tipe 'instan'. Beda
+    // dari buktiBayar/statusBayar di atas (1 foto tunggal, pola manual lama):
+    // 1 peserta instan sekarang bisa punya BANYAK baris SetoranInstan (mis.
+    // bayar Rp 1jt dulu, pelunasan menyusul kemudian), masing2 baris punya
+    // nominal & status verifikasi sendiri, dicek admin di tab Verifikasi
+    // (sama alur dengan Savings/tabungan biasa) - lihat
+    // pesertaInstanBayarSummary() & approveSetoranInstan()/rejectSetoranInstan().
+    appData.setoranInstan = setoranInstanRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        pesertaId: parseInt(row.pesertaId) || 0,
+        nominal: Number(row.nominal) || 0,
+        transferDate: row.transferDate || '',
+        // Status pakai konvensi sama dengan Savings.status: PENDING (baru
+        // diupload, nunggu verifikasi admin) / APPROVED (disetujui, ikut
+        // dihitung sbg pembayaran sah) / REJECTED (ditolak, tidak dihitung).
+        status: (row.status || 'PENDING').toString().trim().toUpperCase(),
+        uploadedAt: row.uploadedAt || '',
+        approvedAt: row.approvedAt || '',
+        approvedBy: row.approvedBy || '',
+        notes: row.notes || '',
+        // Flag saja - fileData asli dibuang di server (stripSetoranInstanFoto()
+        // di sheets.js), diambil on-demand lewat fetchSetoranInstanFileData().
+        hasFile: !!row.hasFile
+    })).filter(s => s.id);
 
     // Parse DistribusiDaging (rencana pembagian daging per alokasi PER SAPI -
     // dasar Work Order, dikaitkan via surveyId, diinput manual oleh admin) -
@@ -6200,7 +6270,7 @@ async function switchTab(tabName) {
 function runTabDataLoaders(tabName) {
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'profile') loadProfileData();
-    if (tabName === 'verify') loadVerifyData();
+    if (tabName === 'verify') { loadVerifyData(); loadSetoranInstanVerifyData(); }
     if (tabName === 'approval') loadApprovalData();
     if (tabName === 'activityLog') loadActivityLog();
     if (tabName === 'history') loadHistory();
@@ -6783,6 +6853,33 @@ function formatKg(n) {
     return (Math.round(n * 10) / 10).toLocaleString('id-ID') + ' kg';
 }
 
+// Rekap status pembayaran peserta "Daftar Langsung" (Qurban Instan),
+// menggabungkan 2 sumber kebenaran secara OR supaya data lama tetap valid:
+//  1) statusBayar === 'lunas' - flag manual lama, ditoggle admin sebelum
+//     fitur cicilan ada (togglePembayaranInstan()). Dibiarkan tetap berlaku
+//     apa adanya (peserta lama yg sudah ditandai Lunas TIDAK berubah jadi
+//     "belum lunas" gara2 fitur ini).
+//  2) total setoran SetoranInstan berstatus APPROVED >= total iuran - jalur
+//     BARU, dari 1+ cicilan yg diverifikasi admin di tab Verifikasi.
+// iuranOverride opsional (kalau pemanggil sudah pernah hitung computeSurveyKalkulasi
+// utk survey yg sama, hindari hitung ulang).
+function pesertaInstanBayarSummary(peserta, iuranOverride) {
+    let totalIuran = iuranOverride;
+    if (totalIuran === undefined || totalIuran === null) {
+        const survey = appData.surveySapi.find(s => s.id === peserta.surveyId);
+        const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
+        totalIuran = k ? Math.round(k.iuran) : 0;
+    }
+    const setoran = (appData.setoranInstan || []).filter(s => s.pesertaId === peserta.id);
+    const totalApproved = setoran.filter(s => s.status === 'APPROVED').reduce((sum, s) => sum + (Number(s.nominal) || 0), 0);
+    const totalPending = setoran.filter(s => s.status === 'PENDING').reduce((sum, s) => sum + (Number(s.nominal) || 0), 0);
+    const lunasManual = peserta.statusBayar === 'lunas';
+    const lunasCicilan = totalIuran > 0 && totalApproved >= totalIuran;
+    const lunas = lunasManual || lunasCicilan;
+    const sisa = Math.max(totalIuran - totalApproved, 0);
+    return { totalIuran, totalApproved, totalPending, lunas, lunasManual, lunasCicilan, sisa, setoran };
+}
+
 function updateSurveyKalkulasi() {
     const hargaVal = parseInt(document.getElementById('surveyHarga').value) || 0;
     const beratVal = parseInt(document.getElementById('surveyBerat').value) || 0;
@@ -7077,7 +7174,17 @@ function loadSurveySapiResume() {
             // langsung penuh belakangan, bukan dicicil). Tampilkan status +
             // tombol WA follow-up sbg gantinya.
             if (p.tipe === 'instan') {
-                const lunas = p.statusBayar === 'lunas';
+                // Status gabungan manual-lama + cicilan-baru, lihat
+                // pesertaInstanBayarSummary(). "Sebagian" (cicilan berjalan,
+                // belum lunas) adalah status BARU yang tidak ada sebelum
+                // fitur ini - dulu cuma biner Lunas/Belum.
+                const sum = pesertaInstanBayarSummary(p, iuranPerOrang);
+                const lunas = sum.lunas;
+                const statusLabel = lunas
+                    ? '✓ Lunas'
+                    : (sum.totalApproved > 0
+                        ? `Cicilan Rp ${sum.totalApproved.toLocaleString('id-ID')} · Sisa Rp ${sum.sisa.toLocaleString('id-ID')}`
+                        : 'Belum dikonfirmasi');
                 return `
                     <tr>
                       <td>${p.atasNama || p.memberName} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span>
@@ -7086,13 +7193,15 @@ function loadSurveySapiResume() {
                         </div>
                       </td>
                       <td colspan="2">
-                        Bayar langsung Rp ${iuranPerOrang.toLocaleString('id-ID')}
-                        <div style="margin-top:2px;color:${lunas ? 'var(--emerald-2)' : 'var(--brick)'}; font-weight:600;">${lunas ? '✓ Lunas' : 'Belum dikonfirmasi'}</div>
+                        Total iuran Rp ${iuranPerOrang.toLocaleString('id-ID')}
+                        <div style="margin-top:2px;color:${lunas ? 'var(--emerald-2)' : 'var(--brick)'}; font-weight:600;">${statusLabel}</div>
+                        ${sum.totalPending > 0 ? `<div style="margin-top:2px;color:var(--gold);font-weight:600;">⏳ Menunggu verifikasi Rp ${sum.totalPending.toLocaleString('id-ID')}</div>` : ''}
                       </td>
                       <td style="white-space:nowrap;">
                         <button class="btn btn-ghost btn-small" onclick="waFollowUpInstan(${p.id})" title="Hubungi via WhatsApp">💬 WA</button>
-                        ${p.hasBuktiBayar ? `<button class="btn btn-ghost btn-small" onclick="showBuktiBayarInstan(${p.id})" style="margin-left:4px;" title="Lihat foto bukti transfer">🖼 Lihat Bukti</button>` : ''}
-                        <button class="btn btn-small ${lunas ? 'btn-ghost' : 'btn-success'}" onclick="togglePembayaranInstan(${p.id})" style="margin-left:4px;">${lunas ? 'Batalkan Lunas' : 'Tandai Lunas'}</button>
+                        ${sum.setoran.length > 0 ? `<button class="btn btn-ghost btn-small" onclick="lihatRiwayatCicilanInstan(${p.id})" style="margin-left:4px;" title="Lihat riwayat cicilan">📋 Cicilan (${sum.setoran.length})</button>` : ''}
+                        ${p.hasBuktiBayar ? `<button class="btn btn-ghost btn-small" onclick="showBuktiBayarInstan(${p.id})" style="margin-left:4px;" title="Lihat foto bukti transfer (lama)">🖼 Bukti Lama</button>` : ''}
+                        <button class="btn btn-small ${lunas ? 'btn-ghost' : 'btn-success'}" onclick="togglePembayaranInstan(${p.id})" style="margin-left:4px;" title="Override manual, di luar cicilan">${lunas ? 'Batalkan Lunas' : 'Tandai Lunas'}</button>
                       </td>
                     </tr>`;
             }
@@ -7117,7 +7226,7 @@ function loadSurveySapiResume() {
         const totalKurang = Math.max(totalKebutuhan - totalTerkumpul, 0);
         const pesertaInstan = peserta.filter(p => p.tipe === 'instan');
         const jumlahInstan = pesertaInstan.length;
-        const jumlahInstanLunas = pesertaInstan.filter(p => p.statusBayar === 'lunas').length;
+        const jumlahInstanLunas = pesertaInstan.filter(p => pesertaInstanBayarSummary(p, iuranPerOrang).lunas).length;
 
         const tableOrEmpty = peserta.length > 0
             ? `<div class="table-container" style="margin-top:10px;">
@@ -7239,6 +7348,52 @@ async function showBuktiBayarInstan(pesertaId) {
     }
 
     body.innerHTML = `<img src="${fileData}" class="preview-full-image" alt="Bukti transfer">`;
+}
+
+// Tombol "📋 Cicilan" di resume admin (peserta instan) - reuse #previewModal
+// utk daftar riwayat SetoranInstan milik 1 peserta (bukan foto tunggal spt
+// showBuktiBayarInstan()). Foto masing2 cicilan diambil on-demand dgn klik
+// terpisah ("Lihat Foto") supaya daftar tetap ringan kalau cicilannya banyak.
+function lihatRiwayatCicilanInstan(pesertaId) {
+    const p = appData.surveyPeserta.find(x => x.id === pesertaId);
+    if (!p) return;
+    const survey = appData.surveySapi.find(s => s.id === p.surveyId);
+    const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
+    const iuranPerOrang = k ? Math.round(k.iuran) : undefined;
+    const sum = pesertaInstanBayarSummary(p, iuranPerOrang);
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+    title.textContent = `Riwayat Cicilan - ${p.atasNama || p.memberName}`;
+
+    const statusBadge = st => {
+        const map = { APPROVED: ['✓ Disetujui', 'var(--emerald-2)'], PENDING: ['⏳ Menunggu', 'var(--gold)'], REJECTED: ['✕ Ditolak', 'var(--brick)'] };
+        const [label, color] = map[st] || [st, 'var(--ink-faint)'];
+        return `<span style="color:${color};font-weight:600;">${label}</span>`;
+    };
+
+    const rows = sum.setoran.slice().sort((a, b) => (a.uploadedAt || '').localeCompare(b.uploadedAt || '')).map(s => `
+        <tr>
+          <td>${s.transferDate || '—'}</td>
+          <td>Rp ${(s.nominal || 0).toLocaleString('id-ID')}</td>
+          <td>${statusBadge(s.status)}</td>
+          <td>${s.hasFile ? `<button class="btn btn-ghost btn-small" onclick="previewSetoranInstanFoto(${s.id})">🖼 Foto</button>` : '—'}</td>
+        </tr>`).join('');
+
+    body.innerHTML = `
+        <div style="padding:4px 2px 12px;font-size:13px;">
+          Total iuran <strong>Rp ${(sum.totalIuran || 0).toLocaleString('id-ID')}</strong> ·
+          Terverifikasi <strong style="color:var(--emerald-2);">Rp ${sum.totalApproved.toLocaleString('id-ID')}</strong> ·
+          Sisa <strong style="color:${sum.sisa > 0 ? 'var(--brick)' : 'var(--emerald-2)'};">Rp ${sum.sisa.toLocaleString('id-ID')}</strong>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Nominal</th><th>Status</th><th>Foto</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4" style="color:var(--ink-faint);">Belum ada cicilan.</td></tr>'}</tbody>
+          </table>
+        </div>`;
+    modal.classList.add('show');
 }
 
 // Estimasi pembagian daging per sapi buat rencana hari H - "Hak Mudhohi" per
@@ -10862,7 +11017,11 @@ function loadSurveySapiMemberList() {
         const pesertaHtml = peserta.length > 0
             ? peserta.map(p => {
                 if (p.tipe === 'instan') {
-                    const lunas = p.statusBayar === 'lunas';
+                    // Tidak pass iuranOverride di sini krn iuranPerOrang
+                    // dihitung setelah blok ini (lihat computeSurveyKalkulasi
+                    // di bawah) - biarkan helper hitung sendiri dari
+                    // survey terkait (p.surveyId === s.id).
+                    const lunas = pesertaInstanBayarSummary(p).lunas;
                     const nama = p.atasNama || p.memberName;
                     return `<span class="survey-participant-chip instan" onclick="openUploadBuktiInstanModalDirect(${p.id})" title="Klik untuk konfirmasi nomor WA & upload bukti transfer">${lunas ? '✓' : '👤'} ${nama} <span class="badge-instan" title="Daftar langsung, tanpa menabung">Langsung</span></span>`;
                 }
@@ -11181,9 +11340,11 @@ Mohon dihubungi untuk arahan pembayaran (transfer/tunai).
 // Peserta instan tidak punya akun login, jadi tidak ada halaman "riwayat
 // saya" - modal ini 2 langkah: (1) cari pendaftaran sendiri by nomor WA yang
 // dipakai saat submitInstantJoin() (1 nomor = 1 pendaftaran aktif, sudah
-// di-dedupe di sana jadi aman dipakai sbg kunci pencarian), (2) upload foto
-// bukti (dikompres pakai compressImage() yang sama dgn upload bukti Tabungan
-// biasa) lalu disimpan ke kolom SurveyPeserta.buktiBayar via updateSheetDB().
+// di-dedupe di sana jadi aman dipakai sbg kunci pencarian), (2) form cicilan
+// (nominal + tanggal + foto, dikompres pakai compressImage() yang sama dgn
+// upload bukti Tabungan biasa) - disimpan sbg baris BARU di sheet
+// SetoranInstan (BUKAN overwrite 1 kolom spt versi lama), lihat
+// submitSetoranInstan(). 1 peserta bisa submit berkali-kali (cicilan).
 let uploadBuktiInstanState = { pesertaId: null, fotoBase64: null };
 // Diisi cuma pas modal dibuka dari chip nama peserta di daftar publik (lihat
 // openUploadBuktiInstanModalDirect di bawah) - dipakai cariPendaftaranInstan()
@@ -11238,6 +11399,10 @@ function resetUploadBuktiStep() {
     document.getElementById('uploadBuktiStep1').style.display = 'block';
     document.getElementById('uploadBuktiStep2').style.display = 'none';
     document.getElementById('uploadBuktiError').textContent = '';
+    const nominalEl = document.getElementById('uploadBuktiNominal');
+    if (nominalEl) nominalEl.value = '';
+    const tanggalEl = document.getElementById('uploadBuktiTanggal');
+    if (tanggalEl) tanggalEl.value = '';
     const submitBtn = document.getElementById('uploadBuktiSubmitBtn');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Kirim Bukti Transfer'; }
     const slot = document.getElementById('uploadBuktiSlot');
@@ -11290,24 +11455,50 @@ function cariPendaftaranInstan() {
     showUploadBuktiStep2ForPeserta(peserta);
 }
 
-// Isi & tampilkan step 2 (info peserta + form upload foto) - dipakai bareng
-// oleh cariPendaftaranInstan() (jalur cari-by-nomor-HP) dan
-// openUploadBuktiInstanModalDirect() (jalur klik langsung dari chip).
+// Isi & tampilkan step 2 (info peserta + riwayat cicilan + form upload) -
+// dipakai bareng oleh cariPendaftaranInstan() (jalur cari-by-nomor-HP),
+// openUploadBuktiInstanModalDirect() (jalur klik langsung dari chip), DAN
+// submitSetoranInstan() (refresh tampilan setelah kirim cicilan baru, tanpa
+// menutup modal - supaya peserta langsung lihat riwayat ter-update).
 function showUploadBuktiStep2ForPeserta(peserta) {
     const survey = appData.surveySapi.find(s => s.id === peserta.surveyId);
-    const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
-    const iuran = k ? Math.round(k.iuran) : 0;
+    const sum = pesertaInstanBayarSummary(peserta);
     const nama = peserta.atasNama || peserta.memberName;
 
     uploadBuktiInstanState.pesertaId = peserta.id;
 
-    const statusText = peserta.statusBayar === 'lunas'
-        ? '✓ Status saat ini: sudah ditandai <strong>Lunas</strong> oleh admin. Anda tetap bisa upload/ganti foto bukti kalau perlu.'
-        : 'Status saat ini: <strong>Belum Bayar</strong>. Setelah upload, admin akan cek & tandai Lunas.';
+    const statusText = sum.lunas
+        ? '✓ Status: <strong>Lunas</strong>.'
+        : (sum.totalApproved > 0
+            ? `Sudah terverifikasi <strong>Rp ${sum.totalApproved.toLocaleString('id-ID')}</strong>, sisa <strong>Rp ${sum.sisa.toLocaleString('id-ID')}</strong>.`
+            : 'Status: <strong>Belum Bayar</strong>. Setelah upload, admin akan cek & verifikasi.');
 
     document.getElementById('uploadBuktiInfo').innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
-        <span>Ditemukan: <strong>${nama}</strong>${survey ? ' · ' + surveyKode(survey) : ''}. Total iuran Rp ${iuran.toLocaleString('id-ID')}. ${statusText}</span>`;
+        <span>Ditemukan: <strong>${nama}</strong>${survey ? ' · ' + surveyKode(survey) : ''}. Total iuran Rp ${sum.totalIuran.toLocaleString('id-ID')}. ${statusText}</span>`;
+
+    // Riwayat cicilan yang sudah pernah dikirim peserta ini (kalau ada) -
+    // supaya peserta lihat sendiri progress cicilannya, bukan cuma admin.
+    const riwayatEl = document.getElementById('uploadBuktiRiwayat');
+    if (riwayatEl) {
+        if (sum.setoran.length === 0) {
+            riwayatEl.innerHTML = '';
+        } else {
+            const statusLabel = st => ({ APPROVED: ['✓ Terverifikasi', 'var(--emerald-2)'], PENDING: ['⏳ Menunggu verifikasi', 'var(--gold)'], REJECTED: ['✕ Ditolak', 'var(--brick)'] }[st] || [st, 'var(--ink-faint)']);
+            const rows = sum.setoran.slice().sort((a, b) => (a.uploadedAt || '').localeCompare(b.uploadedAt || '')).map(s => {
+                const [label, color] = statusLabel(s.status);
+                return `<div class="rek-row"><span>${s.transferDate || '—'} · Rp ${(s.nominal || 0).toLocaleString('id-ID')}</span><span style="color:${color};font-weight:600;">${label}</span></div>`;
+            }).join('');
+            riwayatEl.innerHTML = `
+                <div class="rek-box">
+                  <div style="font-weight:700;font-size:12.5px;margin-bottom:6px;color:var(--ink-soft);">Riwayat Cicilan Anda</div>
+                  ${rows}
+                </div>`;
+        }
+    }
+
+    const tanggalEl = document.getElementById('uploadBuktiTanggal');
+    if (tanggalEl && !tanggalEl.value) tanggalEl.value = new Date().toISOString().slice(0, 10);
 
     document.getElementById('uploadBuktiStep1').style.display = 'none';
     document.getElementById('uploadBuktiStep2').style.display = 'block';
@@ -11360,12 +11551,27 @@ function removeBuktiInstan(evt) {
         </div>`;
 }
 
-async function submitBuktiInstan() {
+// Ganti nama dari submitBuktiInstan() - sekarang APPEND baris baru ke sheet
+// SetoranInstan (cicilan, status PENDING nunggu verifikasi admin) alih-alih
+// overwrite kolom tunggal SurveyPeserta.buktiBayar. Modal SENGAJA tidak
+// ditutup setelah sukses (beda dari versi lama) - direfresh ke step 2 yang
+// sama supaya peserta bisa langsung lihat riwayat ter-update atau langsung
+// submit cicilan berikutnya kalau masih ada sisa.
+async function submitSetoranInstan() {
     const { pesertaId, fotoBase64 } = uploadBuktiInstanState;
+    const nominal = parseInt(document.getElementById('uploadBuktiNominal').value) || 0;
+    const tanggal = document.getElementById('uploadBuktiTanggal').value || '';
+    const errorEl = document.getElementById('uploadBuktiError');
+
     if (!pesertaId || !fotoBase64) {
         showAlert('Pilih foto bukti transfer dulu.', 'error');
         return;
     }
+    if (nominal <= 0) {
+        errorEl.textContent = 'Nominal transfer harus diisi.';
+        return;
+    }
+    errorEl.textContent = '';
 
     const peserta = appData.surveyPeserta.find(p => p.id === pesertaId);
     const btn = document.getElementById('uploadBuktiSubmitBtn');
@@ -11374,24 +11580,42 @@ async function submitBuktiInstan() {
     // ===== Notif WA ke Bendahara/Ketua: SEBELUM await, sama pola dgn
     // submitInstantJoin() - data pesan sudah lengkap dari state lokal, jadi
     // window.open() dipanggil sinkron di sini supaya tidak diblokir browser
-    // mobile begitu ada jeda async (updateSheetDB) di bawahnya.
+    // mobile begitu ada jeda async (appendSheetDB) di bawahnya.
     if (peserta) {
         const survey = appData.surveySapi.find(s => s.id === peserta.surveyId);
         const nama = peserta.atasNama || peserta.memberName;
-        const msg = `Assalamu'alaikum, peserta Daftar Langsung sudah upload bukti transfer! 🧾
+        const msg = `Assalamu'alaikum, peserta Daftar Langsung upload bukti transfer (cicilan)! 🧾
 
 Nama: ${nama}
 Pendaftar: ${peserta.memberName}
 WhatsApp: ${peserta.phone}
 Grup Sapi: ${survey ? surveyKode(survey) + ' · ' + jenisSapiLabel(survey.jenisSapi) : '-'}
+Nominal: Rp ${nominal.toLocaleString('id-ID')}
+Tanggal: ${tanggal || '-'}
 
-Mohon dicek & ditandai Lunas kalau sudah sesuai (menu Survey Sapi > Resume Peserta).
+Mohon dicek & diverifikasi (menu Verifikasi > Setoran Qurban Instan).
 🔗 ${APP_CONFIG.appUrl}`;
         const officerPhone = findOfficerPhone(appData.members, ['bendum2', 'ketua1']);
         if (officerPhone) openWaTo(officerPhone, msg);
     }
 
-    const success = await updateSheetDB('SurveyPeserta', 'id', pesertaId, { buktiBayar: fotoBase64 });
+    const newId = appData.setoranInstan.length > 0
+        ? Math.max(...appData.setoranInstan.map(s => s.id)) + 1
+        : 1;
+    const record = {
+        id: newId,
+        pesertaId: pesertaId,
+        nominal: nominal,
+        transferDate: tanggal,
+        fileData: fotoBase64,
+        status: 'PENDING',
+        uploadedAt: new Date().toISOString(),
+        approvedAt: '',
+        approvedBy: '',
+        notes: ''
+    };
+
+    const success = await appendSheetDB('SetoranInstan', record);
 
     if (btn) { btn.disabled = false; btn.textContent = 'Kirim Bukti Transfer'; }
 
@@ -11400,10 +11624,32 @@ Mohon dicek & ditandai Lunas kalau sudah sesuai (menu Survey Sapi > Resume Peser
         return;
     }
 
-    if (peserta) peserta.hasBuktiBayar = true;
+    // Optimistic update - simpan flag hasFile TRUE tapi fileData TIDAK
+    // disimpan di appData (sama pola strip-di-server utk item lain), cukup
+    // dipakai lokal utk render riwayat & summary segera tanpa reload penuh.
+    appData.setoranInstan.push({
+        id: newId, pesertaId, nominal, transferDate: tanggal,
+        status: 'PENDING', uploadedAt: record.uploadedAt,
+        approvedAt: '', approvedBy: '', notes: '', hasFile: true
+    });
 
-    closeUploadBuktiInstanModal();
-    showAlert('Bukti transfer terkirim! Admin akan segera mengecek & menandai status pembayaran Anda.', 'success');
+    showAlert('Bukti transfer terkirim! Admin akan segera memverifikasi.', 'success');
+
+    // Reset form (nominal/tanggal/foto) tapi TETAP di step 2 dgn riwayat
+    // ter-update, supaya peserta bisa langsung submit cicilan berikutnya.
+    uploadBuktiInstanState.fotoBase64 = null;
+    document.getElementById('uploadBuktiNominal').value = '';
+    const slot = document.getElementById('uploadBuktiSlot');
+    if (slot) {
+        slot.innerHTML = `
+            <input type="file" id="uploadBuktiFile" accept="image/png,image/jpeg" capture="environment" onchange="previewBuktiInstan()">
+            <div class="slot-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+                <span>Foto Bukti Transfer</span>
+            </div>`;
+    }
+    if (btn) btn.disabled = true;
+    if (peserta) showUploadBuktiStep2ForPeserta(peserta);
 }
 
 // ===== VERIFY =====
@@ -11554,6 +11800,203 @@ function nextVerificationId() {
     return appData.verifications.length > 0
         ? Math.max(...appData.verifications.map(v => parseInt(v.id) || 0)) + 1
         : 1;
+}
+
+// ===== VERIFY: SETORAN INSTAN (cicilan Qurban Instan) =====
+// Mirror pola loadVerifyData()/approveSavings()/rejectSavings()/
+// processVerification() di atas, tapi sumbernya appData.setoranInstan &
+// FK-nya ke SurveyPeserta (bukan Members) krn peserta instan tidak punya
+// akun login.
+function loadSetoranInstanVerifyData() {
+    const badge = document.getElementById('setoranInstanSummary');
+    const pendingBody = document.getElementById('setoranInstanPendingTableBody');
+    if (!pendingBody) return;
+
+    const all = appData.setoranInstan || [];
+    const pending = all.filter(s => s.status === 'PENDING');
+    const approved = all.filter(s => s.status === 'APPROVED');
+    const rejected = all.filter(s => s.status === 'REJECTED');
+
+    if (badge) {
+        badge.innerHTML =
+            `<span class="badge pending">${pending.length} Menunggu</span> ` +
+            `<span class="badge approved">${approved.length} Disetujui</span> ` +
+            `<span class="badge rejected">${rejected.length} Ditolak</span>`;
+    }
+
+    if (pending.length === 0) {
+        pendingBody.innerHTML = '<tr><td colspan="6" class="loading">Tidak ada yang perlu diverifikasi</td></tr>';
+        return;
+    }
+
+    pendingBody.innerHTML = pending.slice().sort((a, b) => (a.uploadedAt || '').localeCompare(b.uploadedAt || '')).map(s => {
+        const peserta = appData.surveyPeserta.find(p => p.id === s.pesertaId);
+        const survey = peserta ? appData.surveySapi.find(sv => sv.id === peserta.surveyId) : null;
+        const nama = peserta ? (peserta.atasNama || peserta.memberName) : `Peserta #${s.pesertaId}`;
+        const buktiBtn = s.hasFile
+            ? `<button class="file-thumb-btn" onclick="previewSetoranInstanFoto(${s.id})">📋 Lihat Bukti</button>`
+            : '<small style="color:var(--brick);">Tidak ada file</small>';
+        return `
+            <tr>
+              <td>${s.transferDate || '—'}</td>
+              <td>${nama}</td>
+              <td>${survey ? surveyKode(survey) : '—'}</td>
+              <td>Rp ${(s.nominal || 0).toLocaleString('id-ID')}</td>
+              <td>${buktiBtn}</td>
+              <td style="white-space:nowrap;">
+                <button class="btn btn-success btn-small" onclick="approveSetoranInstan(${s.id})">Setujui</button>
+                <button class="btn btn-danger btn-small" onclick="rejectSetoranInstan(${s.id})">Tolak</button>
+              </td>
+            </tr>`;
+    }).join('');
+}
+
+async function approveSetoranInstan(setoranId) {
+    const setoran = (appData.setoranInstan || []).find(s => s.id === setoranId);
+    if (!setoran) return;
+    const peserta = appData.surveyPeserta.find(p => p.id === setoran.pesertaId);
+    const nama = peserta ? (peserta.atasNama || peserta.memberName) : `Peserta #${setoran.pesertaId}`;
+
+    if (!confirm(`Setujui cicilan ${nama} sebesar Rp ${(setoran.nominal || 0).toLocaleString('id-ID')}?`)) return;
+
+    await processSetoranInstanVerification(setoran, peserta, 'APPROVED', '');
+}
+
+async function rejectSetoranInstan(setoranId) {
+    const setoran = (appData.setoranInstan || []).find(s => s.id === setoranId);
+    if (!setoran) return;
+    const peserta = appData.surveyPeserta.find(p => p.id === setoran.pesertaId);
+    const nama = peserta ? (peserta.atasNama || peserta.memberName) : `Peserta #${setoran.pesertaId}`;
+
+    const reason = prompt(`Alasan penolakan cicilan ${nama} (Rp ${(setoran.nominal || 0).toLocaleString('id-ID')}):`, 'Bukti transfer kurang jelas');
+    if (reason === null) return;
+    if (!reason.trim()) {
+        showAlert('Alasan penolakan harus diisi', 'error');
+        return;
+    }
+
+    await processSetoranInstanVerification(setoran, peserta, 'REJECTED', reason.trim());
+}
+
+async function processSetoranInstanVerification(setoran, peserta, action, reason) {
+    const now = new Date().toISOString();
+    const newNotes = action === 'REJECTED' ? ('Ditolak: ' + reason) : setoran.notes;
+
+    const prev = { status: setoran.status, approvedAt: setoran.approvedAt, approvedBy: setoran.approvedBy, notes: setoran.notes };
+
+    // Optimistic update - sama pola dgn processVerification() (Savings).
+    setoran.status = action;
+    setoran.approvedAt = now;
+    setoran.approvedBy = currentUser.name;
+    setoran.notes = newNotes;
+    loadSetoranInstanVerifyData();
+    loadSurveySapiResume();
+
+    // ===== Notif WA ke peserta: SEBELUM await, sama pola dgn Savings di atas
+    // - peserta instan tidak punya akun/memberId, jadi kirim ke p.phone
+    // langsung (bukan lookup ke appData.members).
+    if (peserta && peserta.phone) {
+        const survey = appData.surveySapi.find(s => s.id === peserta.surveyId);
+        const k = survey ? computeSurveyKalkulasi(survey.berat, survey.harga, survey.biayaPengolahan) : null;
+        const iuranPerOrang = k ? Math.round(k.iuran) : 0;
+        const sum = pesertaInstanBayarSummary(peserta, iuranPerOrang);
+        const nama = peserta.atasNama || peserta.memberName;
+        let msg;
+        if (action === 'APPROVED') {
+            msg = `Assalamu'alaikum ${nama},
+
+Cicilan Anda sebesar Rp ${(setoran.nominal || 0).toLocaleString('id-ID')} sudah kami verifikasi ✅
+
+Total terverifikasi: Rp ${sum.totalApproved.toLocaleString('id-ID')} dari Rp ${sum.totalIuran.toLocaleString('id-ID')}
+${sum.lunas ? 'Status: LUNAS 🎉' : `Sisa: Rp ${sum.sisa.toLocaleString('id-ID')}`}
+
+Barakallahu fiik! 🤲
+${APP_CONFIG.mosqueName}`;
+        } else {
+            msg = `Assalamu'alaikum ${nama},
+
+Mohon maaf, cicilan Anda sebesar Rp ${(setoran.nominal || 0).toLocaleString('id-ID')} belum dapat kami verifikasi.
+
+❌ Alasan: ${reason}
+
+Silakan upload ulang bukti transfer yang lebih jelas melalui aplikasi:
+🔗 ${APP_CONFIG.appUrl}
+
+${APP_CONFIG.mosqueName}`;
+        }
+        openWaTo(peserta.phone, msg);
+    }
+
+    const written = await updateSheetDB('SetoranInstan', 'id', setoran.id, {
+        status: action,
+        approvedAt: now,
+        approvedBy: currentUser.name,
+        notes: newNotes
+    });
+
+    if (!written) {
+        Object.assign(setoran, prev);
+        loadSetoranInstanVerifyData();
+        loadSurveySapiResume();
+        showAlert('Gagal menyimpan ke Google Sheets. Status dikembalikan — silakan coba lagi.', 'error');
+        return;
+    }
+
+    showAlert(
+        action === 'APPROVED' ? 'Cicilan disetujui dan tersimpan di Google Sheets' : 'Cicilan ditolak dan tercatat di Google Sheets',
+        action === 'APPROVED' ? 'success' : 'warning'
+    );
+
+    loadSetoranInstanVerifyData();
+    loadSurveySapiResume();
+    updateDashboard();
+}
+
+// Ambil foto bukti transfer 1 baris SetoranInstan on-demand (fileData
+// dibuang dari bootstrap/list, lihat stripSetoranInstanFoto() di sheets.js) -
+// sama pola dgn fetchSavingFileData()/fetchSurveyPesertaBuktiData().
+async function fetchSetoranInstanFileData(setoranId) {
+    try {
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=SetoranInstan&getFile=${setoranId}${tenantParam()}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return data.fileData || '';
+    } catch (error) {
+        console.error('Error fetching setoran instan file data:', error);
+        return '';
+    }
+}
+
+async function previewSetoranInstanFoto(setoranId) {
+    const setoran = (appData.setoranInstan || []).find(s => s.id === setoranId);
+    if (!setoran) return;
+    const peserta = appData.surveyPeserta.find(p => p.id === setoran.pesertaId);
+    const nama = peserta ? (peserta.atasNama || peserta.memberName) : `Peserta #${setoran.pesertaId}`;
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+
+    title.textContent = `Bukti Transfer - ${nama} (Rp ${(setoran.nominal || 0).toLocaleString('id-ID')})`;
+
+    if (!setoran.hasFile) {
+        body.innerHTML = '<div class="preview-pdf"><p>📄 Tidak ada bukti file tersimpan</p></div>';
+        modal.classList.add('show');
+        return;
+    }
+
+    body.innerHTML = '<div class="preview-pdf"><p>⏳ Memuat bukti...</p></div>';
+    modal.classList.add('show');
+
+    const fileData = await fetchSetoranInstanFileData(setoranId);
+
+    if (!fileData) {
+        body.innerHTML = '<div class="preview-pdf"><p>📄 Gagal memuat bukti file</p></div>';
+        return;
+    }
+
+    body.innerHTML = `<img src="${fileData}" class="preview-full-image" alt="Bukti transfer">`;
 }
 
 // ===== HISTORY =====
@@ -12376,9 +12819,19 @@ function getIuranStatistics() {
         const peserta = activePeserta
             .filter(p => p.surveyId === s.id)
             .map(p => {
-                const terkumpul = p.tipe === 'instan'
-                    ? (p.statusBayar === 'lunas' ? iuranPerOrang : 0)
-                    : memberApprovedSavings(p.memberId);
+                let terkumpul;
+                if (p.tipe === 'instan') {
+                    // Gabungkan status manual lama (statusBayar==='lunas') DAN
+                    // cicilan baru (SetoranInstan APPROVED) - lihat
+                    // pesertaInstanBayarSummary(). Kalau sudah lunas (dari
+                    // manapun), dianggap penuh supaya kurang=0; kalau belum,
+                    // terkumpul = jumlah cicilan APPROVED sejauh ini (bisa
+                    // sebagian, bukan 0/penuh saja seperti sebelumnya).
+                    const summary = pesertaInstanBayarSummary(p, iuranPerOrang);
+                    terkumpul = summary.lunas ? iuranPerOrang : summary.totalApproved;
+                } else {
+                    terkumpul = memberApprovedSavings(p.memberId);
+                }
                 const kurang = Math.max(iuranPerOrang - terkumpul, 0);
                 return Object.assign({}, p, { terkumpul, iuran: iuranPerOrang, kurang, lunas: kurang === 0 });
             });

@@ -44,9 +44,10 @@
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?tenant=<slug>&config=1   -> config publik masjid (nama, logo, rekening, dst)
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], RencanaDistribusiLain:[], DistribusiBagianLain:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[], LPJNarasi:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], RencanaDistribusiLain:[], DistribusiBagianLain:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[], LPJNarasi:[], SetoranInstan:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
+//   GET  /api/sheets?sheet=SetoranInstan&getFile=<id>      -> { id, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
 //   POST /api/sheets?sheet=Members&action=update  body: { keyColumn, keyValue, updates }
 //
@@ -234,7 +235,7 @@ function tenantConfigPublicFields(tenant) {
 // yang bisa ditulis admin di tab LPJ (Laporan Pertanggungjawaban). Sengaja
 // dibuatkan sheet sendiri (bukan hardcode) supaya kontennya bisa diedit
 // tanpa ubah kode, sama semangatnya dengan Templates.
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'RencanaDistribusiLain', 'DistribusiBagianLain', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris', 'LPJNarasi'];
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'RencanaDistribusiLain', 'DistribusiBagianLain', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris', 'LPJNarasi', 'SetoranInstan'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
 // Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
@@ -269,6 +270,18 @@ function stripBuktiBayarInstan(row) {
 // sheet TransaksiKeuangan - modul "Keuangan" (Pos Budget + arus kas harian).
 function stripBuktiTransaksi(row) {
   return { ...row, hasBukti: !!row.bukti, bukti: '' };
+}
+
+// Sama pola lagi, utk kolom fileData (foto bukti transfer) di sheet
+// SetoranInstan - CICILAN pembayaran peserta "Daftar Langsung" (Qurban
+// Instan). Beda dari buktiBayar di SurveyPeserta (1 foto tunggal, pola lama
+// sebelum fitur cicilan ada): 1 peserta instan sekarang bisa punya BANYAK
+// baris SetoranInstan (mis. bayar Rp 1jt dulu, pelunasan menyusul), masing2
+// baris punya nominal & status verifikasi sendiri ('PENDING'/'APPROVED'/
+// 'REJECTED', sama konvensi dgn Savings.status) - lihat komentar
+// TENANT_SHEET_TEMPLATE.SetoranInstan di bawah.
+function stripSetoranInstanFoto(row) {
+  return { ...row, hasFile: !!row.fileData, fileData: '' };
 }
 
 // 'KemasanInventaris' - modul "Kemasan & Inventaris", 2 kategori dalam 1
@@ -421,6 +434,9 @@ async function readSheet(sheetId, sheetName, accessToken) {
   if (sheetName === 'SurveyPeserta') {
     rows = rows.map(stripBuktiBayarInstan);
   }
+  if (sheetName === 'SetoranInstan') {
+    rows = rows.map(stripSetoranInstanFoto);
+  }
   return rows;
 }
 
@@ -449,6 +465,9 @@ async function readAllSheetsBatch(sheetId, accessToken) {
       }
       if (name === 'SurveyPeserta') {
         rows = rows.map(stripBuktiBayarInstan);
+      }
+      if (name === 'SetoranInstan') {
+        rows = rows.map(stripSetoranInstanFoto);
       }
       result[name] = rows;
     });
@@ -585,6 +604,26 @@ const TENANT_SHEET_TEMPLATE = {
   // dengan Savings.fileData - isi foto sebenarnya baru diambil on-demand
   // lewat ?sheet=SurveyPeserta&getFile=<id> saat admin klik "Lihat Bukti".
   SurveyPeserta: ['id', 'surveyId', 'memberId', 'memberName', 'phone', 'status', 'created_date', 'alamat', 'tipe', 'atasNama', 'statusBayar', 'buktiBayar'],
+  // Cicilan pembayaran peserta tipe 'instan' (Daftar Langsung/Qurban Instan) -
+  // dulu peserta instan cuma bisa upload 1 foto bukti transfer tunggal
+  // (SurveyPeserta.buktiBayar) lalu admin toggle manual Lunas/Belum. Di
+  // lapangan sering bayar bertahap (mis. Rp 1 juta dulu, pelunasan menyusul),
+  // jadi sheet ini menampung BANYAK baris per peserta (via "pesertaId", FK ke
+  // SurveyPeserta.id), masing2 baris = 1 kali setoran dengan nominal & bukti
+  // fotonya sendiri, diverifikasi admin SATU-SATU (gabung ke tab Verifikasi
+  // yang sama dgn tabungan biasa) sebelum ikut dihitung sbg "sudah dibayar".
+  // "status": 'PENDING'/'APPROVED'/'REJECTED' (sama konvensi persis dgn
+  // Savings.status). "fileData": foto bukti transfer (base64), DIBUANG dari
+  // list/bootstrap biasa & diganti flag hasFile - sama pola dgn Savings,
+  // isi foto sebenarnya diambil on-demand lewat ?sheet=SetoranInstan&getFile=
+  // <id> (lihat stripSetoranInstanFoto()). Total yang sudah APPROVED
+  // dibandingkan ke total iuran (computeSurveyKalkulasi) utk nentuin status
+  // Lunas/Belum peserta - lihat pesertaInstanBayarSummary() di app.html.
+  // Data lama (peserta yang sudah ditandai Lunas manual lewat
+  // SurveyPeserta.statusBayar SEBELUM fitur cicilan ini ada) TETAP dianggap
+  // Lunas apa adanya, tidak perlu ada baris SetoranInstan sama sekali - lihat
+  // logika OR di pesertaInstanBayarSummary().
+  SetoranInstan: ['id', 'pesertaId', 'nominal', 'transferDate', 'fileData', 'status', 'uploadedAt', 'approvedAt', 'approvedBy', 'notes'],
   DistribusiDaging: ['id', 'surveyId', 'alokasi', 'berat', 'qty', 'status', 'created_date'],
   RencanaDistribusi: ['id', 'alokasi', 'berat', 'qty', 'wo', 'status', 'created_date'],
   // Rencana distribusi bagian NON-DAGING (Tulang/Jeroan/Kepala/Kaki/Buntut) -
@@ -1036,6 +1075,11 @@ export default async function handler(req, res) {
 
       if (sheet === 'SurveyPeserta' && getFile) {
         const fileData = await getFileData(targetSheetId, 'SurveyPeserta', getFile, accessToken, 'buktiBayar');
+        return res.status(200).json({ id: getFile, fileData });
+      }
+
+      if (sheet === 'SetoranInstan' && getFile) {
+        const fileData = await getFileData(targetSheetId, 'SetoranInstan', getFile, accessToken, 'fileData');
         return res.status(200).json({ id: getFile, fileData });
       }
 
