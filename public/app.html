@@ -3715,9 +3715,27 @@
       <!-- Tab: Penerima & Tiket (khusus Admin) - daftar penerima BERNAMA per
            alokasi + e-tiket QR buat dicetak, dan halaman scan buat check-in
            pas hari pelaksanaan (mencegah 1 tiket dipakai 2x). -->
+      <!-- Penyajian mengikuti pola tab lain (Distribusi Daging / WO Aktual):
+           satu kartu dgn pill-tab di atas, isinya dipecah per bagian supaya
+           halaman tidak memanjang jauh ke bawah. -->
       <div id="penerima" class="tab-content">
-        <div class="card" style="max-width:820px;">
-          <h2>Kelola Daftar Penerima</h2>
+        <div class="card report-card">
+          <div class="report-tabs">
+            <button class="report-tab-btn active" onclick="switchPenerimaTab('daftar', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/></svg>
+              <span>Daftar Penerima</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchPenerimaTab('mudhohi', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M7 7V5M17 7V5M2 12h20"/></svg>
+              <span>Kupon Mudhohi</span>
+            </button>
+            <button class="report-tab-btn" onclick="switchPenerimaTab('scan', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM19 19h2v2h-2z"/></svg>
+              <span>Scan Tiket</span>
+            </button>
+          </div>
+          <div id="penerimaDaftarTab" class="sub-tab-content">
+            <h3>Kelola Daftar Penerima</h3>
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
             Isi nama-nama penerima utk tiap alokasi di "Rencana Distribusi Daging (Umum)" (mis. RT 1, Panitia, Sate) - jumlah nama dibatasi otomatis sesuai Qty rencana alokasi tsb. Tiap nama otomatis dapat 1 e-tiket QR unik.
           </p>
@@ -3788,8 +3806,8 @@
           </div>
         </div>
 
-        <div class="card" style="max-width:820px; margin-top:20px;">
-          <h2>Kupon Mudhohi</h2>
+          <div id="penerimaMudhohiTab" class="sub-tab-content" style="display:none;">
+            <h3>Kupon Mudhohi</h3>
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
             Kupon dibuat otomatis dari peserta yang sudah "Ikut" di Survey Sapi - tidak perlu input nama satu-satu. Tiap kupon menampilkan nama, kelompok sapi, dan jatah berat daging (Hak Mudhohi). Aman diklik berkali-kali, peserta yang sudah punya kupon tidak akan dibuatkan dobel.
           </p>
@@ -3805,8 +3823,8 @@
           </div>
         </div>
 
-        <div class="card" style="max-width:820px; margin-top:20px;">
-          <h2>Scan Tiket (Check-in)</h2>
+          <div id="penerimaScanTab" class="sub-tab-content" style="display:none;">
+            <h3>Scan Tiket (Check-in)</h3>
           <p style="color:var(--ink-soft); font-size:14px; margin-top:-10px; margin-bottom:18px;">
             Arahkan kamera ke QR di e-tiket penerima. Tiket yang sudah pernah di-scan otomatis ditolak (tidak bisa dipakai 2x). Kalau kamera bermasalah, pakai input kode manual di bawah.
           </p>
@@ -3835,6 +3853,7 @@
           </div>
 
           <div id="scanLogBox"></div>
+        </div>
         </div>
       </div>
 

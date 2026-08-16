@@ -2836,6 +2836,28 @@ function switchDistribusiTab(tabName, btn, scope) {
     btn.classList.add('active');
 }
 
+// Pindah antar pill-tab di menu Penerima & Tiket (Daftar Penerima / Kupon
+// Mudhohi / Scan Tiket). Pola sama dengan switchDistribusiTab().
+//
+// Kamera scan SENGAJA dimatikan tiap kali pindah ke tab lain - kalau
+// dibiarkan, kamera tetap menyala di belakang layar walau tabnya sudah tidak
+// terlihat (lampu kamera HP tetap hidup, boros baterai, dan bikin was-was).
+function switchPenerimaTab(tabName, btn) {
+    const container = document.getElementById('penerima');
+    if (!container) return;
+
+    container.querySelectorAll('.sub-tab-content').forEach(tab => tab.style.display = 'none');
+    const panel = document.getElementById('penerima' + tabName.charAt(0).toUpperCase() + tabName.slice(1) + 'Tab');
+    if (panel) panel.style.display = 'block';
+
+    container.querySelectorAll('.report-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    if (tabName !== 'scan' && typeof qrScannerRunning !== 'undefined' && qrScannerRunning) {
+        stopQrScanner();
+    }
+}
+
 // Pindah antar pill-tab di menu WO Aktual (Resume / Work Order). Pola sama
 // dengan switchDistribusiTab() di atas, tapi tanpa varian member - menu WO
 // Aktual memang khusus admin.
