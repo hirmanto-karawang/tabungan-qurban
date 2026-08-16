@@ -3728,6 +3728,24 @@ async function simpanWoQtyLain(surveyId, rencanaLainId) {
 // manual (hasil timbang aktual per porsi), Qty tetap 7 (1 sapi = 7 mudhohi),
 // Selisih pakai formula khusus = Estimasi Hak Mudhohi (asumsi penuh 7 orang)
 // - Aktual Penimbangan (Berat manual x 7).
+// Urutan sapi KHUSUS menu WO Aktual: dari Survey#1 ke atas (menaik).
+//
+// appData.surveySapi secara global diurutkan MENURUN (id terbesar dulu) -
+// itu masuk akal utk daftar riwayat survey, di mana yang baru diinput
+// wajar muncul paling atas. Tapi WO Aktual dipakai berurutan saat hari
+// pelaksanaan (sapi 1 dulu, lalu 2, lalu 3), jadi urutannya dibalik di
+// sini saja - TIDAK mengubah urutan global, supaya menu lain tidak ikut
+// berubah.
+//
+// slice() dulu sebelum sort() karena sort() mengubah array aslinya di
+// tempat - tanpa slice, urutan global ikut teracak.
+//
+// Nomor "Survey#" sendiri berasal dari s.id (lihat surveyKode()), bukan
+// dari posisi urutan, jadi labelnya tetap benar apa pun urutannya.
+function woAktualUrutSapi() {
+    return appData.surveySapi.slice().sort((a, b) => a.id - b.id);
+}
+
 function loadWoAktualList(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -3739,7 +3757,7 @@ function loadWoAktualList(containerId) {
 
     const rencanaAktif = appData.rencanaDistribusi.filter(r => r.status !== 'batal');
 
-    container.innerHTML = appData.surveySapi.map(s => {
+    container.innerHTML = woAktualUrutSapi().map(s => {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
 
         let totalAktual = 0;
@@ -3967,7 +3985,7 @@ function renderWoAktualResume(containerId) {
     let grandPlan = 0;
     let grandAktual = 0;
 
-    const mudhohiRowsHtml = appData.surveySapi.map((s, idx) => {
+    const mudhohiRowsHtml = woAktualUrutSapi().map((s, idx) => {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         const existingMudhohi = appData.workOrderAktual.find(d =>
             d.status !== 'batal' && d.surveyId === s.id &&
