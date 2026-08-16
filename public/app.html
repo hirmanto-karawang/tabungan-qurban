@@ -3922,6 +3922,9 @@
                 <select id="kemasanBasisHitung">
                   <option value="paket">Per Paket/Penerima</option>
                   <option value="kg">Per Kg Daging</option>
+                  <option value="tulang">Per Item Tambahan Tulang</option>
+                  <option value="jeroan">Per Item Tambahan Jeroan</option>
+                  <option value="mudhohi">Per Kupon Mudhohi</option>
                 </select>
               </div>
               <div class="form-group">
@@ -3941,6 +3944,7 @@
             <div class="actions" style="margin-bottom:18px;">
               <button class="btn btn-success btn-small" id="kemasanSubmitBtn" onclick="simpanKemasanItem()">+ Tambah Item</button>
               <button class="btn btn-ghost btn-small" id="kemasanCancelBtn" onclick="batalEditKemasanItem()" style="display:none;">Batal Edit</button>
+              <button class="btn btn-ghost btn-small" onclick="isiDefaultKemasanPlastik()" title="Tambahkan 4 item plastik umum (Daging/Jeroan/Tulang/Mudhohi) kalau belum ada">📦 Isi Default Plastik</button>
             </div>
             <div class="table-container">
               <table>
@@ -5550,7 +5554,8 @@ async function loadDataFromSheets() {
 
     // Parse KemasanInventaris (modul "Kemasan & Inventaris", 2 kategori):
     // - kategori 'kemasan': habis pakai yg skalanya otomatis dari rasioPerUnit
-    //   x basis (Total Paket/Penerima ATAU Total Kg Daging), lihat
+    //   x basis (Paket/Penerima, Kg Daging, atau - sejak fitur Item Tambahan &
+    //   Kupon Mudhohi - Item Tambahan Tulang/Jeroan/kupon Mudhohi), lihat
     //   hitungKebutuhanKemasan().
     // - kategori 'inventaris': alat/perlengkapan, kebutuhan diisi MANUAL
     //   (kebutuhanManual), tidak ikut skala paket/kg.
@@ -5558,7 +5563,10 @@ async function loadDataFromSheets() {
         id: parseInt(row.id) || 0,
         namaItem: row.namaItem || '',
         kategori: (row.kategori || '').toString().trim().toLowerCase() === 'inventaris' ? 'inventaris' : 'kemasan',
-        basisHitung: (row.basisHitung || '').toString().trim().toLowerCase() === 'kg' ? 'kg' : 'paket',
+        basisHitung: (() => {
+            const b = (row.basisHitung || '').toString().trim().toLowerCase();
+            return ['kg', 'tulang', 'jeroan', 'mudhohi'].includes(b) ? b : 'paket';
+        })(),
         rasioPerUnit: parseFloat(row.rasioPerUnit) || 0,
         kebutuhanManual: parseFloat(row.kebutuhanManual) || 0,
         stokTersedia: parseFloat(row.stokTersedia) || 0,
@@ -10131,16 +10139,41 @@ function totalEstimasiKgDaging() {
     }, 0);
 }
 
+// Jumlah kupon Mudhohi AKTIF (kategori 'mudhohi' di PenerimaQR, lihat
+// generateKuponMudhohi()) - basis hitung "Per Kupon Mudhohi", dipakai antara
+// lain utk item default "Plastik Mudhohi".
+function totalKuponMudhohiAktif() {
+    return appData.penerimaQR.filter(p => p.status !== 'batal' && p.kategori === 'mudhohi').length;
+}
+
 // Kebutuhan dibulatkan ke atas (Math.ceil) - tidak mungkin beli/pakai
 // setengah kantong plastik/alat. Item 'inventaris' pakai kebutuhanManual
-// langsung (tidak ikut skala paket/kg).
+// langsung (tidak ikut skala paket/kg). basisHitung: 'paket' (total
+// penerima+mudhohi), 'kg' (estimasi daging), 'tulang'/'jeroan' (total Item
+// Tambahan jenis tsb yang sudah dititip ke penerima - lihat
+// totalItemTambahanSemuaPenerima()), 'mudhohi' (jumlah kupon mudhohi aktif).
 function hitungKebutuhanKemasan(item) {
     if (item.kategori === 'inventaris') {
         return Math.ceil(item.kebutuhanManual || 0);
     }
-    const basisTotal = item.basisHitung === 'kg' ? totalEstimasiKgDaging() : totalPaketPenerima();
+    let basisTotal;
+    if (item.basisHitung === 'kg') basisTotal = totalEstimasiKgDaging();
+    else if (item.basisHitung === 'tulang') basisTotal = totalItemTambahanSemuaPenerima('tulang');
+    else if (item.basisHitung === 'jeroan') basisTotal = totalItemTambahanSemuaPenerima('jeroan');
+    else if (item.basisHitung === 'mudhohi') basisTotal = totalKuponMudhohiAktif();
+    else basisTotal = totalPaketPenerima();
     return Math.ceil((item.rasioPerUnit || 0) * basisTotal);
 }
+
+// Label tampilan utk tiap basisHitung - dipakai di loadKemasanList() &
+// renderKemasanChecklist() supaya konsisten.
+const KEMASAN_BASIS_LABEL = {
+    paket: 'Per Paket/Penerima',
+    kg: 'Per Kg Daging',
+    tulang: 'Per Item Tambahan Tulang',
+    jeroan: 'Per Item Tambahan Jeroan',
+    mudhohi: 'Per Kupon Mudhohi'
+};
 
 function kemasanSelisihColor(selisih) {
     return selisih < 0 ? 'var(--brick)' : 'var(--emerald-2)';
@@ -10194,7 +10227,7 @@ function loadKemasanList() {
     tbody.innerHTML = rows.map(item => {
         const kebutuhan = hitungKebutuhanKemasan(item);
         const selisih = item.stokTersedia - kebutuhan;
-        const basisLabel = item.basisHitung === 'kg' ? 'Per Kg Daging' : 'Per Paket/Penerima';
+        const basisLabel = KEMASAN_BASIS_LABEL[item.basisHitung] || 'Per Paket/Penerima';
         const color = kemasanSelisihColor(selisih);
         const warningHtml = selisih < 0
             ? `<div style="color:var(--brick); font-size:11px; font-weight:600;">⚠️ Kurang ${Math.abs(selisih).toLocaleString('id-ID')}</div>`
@@ -10271,7 +10304,7 @@ function renderKemasanChecklist() {
             const kurang = selisih < 0;
             const detail = item.kategori === 'inventaris'
                 ? `Kebutuhan ${kebutuhan.toLocaleString('id-ID')} · Stok ${item.stokTersedia.toLocaleString('id-ID')}`
-                : `Rasio ${item.rasioPerUnit.toLocaleString('id-ID')} ${item.basisHitung === 'kg' ? 'per Kg Daging' : 'per Paket/Penerima'} · Kebutuhan ${kebutuhan.toLocaleString('id-ID')} · Stok ${item.stokTersedia.toLocaleString('id-ID')}`;
+                : `Rasio ${item.rasioPerUnit.toLocaleString('id-ID')} ${(KEMASAN_BASIS_LABEL[item.basisHitung] || 'Per Paket/Penerima').toLowerCase()} · Kebutuhan ${kebutuhan.toLocaleString('id-ID')} · Stok ${item.stokTersedia.toLocaleString('id-ID')}`;
             return `
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; background:${kurang ? 'rgba(155,70,50,0.06)' : 'transparent'};">
                   <div>
@@ -10299,7 +10332,8 @@ function renderKemasanChecklist() {
 
 async function simpanKemasanItem() {
     const namaItem = document.getElementById('kemasanNamaItem').value.trim();
-    const basisHitung = document.getElementById('kemasanBasisHitung').value === 'kg' ? 'kg' : 'paket';
+    const basisHitungRaw = document.getElementById('kemasanBasisHitung').value;
+    const basisHitung = ['kg', 'tulang', 'jeroan', 'mudhohi'].includes(basisHitungRaw) ? basisHitungRaw : 'paket';
     const rasioPerUnit = parseFloat(document.getElementById('kemasanRasioPerUnit').value) || 0;
     const stokTersedia = parseFloat(document.getElementById('kemasanStokTersedia').value) || 0;
     const catatan = document.getElementById('kemasanCatatan').value.trim();
@@ -10350,6 +10384,63 @@ async function simpanKemasanItem() {
         refreshKemasanInventaris();
     } else {
         showAlert('Gagal menyimpan item, coba lagi.', 'error');
+    }
+}
+
+// Isi 4 item plastik yang umum dipakai (Daging/Jeroan/Tulang/Mudhohi), tiap
+// item basisHitung-nya dipasang ke sumber data yang paling relevan supaya
+// kebutuhannya kehitung otomatis tanpa admin perlu ngerti detail basis-nya -
+// lihat hitungKebutuhanKemasan(). Rasio default 1 (1 plastik per unit basis)
+// - admin bebas edit lewat ✏️ kalau butuh beda (mis. 2 plastik per paket).
+// Item yang namanya SUDAH ADA (persis sama, case-insensitive) dilewati -
+// aman diklik berkali-kali, tidak bikin dobel.
+async function isiDefaultKemasanPlastik() {
+    const DEFAULTS = [
+        { namaItem: 'Plastik Daging', basisHitung: 'paket', catatan: 'Kantong per paket daging (semua penerima termasuk Mudhohi)' },
+        { namaItem: 'Plastik Jeroan', basisHitung: 'jeroan', catatan: 'Kantong utk jatah Item Tambahan Jeroan yang dititip ke penerima' },
+        { namaItem: 'Plastik Tulang', basisHitung: 'tulang', catatan: 'Kantong utk jatah Item Tambahan Tulang yang dititip ke penerima' },
+        { namaItem: 'Plastik Mudhohi', basisHitung: 'mudhohi', catatan: 'Kantong khusus paket Kupon Mudhohi' }
+    ];
+
+    const existingNames = new Set(
+        appData.kemasanInventaris.filter(i => i.status !== 'batal').map(i => (i.namaItem || '').trim().toLowerCase())
+    );
+    const toAdd = DEFAULTS.filter(d => !existingNames.has(d.namaItem.toLowerCase()));
+
+    if (toAdd.length === 0) {
+        showAlert('Ke-4 item plastik default sudah ada semua', 'info');
+        return;
+    }
+
+    let nextId = appData.kemasanInventaris.length > 0 ? Math.max(...appData.kemasanInventaris.map(i => i.id)) + 1 : 1;
+    let berhasil = 0;
+
+    for (const d of toAdd) {
+        const record = {
+            id: nextId,
+            namaItem: d.namaItem,
+            kategori: 'kemasan',
+            basisHitung: d.basisHitung,
+            rasioPerUnit: 1,
+            kebutuhanManual: 0,
+            stokTersedia: 0,
+            catatan: d.catatan,
+            status: 'aktif',
+            created_date: new Date().toISOString()
+        };
+        const success = await appendSheetDB('KemasanInventaris', record);
+        if (success) {
+            appData.kemasanInventaris.push(record);
+            nextId++;
+            berhasil++;
+        }
+    }
+
+    if (berhasil > 0) {
+        showAlert(`${berhasil} item plastik default ditambahkan - sesuaikan Rasio/Stok Tersedia sesuai kebutuhan`, 'success');
+        refreshKemasanInventaris();
+    } else {
+        showAlert('Gagal menambahkan item default, coba lagi.', 'error');
     }
 }
 
