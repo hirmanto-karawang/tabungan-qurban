@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panduan Pengguna — Tabungan Qurban</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap"></noscript>
+<style>
+  :root{
+    --ink: #182420;
+    --ink-soft: #4C5851;
+    --ink-faint: #869089;
+    --paper: #FAF7F0;
+    --surface: #FFFFFF;
+    --sand: #F1EBDC;
+    --border: #E4DBC5;
+    --border-soft: #EEE7D6;
+    --emerald: #0E3B34;
+    --emerald-2: #175C50;
+    --emerald-tint: #E6EEEA;
+    --gold: #B6893A;
+    --gold-soft: #E7C878;
+    --gold-tint: #F7EFDA;
+    --sage: #6F9089;
+    --brick: #9B4632;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height:1.55;
+  }
+  h1,h2,h3{ font-family:'Fraunces', Georgia, serif; font-weight:600; color:var(--emerald); margin:0; }
+  a{ color:var(--emerald-2); }
+  .wrap{ max-width:920px; margin:0 auto; padding:0 20px 80px; }
+
+  /* ===== HERO ===== */
+  .hero{
+    background:linear-gradient(160deg, var(--emerald) 0%, var(--emerald-2) 100%);
+    color:#fff; padding:52px 20px 90px; text-align:center; position:relative; overflow:hidden;
+  }
+  .hero::before{
+    content:''; position:absolute; inset:0; opacity:.12;
+    background-image: radial-gradient(circle at 20% 20%, #fff 0, transparent 40%),
+                       radial-gradient(circle at 85% 75%, #fff 0, transparent 35%);
+  }
+  .hero-inner{ position:relative; max-width:720px; margin:0 auto; }
+  .hero-badge{
+    display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.28); padding:6px 16px; border-radius:99px;
+    font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; font-weight:600; margin-bottom:18px;
+  }
+  .hero h1{ color:#fff; font-size:34px; margin-bottom:12px; }
+  .hero p{ color:rgba(255,255,255,.82); font-size:15.5px; max-width:540px; margin:0 auto; }
+  .hero-mark{
+    width:62px; height:62px; border-radius:16px; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.3); display:flex; align-items:center; justify-content:center;
+    margin:0 auto 20px; font-size:28px;
+  }
+
+  /* ===== ROLE SWITCH ===== */
+  .role-switch{
+    max-width:520px; margin:-46px auto 40px; background:var(--surface); border-radius:16px;
+    padding:6px; display:flex; gap:6px; box-shadow:0 12px 32px rgba(14,59,52,.18);
+    border:1px solid var(--border-soft); position:relative; z-index:2;
+  }
+  .role-btn{
+    flex:1; border:none; background:transparent; padding:14px 10px; border-radius:11px;
+    font-family:'Inter',sans-serif; font-size:14px; font-weight:700; color:var(--ink-soft);
+    cursor:pointer; transition:all .2s ease; display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .role-btn.active{ background:var(--emerald); color:#fff; box-shadow:0 6px 16px rgba(14,59,52,.28); }
+  .role-btn:not(.active):hover{ background:var(--sand); }
+
+  /* ===== PROGRESS RIBBON ===== */
+  .progress-card{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:16px;
+    padding:18px 22px; margin-bottom:36px; display:flex; align-items:center; gap:16px;
+  }
+  .progress-card .pc-label{ font-size:13px; color:var(--ink-soft); font-weight:600; white-space:nowrap; }
+  .progress-track{ flex:1; height:8px; background:var(--sand); border-radius:99px; overflow:hidden; }
+  .progress-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--gold),var(--emerald-2)); border-radius:99px; transition:width .4s ease; }
+  .progress-pct{ font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:var(--emerald); width:42px; text-align:right; }
+
+  /* ===== SECTION TITLES ===== */
+  .section-kicker{ font-size:12.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--gold); font-weight:700; margin-bottom:6px; }
+  .section-head{ margin-bottom:22px; }
+  .section-head h2{ font-size:24px; }
+  .section-head p{ color:var(--ink-soft); font-size:14.5px; margin-top:8px; max-width:640px; }
+
+  /* ===== LIVE APP SIMULATOR ===== */
+  .sim-wrap{ margin-bottom:52px; }
+  .app-frame{
+    border-radius:18px; overflow:hidden; border:1px solid var(--border-soft);
+    box-shadow:0 20px 48px rgba(14,59,52,.14); background:var(--surface);
+  }
+  .app-frame-bar{
+    display:flex; align-items:center; gap:8px; padding:11px 16px; background:var(--sand);
+    border-bottom:1px solid var(--border);
+  }
+  .app-frame-dot{ width:9px; height:9px; border-radius:50%; }
+  .app-frame-url{
+    margin-left:8px; background:var(--surface); border:1px solid var(--border); border-radius:99px;
+    padding:5px 14px; font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace;
+    flex:1; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .app-frame-body{ display:flex; height:460px; }
+  .mock-sidebar{
+    width:230px; flex-shrink:0; background:var(--emerald); position:relative; overflow-y:auto;
+    background-image: radial-gradient(rgba(231,200,120,.10) 1px, transparent 1.6px);
+    background-size: 20px 20px;
+  }
+  .mock-sidebar-head{
+    padding:16px 16px 12px; border-bottom:1px solid rgba(244,239,225,.12); display:flex; align-items:center; gap:10px;
+  }
+  .mock-sidebar-head svg{ width:26px; height:26px; flex-shrink:0; }
+  .mock-sidebar-head .msh-name{ font-family:'Fraunces',serif; font-size:13.5px; font-weight:600; color:#FBF6E9; line-height:1.2; }
+  .mock-sidebar-head .msh-sub{ font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-soft); margin-top:2px; }
+  .mock-nav{ padding:12px 10px; }
+  .mock-nav-label{
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; font-weight:600; letter-spacing:.07em;
+    text-transform:uppercase; color:rgba(244,239,225,.36); padding:12px 10px 4px;
+  }
+  .mock-tab-btn{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:9px 10px;
+    background:transparent; border:none; border-radius:8px; color:rgba(244,239,225,.72);
+    font-family:'Inter',sans-serif; font-size:12.8px; font-weight:500; cursor:pointer;
+    transition:background .15s ease, color .15s ease; margin-bottom:2px;
+  }
+  .mock-tab-btn svg{ width:16px; height:16px; flex-shrink:0; opacity:.85; }
+  .mock-tab-btn:hover{ background:rgba(244,239,225,.06); color:#F4EFE1; }
+  .mock-tab-btn.active{ background:rgba(231,200,120,.14); color:#FBF6E9; box-shadow:inset 3px 0 0 var(--gold-soft); }
+  .mock-content{ flex:1; background:var(--paper); padding:22px 24px; overflow-y:auto; }
+  .mock-content-title{ font-family:'Fraunces',serif; font-size:18px; font-weight:600; color:var(--emerald); margin-bottom:4px; }
+  .mock-content-sub{ font-size:12.5px; color:var(--ink-soft); margin-bottom:18px; }
+  .sim-hint{
+    display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft);
+    margin-top:10px; padding:10px 14px; background:var(--gold-tint); border-radius:10px;
+  }
+
+  /* mini components reused inside mock-content */
+  .mc-card{ background:var(--surface); border:1px solid var(--border-soft); border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+  .mc-stat-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin-bottom:14px; }
+  .mc-stat{ background:var(--surface); border:1px solid var(--border-soft); border-radius:12px; padding:12px 14px; }
+  .mc-stat .v{ font-family:'IBM Plex Mono',monospace; font-size:17px; font-weight:700; color:var(--emerald); }
+  .mc-stat .k{ font-size:11px; color:var(--ink-soft); margin-top:2px; }
+  .mc-progress{ height:8px; background:var(--sand); border-radius:99px; overflow:hidden; margin-top:8px; }
+  .mc-progress-fill{ height:100%; background:linear-gradient(90deg,var(--gold),var(--emerald-2)); border-radius:99px; }
+  .mc-table{ width:100%; border-collapse:collapse; font-size:12px; background:var(--surface); border-radius:10px; overflow:hidden; border:1px solid var(--border-soft); }
+  .mc-table th{ background:var(--sand); text-align:left; padding:8px 10px; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); }
+  .mc-table td{ padding:8px 10px; border-top:1px solid var(--border-soft); color:var(--ink); }
+  .mc-badge{ display:inline-block; padding:2px 9px; border-radius:99px; font-size:10.5px; font-weight:700; }
+  .mc-badge.pending{ background:#FBE9C7; color:#8a641f; }
+  .mc-badge.approved{ background:var(--emerald-tint); color:var(--emerald); }
+  .mc-badge.rejected{ background:#F6E5DE; color:var(--brick); }
+  .mc-form-row{ margin-bottom:10px; }
+  .mc-form-row label{ display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); margin-bottom:4px; }
+  .mc-form-row .mc-input{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:9px 12px; font-size:12.5px; color:var(--ink-faint); }
+  .mc-btn{ display:inline-block; background:var(--emerald); color:#fff; font-size:12.5px; font-weight:700; padding:9px 18px; border-radius:9px; }
+  .mc-btn.ghost{ background:transparent; border:1px solid var(--border); color:var(--ink-soft); }
+  .mc-btn.gold{ background:var(--gold); }
+
+  @media (max-width:680px){
+    .app-frame-body{ flex-direction:column; height:auto; }
+    .mock-sidebar{ width:100%; max-height:170px; }
+    .mock-nav{ display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px; padding:10px; }
+    .mock-nav-label{ display:none; }
+    .mock-tab-btn{ flex-shrink:0; width:auto; white-space:nowrap; margin-bottom:0; }
+    .mock-content{ min-height:280px; }
+  }
+
+  /* ===== TIMELINE STEPS ===== */
+  .timeline{ position:relative; margin-bottom:52px; }
+  .timeline::before{
+    content:''; position:absolute; left:23px; top:8px; bottom:8px; width:2px;
+    background:repeating-linear-gradient(to bottom, var(--border) 0 6px, transparent 6px 12px);
+  }
+  .step{ position:relative; padding-left:64px; margin-bottom:8px; }
+  .step-num{
+    position:absolute; left:0; top:0; width:48px; height:48px; border-radius:50%;
+    background:var(--emerald-tint); border:2px solid var(--emerald-2); color:var(--emerald);
+    display:flex; align-items:center; justify-content:center; font-size:20px; z-index:1;
+  }
+  .step-card{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:14px;
+    padding:16px 20px; margin-bottom:22px; cursor:pointer; transition:box-shadow .2s ease, border-color .2s ease;
+  }
+  .step-card:hover{ border-color:var(--gold-soft); box-shadow:0 8px 22px rgba(14,59,52,.08); }
+  .step-title-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .step-title{ font-weight:700; font-size:15.5px; color:var(--ink); }
+  .step-chevron{ color:var(--ink-faint); transition:transform .2s ease; flex-shrink:0; }
+  .step-card.open .step-chevron{ transform:rotate(180deg); }
+  .step-detail{ display:none; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border); color:var(--ink-soft); font-size:14px; }
+  .step-card.open .step-detail{ display:block; }
+  .step-detail ul{ margin:8px 0 0; padding-left:20px; }
+  .step-detail li{ margin-bottom:6px; }
+  .step-detail .tip{
+    margin-top:12px; background:var(--gold-tint); border-left:3px solid var(--gold); border-radius:8px;
+    padding:10px 14px; font-size:13px; color:var(--ink);
+  }
+  .step-detail .warn{
+    margin-top:12px; background:#F6E5DE; border-left:3px solid var(--brick); border-radius:8px;
+    padding:10px 14px; font-size:13px; color:var(--ink);
+  }
+
+  /* ===== FEATURE GRID ===== */
+  .feat-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:52px; }
+  .feat-card{ background:var(--surface); border:1px solid var(--border-soft); border-radius:14px; padding:18px; }
+  .feat-icon{ font-size:22px; margin-bottom:10px; display:inline-block; }
+  .feat-card h3{ font-size:14.5px; font-family:'Inter',sans-serif; font-weight:700; color:var(--ink); margin-bottom:6px; }
+  .feat-card p{ font-size:13px; color:var(--ink-soft); margin:0; }
+
+  /* ===== CHECKLIST ===== */
+  .checklist-box{ background:var(--emerald); border-radius:18px; padding:28px 24px; margin-bottom:52px; color:#fff; }
+  .checklist-box h2{ color:#fff; font-size:20px; margin-bottom:6px; }
+  .checklist-box>p{ color:rgba(255,255,255,.78); font-size:13.5px; margin-bottom:18px; }
+  .cl-item{
+    display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:10px;
+    background:rgba(255,255,255,.06); margin-bottom:8px; cursor:pointer; transition:background .15s ease;
+  }
+  .cl-item:hover{ background:rgba(255,255,255,.12); }
+  .cl-box{
+    width:22px; height:22px; border-radius:6px; border:2px solid rgba(255,255,255,.5);
+    flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; transition:all .15s ease;
+  }
+  .cl-item.done .cl-box{ background:var(--gold-soft); border-color:var(--gold-soft); color:var(--emerald); }
+  .cl-item.done span.cl-text{ text-decoration:line-through; opacity:.6; }
+  .cl-text{ font-size:14px; font-weight:500; }
+
+  /* ===== FAQ ===== */
+  .faq-item{ border-bottom:1px solid var(--border-soft); padding:16px 0; cursor:pointer; }
+  .faq-q{ display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:14.5px; gap:12px; }
+  .faq-q .step-chevron{ flex-shrink:0; }
+  .faq-a{ display:none; margin-top:10px; color:var(--ink-soft); font-size:14px; padding-right:28px; }
+  .faq-item.open .faq-a{ display:block; }
+  .faq-item.open .step-chevron{ transform:rotate(180deg); }
+
+  /* ===== MISC ===== */
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+  .footer-note{ text-align:center; padding:40px 20px 10px; color:var(--ink-faint); font-size:12.5px; }
+
+  @media (max-width:560px){
+    .hero h1{ font-size:26px; }
+    .step{ padding-left:56px; }
+    .step-num{ width:42px; height:42px; font-size:17px; }
+    .timeline::before{ left:20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-mark">🕌</div>
+    <div class="hero-badge">✨ Panduan Pengguna</div>
+    <h1>Belajar Pakai Tabungan Qurban<br>dalam 5 Menit</h1>
+    <p>Panduan interaktif buat siapa pun yang baru pertama kali pakai aplikasi ini — coba klik-klik menu aslinya di bawah, lalu ikuti langkah demi langkahnya.</p>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="role-switch">
+    <button class="role-btn active" id="btnRoleAnggota" onclick="setRole('anggota')">🧑‍🤝‍🧑 Saya Anggota Baru</button>
+    <button class="role-btn" id="btnRoleAdmin" onclick="setRole('admin')">🗂️ Saya Pengurus/Admin</button>
+  </div>
+
+  <div class="progress-card">
+    <div class="pc-label">Progress baca panduan</div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-pct" id="progressPct">0%</div>
+  </div>
+
+  <!-- ================= PANEL ANGGOTA ================= -->
+  <div class="panel active" id="panelAnggota">
+
+    <div class="section-head">
+      <div class="section-kicker">Coba dulu, baru baca</div>
+      <h2>🖱️ Menu Aslinya — Klik-Klik di Sini</h2>
+      <p>Ini tiruan persis sidebar &amp; menu aplikasi (nama, ikon, urutannya sama). Klik salah satu menu di kiri untuk lihat gambaran isinya, sebelum Anda buka aplikasi yang sungguhan.</p>
+    </div>
+    <div class="sim-wrap">
+      <div class="app-frame">
+        <div class="app-frame-bar">
+          <div class="app-frame-dot" style="background:#E4A5A5;"></div>
+          <div class="app-frame-dot" style="background:#EBD08C;"></div>
+          <div class="app-frame-dot" style="background:#A6D2B6;"></div>
+          <div class="app-frame-url">tabungan-qurban.app/masjid-anda</div>
+        </div>
+        <div class="app-frame-body">
+          <div class="mock-sidebar">
+            <div class="mock-sidebar-head">
+              <svg viewBox="0 0 200 200"><path d="M 162.23 162.23 L 37.77 162.23 L 37.77 37.77 L 162.23 37.77 Z M 142.23 142.23 L 57.77 142.23 L 57.77 57.77 L 142.23 57.77 Z" fill="#E7C878" fill-rule="evenodd"/><path d="M 188.00 100.00 L 100.00 188.00 L 12.00 100.00 L 100.00 12.00 Z M 159.72 100.00 L 100.00 159.72 L 40.28 100.00 L 100.00 40.28 Z" fill="#E7C878" fill-rule="evenodd"/></svg>
+              <div>
+                <div class="msh-name">Masjid Anda</div>
+                <div class="msh-sub">Workspace</div>
+              </div>
+            </div>
+            <div class="mock-nav" id="navAnggota"></div>
+          </div>
+          <div class="mock-content" id="contentAnggota"></div>
+        </div>
+      </div>
+      <div class="sim-hint">👆 Coba klik "Upload Bukti" atau "Survey Sapi" di menu sebelah kiri.</div>
+    </div>
+
+    <div class="section-head">
+      <div class="section-kicker">Langkah demi langkah</div>
+      <h2>Alur Anggota, dari Daftar sampai Dapat Daging 🐄</h2>
+      <p>Klik tiap langkah di bawah untuk lihat detailnya. Urutannya memang dibuat berjenjang — ikuti dari atas ke bawah supaya tidak bingung.</p>
+    </div>
+
+    <div class="timeline" id="timelineAnggota">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">📝 Daftar jadi anggota</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Buka link masjid Anda, di halaman Masuk pilih tab <strong>"Daftar Anggota Baru"</strong>, lalu isi:</p>
+            <ul>
+              <li>Nama lengkap</li>
+              <li>RT, Blok, dan Nomor Rumah</li>
+              <li>Nomor WhatsApp aktif</li>
+              <li>Alasan mendaftar (bebas, misal "ingin menabung untuk qurban tahun ini")</li>
+            </ul>
+            <p>Klik <strong>"Kirim Pendaftaran"</strong> — data Anda masuk ke antrean review pengurus.</p>
+            <div class="tip">💡 Password akun Anda otomatis = <strong>4 digit terakhir nomor WhatsApp</strong> yang didaftarkan. Simpan baik-baik, bisa diganti nanti lewat menu Profil.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">✅ Tunggu di-approve pengurus</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Pengurus akan meninjau pendaftaran Anda dan memberikan <strong>ID Anggota</strong>. Anda akan dapat kabar lewat WhatsApp begitu akun aktif.</p>
+            <p>Sambil menunggu, Anda tetap bisa menjelajah aplikasi lewat tab <strong>"Lihat Sebagai Guest"</strong> di halaman Masuk — bisa lihat dashboard dan laporan progress tanpa login dulu.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">🔑 Login pertama kali</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Masuk pakai <strong>ID Anggota</strong> dan <strong>kata sandi</strong> (4 digit terakhir no. WA Anda). Sesi login akan tersimpan otomatis, jadi Anda tidak perlu login ulang tiap buka aplikasi — kecuali sengaja logout.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">📊 Kenalan dengan Dashboard</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Ini halaman pertama yang Anda lihat setelah login. Isinya ringkasan: total tabungan yang sudah terkumpul, progress menuju target, dan status setoran terakhir Anda. (Coba klik "Dashboard" di simulator di atas!)</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">💰 Setor tabungan (Upload Bukti)</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Sudah transfer ke rekening masjid? Buka menu <strong>"Upload Bukti"</strong>, isi nominal, tanggal transfer, bank asal, lalu unggah foto/screenshot bukti transfer.</p>
+            <ul>
+              <li>Status awal setoran: <strong>PENDING</strong> (menunggu diperiksa pengurus)</li>
+              <li>Setelah dicek, statusnya berubah jadi <strong>APPROVED</strong> (masuk ke total tabungan Anda)</li>
+            </ul>
+            <div class="tip">💡 Cek riwayat semua setoran Anda kapan saja lewat menu <strong>"Riwayat"</strong>.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">🐄 Ikut kelompok Sapi (opsional)</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Di menu <strong>"Survey Sapi"</strong>, Anda bisa gabung ke salah satu kelompok sapi yang sedang dibuka pengurus — di sini Anda lihat estimasi iuran per orang, jatah daging, dan progress kelompok.</p>
+            <p>Tidak mau nabung bertahap? Ada opsi <strong>"Daftar Langsung"</strong> (Qurban Instan) — bayar penuh sekaligus tanpa perlu menabung dulu.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">📋 Pantau status lunas</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Laporan Iuran Qurban"</strong> menunjukkan status Anda: sudah <strong>Lunas</strong> atau <strong>Belum Lunas</strong>, dibandingkan dengan kebutuhan iuran kelompok sapi Anda.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">🎫 Ambil E-Tiket / Kupon saat hari H</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menjelang hari pelaksanaan, pengurus akan menerbitkan <strong>E-Tiket</strong> (buat penerima daging umum) atau <strong>Kupon Mudhohi</strong> (buat yang berkurban) lengkap dengan kode QR unik.</p>
+            <p>Tunjukkan QR ini ke panitia saat pengambilan daging — cukup di-scan, tidak perlu antre isi form manual.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">9</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">🔍 Transparansi (LPJ)</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"LPJ"</strong> (Laporan Pertanggungjawaban) terbuka untuk semua orang, termasuk tamu tanpa login — supaya siapa pun bisa lihat ke mana uang dan daging qurban dialokasikan.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="checklist-box">
+      <h2>✔️ Sudah Siap Jadi Anggota?</h2>
+      <p>Centangi tiap poin yang sudah Anda lakukan — biar tidak ada yang terlewat.</p>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah isi form pendaftaran</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah dapat ID Anggota & login berhasil</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah tahu cara upload bukti transfer</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah cek menu Survey Sapi</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Tahu ke mana harus lihat status lunas</span></div>
+    </div>
+
+  </div>
+
+  <!-- ================= PANEL ADMIN ================= -->
+  <div class="panel" id="panelAdmin">
+
+    <div class="section-head">
+      <div class="section-kicker">Coba dulu, baru baca</div>
+      <h2>🖱️ Menu Aslinya — Klik-Klik di Sini</h2>
+      <p>Menu pengurus lebih lengkap dari anggota biasa, dikelompokkan per fungsi (Tabungan, Operasional Qurban, Keuangan, Lainnya) — persis seperti aplikasi aslinya. Coba klik-klik dulu.</p>
+    </div>
+    <div class="sim-wrap">
+      <div class="app-frame">
+        <div class="app-frame-bar">
+          <div class="app-frame-dot" style="background:#E4A5A5;"></div>
+          <div class="app-frame-dot" style="background:#EBD08C;"></div>
+          <div class="app-frame-dot" style="background:#A6D2B6;"></div>
+          <div class="app-frame-url">tabungan-qurban.app/masjid-anda</div>
+        </div>
+        <div class="app-frame-body">
+          <div class="mock-sidebar">
+            <div class="mock-sidebar-head">
+              <svg viewBox="0 0 200 200"><path d="M 162.23 162.23 L 37.77 162.23 L 37.77 37.77 L 162.23 37.77 Z M 142.23 142.23 L 57.77 142.23 L 57.77 57.77 L 142.23 57.77 Z" fill="#E7C878" fill-rule="evenodd"/><path d="M 188.00 100.00 L 100.00 188.00 L 12.00 100.00 L 100.00 12.00 Z M 159.72 100.00 L 100.00 159.72 L 40.28 100.00 L 100.00 40.28 Z" fill="#E7C878" fill-rule="evenodd"/></svg>
+              <div>
+                <div class="msh-name">Masjid Anda</div>
+                <div class="msh-sub">Workspace</div>
+              </div>
+            </div>
+            <div class="mock-nav" id="navAdmin"></div>
+          </div>
+          <div class="mock-content" id="contentAdmin"></div>
+        </div>
+      </div>
+      <div class="sim-hint">👆 Coba klik "Verifikasi" atau "Penerima & Tiket" di menu sebelah kiri.</div>
+    </div>
+
+    <div class="section-head">
+      <div class="section-kicker">Langkah demi langkah</div>
+      <h2>Alur Kerja Pengurus, dari Login sampai Hari H 🗂️</h2>
+      <p>Aplikasi ini menemani seluruh siklus qurban — dari anggota mendaftar, menabung, sampai daging dibagikan dan dilaporkan. Ikuti urutan berikut sesuai fase kegiatan masjid Anda.</p>
+    </div>
+
+    <div class="timeline" id="timelineAdmin">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">🔑 Login sebagai pengurus</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Gunakan akun pengurus yang diberikan saat masjid Anda didaftarkan ke sistem (biasanya untuk peran Ketua, Bendahara, dan Sekretaris). Akun pengurus punya menu tambahan yang tidak dilihat anggota biasa — semuanya ditandai grup <strong>"Tabungan"</strong>, <strong>"Operasional Qurban"</strong>, <strong>"Keuangan"</strong>, dan <strong>"Lainnya"</strong> di sidebar.</p>
+            <div class="tip">💡 Lupa/mau ganti kata sandi khusus Anda? Ada di menu <strong>Profil</strong>.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">👥 Approve anggota baru</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Approval Anggota Baru"</strong> menampilkan semua pendaftaran yang masuk. Tinjau datanya, lalu setujui — sistem otomatis membuat ID Anggota dan mengirim kabar aktivasi ke WhatsApp mereka.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">✅ Verifikasi setoran tabungan</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Verifikasi"</strong> berisi antrean setoran anggota berstatus PENDING. Cek bukti transfer yang diunggah, cocokkan dengan mutasi rekening, lalu <strong>Approve</strong> atau <strong>Reject</strong> disertai catatan kalau perlu.</p>
+            <div class="warn">⚠️ Setoran yang sudah di-approve otomatis masuk ke total tabungan anggota dan laporan — pastikan sudah benar-benar dicek sebelum menyetujui.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">🐄 Buat & kelola kelompok Sapi</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Di menu <strong>"Survey Sapi"</strong>, buat data sapi (berat, harga, biaya pengolahan) — sistem otomatis menghitung estimasi iuran per orang dan jatah daging. Anggota lalu bisa gabung ke kelompok ini sendiri.</p>
+            <p>Pantau progress peserta & status pembayaran tiap kelompok di sini juga.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">📦 Susun rencana Distribusi Daging</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Distribusi Daging"</strong> membantu merencanakan pembagian: berapa kg untuk tiap alokasi (RT, panitia, dll), termasuk bagian non-daging (tulang, jeroan, kepala, kaki, buntut). Ada juga <strong>Work Order</strong> per sapi untuk membagi tugas ke tim potong.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">🎟️ Siapkan Penerima & Tiket</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Penerima & Tiket"</strong> untuk mengelola daftar penerima daging dan mencetak E-Tiket berkode QR. Kupon Mudhohi bisa di-generate otomatis dari data peserta Survey Sapi.</p>
+            <p>Saat hari H, gunakan fitur <strong>Scan Tiket</strong> (kamera HP) untuk check-in penerima — jauh lebih cepat dari catat manual.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">⚖️ Siapkan Kemasan & Inventaris</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Kemasan & Inventaris"</strong> menghitung otomatis kebutuhan kantong plastik berdasarkan rencana distribusi (plastik daging, jeroan, tulang, dst), dan mencatat alat yang perlu disiapkan manual (timbangan, pisau, dll) beserta stoknya.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">💵 Catat Keuangan</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Keuangan"</strong> untuk mengatur pos anggaran (mis. konsumsi, transport, kemasan) dan mencatat transaksi harian dengan bukti foto — semua otomatis terangkum jadi ringkasan kas dan grafik tren.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">9</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">📢 Broadcast WhatsApp & Log Aktivitas</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Menu <strong>"Broadcast WA"</strong> mengirim pesan ke anggota per orang atau per kelompok sapi (mis. pengingat kekurangan iuran). Menu <strong>"Log Aktivitas"</strong> mencatat riwayat login — berguna untuk audit sederhana.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">10</div>
+        <div class="step-card" onclick="toggleStep(this)">
+          <div class="step-title-row">
+            <div class="step-title">📑 Tutup dengan LPJ</div>
+            <svg class="step-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div class="step-detail">
+            <p>Setelah kegiatan selesai, susun narasi pertanggungjawaban di menu <strong>"LPJ"</strong> — otomatis dilengkapi ringkasan angka lintas modul (tabungan, distribusi, keuangan) dan bisa diekspor ke PDF untuk dibagikan ke jamaah.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="checklist-box">
+      <h2>✔️ Sudah Siap Jadi Pengurus?</h2>
+      <p>Centangi tiap poin yang sudah Anda coba — biar tidak ada langkah yang terlewat.</p>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah login pakai akun pengurus</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah coba approve 1 anggota</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah coba verifikasi 1 setoran</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Sudah buka menu Survey Sapi & Distribusi Daging</span></div>
+      <div class="cl-item" onclick="toggleCheck(this)"><div class="cl-box"></div><span class="cl-text">Tahu di mana mencatat transaksi Keuangan</span></div>
+    </div>
+
+  </div>
+
+  <!-- ================= FAQ (SHARED) ================= -->
+  <div class="section-head">
+    <div class="section-kicker">Masih bingung?</div>
+    <h2>Pertanyaan yang Sering Ditanyakan</h2>
+  </div>
+  <div id="faqList">
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-q">Lupa kata sandi, bagaimana? <svg class="step-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="faq-a">Kata sandi awal Anda adalah 4 digit terakhir nomor WhatsApp yang didaftarkan. Kalau tetap tidak bisa masuk, hubungi pengurus masjid untuk direset.</div>
+    </div>
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-q">Bukti transfer saya sudah 2 hari belum di-approve, kenapa? <svg class="step-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="faq-a">Verifikasi dilakukan manual oleh pengurus untuk mencocokkan dengan mutasi rekening, jadi butuh waktu. Kalau sudah lebih dari beberapa hari, hubungi langsung pengurus lewat WhatsApp.</div>
+    </div>
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-q">Boleh lihat-lihat dulu tanpa daftar? <svg class="step-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="faq-a">Boleh — pilih "Lihat Sebagai Guest" di halaman Masuk untuk lihat dashboard dan laporan ringkas tanpa akun. Menu LPJ (transparansi) juga terbuka untuk siapa saja.</div>
+    </div>
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-q">Bedanya "Daftar Langsung" dan menabung biasa apa? <svg class="step-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="faq-a">Menabung biasa artinya Anda menyetor sedikit demi sedikit sampai mencukupi 1 bagian qurban. "Daftar Langsung" (Qurban Instan) untuk yang mau langsung bayar penuh sekaligus tanpa proses menabung bertahap.</div>
+    </div>
+    <div class="faq-item" onclick="toggleFaq(this)">
+      <div class="faq-q">QR tiket saya hilang/tidak muncul, bagaimana? <svg class="step-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="faq-a">Tenang, panitia di lokasi bisa mencari data Anda secara manual lewat nama, nomor HP, atau alamat di menu Scan Tiket — tidak wajib QR untuk pengambilan.</div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Panduan ini dibuat untuk mempermudah pengguna baru Tabungan Qurban.<br>
+    Masih ada pertanyaan? Hubungi pengurus masjid Anda langsung.
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   IKON — path SVG persis dari aplikasi asli (viewBox 0 0 24 24)
+   ============================================================ */
+const ICONS = {
+  dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  lpj: '<path d="M9 12l2 2 4-4"/><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/>',
+  upload: '<path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/>',
+  history: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/>',
+  approval: '<path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 16c0-1 .5-2 1-3"/>',
+  sapi: '<path d="M12 21c-4.5-3-7-6.2-7-9.5A7 7 0 0112 4a7 7 0 017 7.5c0 3.3-2.5 6.5-7 9.5z"/><circle cx="12" cy="11" r="2.3"/>',
+  box: '<path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/>',
+  wo: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>',
+  penerima: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01"/>',
+  keuangan: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 6v0M18 6v0M6 18v0M18 18v0"/>',
+  kemasan: '<path d="M21 8V6a2 2 0 00-2-2H5a2 2 0 00-2 2v2M3 8l9 5 9-5M3 8v10a2 2 0 002 2h14a2 2 0 002-2V8"/><path d="M12 13v6"/>',
+  broadcast: '<path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
+  log: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="M3.5 9L2 7.5M20.5 9L22 7.5"/>',
+  profile: '<path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>'
+};
+function iconSvg(name){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICONS[name]||'')+'</svg>';
+}
+
+/* ============================================================
+   STRUKTUR MENU — sama persis urutan & pengelompokan aplikasi asli
+   ============================================================ */
+const MENU_ANGGOTA = [
+  { id:'dashboard', label:'Dashboard', icon:'dashboard' },
+  { id:'lpj', label:'LPJ', icon:'lpj' },
+  { id:'upload', label:'Upload Bukti', icon:'upload' },
+  { id:'history', label:'Riwayat', icon:'history' },
+  { id:'laporan', label:'Laporan Tabungan', icon:'lpj', group:'Tabungan' },
+  { id:'laporanIuran', label:'Laporan Iuran Qurban', icon:'lpj', group:'Tabungan' },
+  { id:'surveySapi', label:'Survey Sapi', icon:'sapi', group:'Operasional Qurban' },
+  { id:'distribusiDaging', label:'Distribusi Daging', icon:'box', group:'Operasional Qurban' },
+  { id:'profile', label:'Profil', icon:'profile' }
+];
+const MENU_ADMIN = [
+  { id:'dashboard', label:'Dashboard', icon:'dashboard' },
+  { id:'lpj', label:'LPJ', icon:'lpj' },
+  { id:'verify', label:'Verifikasi', icon:'lpj', group:'Tabungan' },
+  { id:'approval', label:'Approval Anggota Baru', icon:'approval', group:'Tabungan' },
+  { id:'laporan', label:'Laporan Tabungan', icon:'lpj', group:'Tabungan' },
+  { id:'laporanIuran', label:'Laporan Iuran Qurban', icon:'lpj', group:'Tabungan' },
+  { id:'surveySapi', label:'Survey Sapi', icon:'sapi', group:'Operasional Qurban' },
+  { id:'distribusiDaging', label:'Distribusi Daging', icon:'box', group:'Operasional Qurban' },
+  { id:'woAktual', label:'WO Aktual', icon:'wo', group:'Operasional Qurban' },
+  { id:'penerima', label:'Penerima & Tiket', icon:'penerima', group:'Operasional Qurban' },
+  { id:'keuangan', label:'Keuangan', icon:'keuangan', group:'Keuangan' },
+  { id:'kemasan', label:'Kemasan & Inventaris', icon:'kemasan', group:'Keuangan' },
+  { id:'broadcast', label:'Broadcast WA', icon:'broadcast', group:'Lainnya' },
+  { id:'activityLog', label:'Log Aktivitas', icon:'log', group:'Lainnya' },
+  { id:'profile', label:'Profil', icon:'profile' }
+];
+
+/* ============================================================
+   ISI PREVIEW TIAP MENU — versi ringkas dari halaman aslinya
+   ============================================================ */
+const CONTENT = {
+  dashboard: { title:'Dashboard', sub:'Ringkasan progress tabungan Anda.', body:`
+    <div class="mc-stat-row">
+      <div class="mc-stat"><div class="v">Rp 2,4jt</div><div class="k">Total terkumpul</div></div>
+      <div class="mc-stat"><div class="v">68%</div><div class="k">Progress target</div></div>
+      <div class="mc-stat"><div class="v">APPROVED</div><div class="k">Setoran terakhir</div></div>
+    </div>
+    <div class="mc-card"><div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">Progress menuju target</div><div class="mc-progress"><div class="mc-progress-fill" style="width:68%;"></div></div></div>` },
+  lpj: { title:'LPJ (Laporan Pertanggungjawaban)', sub:'Ringkasan lintas modul, terbuka untuk siapa saja.', body:`
+    <div class="mc-stat-row">
+      <div class="mc-stat"><div class="v">3</div><div class="k">Sapi disurvei</div></div>
+      <div class="mc-stat"><div class="v">217</div><div class="k">Peserta terdaftar</div></div>
+      <div class="mc-stat"><div class="v">Rp 8,1jt</div><div class="k">Dana terealisasi</div></div>
+    </div>
+    <div class="mc-card">Narasi pertanggungjawaban pengurus + grafik distribusi & realisasi dana.</div>` },
+  upload: { title:'Upload Bukti', sub:'Form setor tabungan baru.', body:`
+    <div class="mc-form-row"><label>Nominal</label><div class="mc-input">Rp 500.000</div></div>
+    <div class="mc-form-row"><label>Tanggal Transfer</label><div class="mc-input">12 Agustus 2026</div></div>
+    <div class="mc-form-row"><label>Bank Asal</label><div class="mc-input">BCA</div></div>
+    <div class="mc-form-row"><label>Bukti Transfer</label><div class="mc-input">📎 bukti_transfer.jpg</div></div>
+    <div class="mc-btn">Kirim Setoran</div>` },
+  history: { title:'Riwayat', sub:'Semua setoran & statusnya.', body:`
+    <table class="mc-table"><thead><tr><th>Tanggal</th><th>Nominal</th><th>Status</th></tr></thead><tbody>
+    <tr><td>12 Agu 2026</td><td>Rp 500.000</td><td><span class="mc-badge pending">PENDING</span></td></tr>
+    <tr><td>02 Agu 2026</td><td>Rp 300.000</td><td><span class="mc-badge approved">APPROVED</span></td></tr>
+    <tr><td>19 Jul 2026</td><td>Rp 300.000</td><td><span class="mc-badge approved">APPROVED</span></td></tr>
+    </tbody></table>` },
+  laporan: { title:'Laporan Tabungan', sub:'Grafik & rekap tabungan per anggota.', body:`
+    <div class="mc-card">📊 Grafik tren tabungan bulanan + tabel rekap per anggota. Bisa diekspor ke PDF/Excel.</div>` },
+  laporanIuran: { title:'Laporan Iuran Qurban', sub:'Status lunas/belum per peserta.', body:`
+    <table class="mc-table"><thead><tr><th>Nama</th><th>Terkumpul</th><th>Status</th></tr></thead><tbody>
+    <tr><td>Hirmanto</td><td>Rp 2.400.000</td><td><span class="mc-badge approved">Lunas</span></td></tr>
+    <tr><td>Siti Aminah</td><td>Rp 1.100.000</td><td><span class="mc-badge pending">Belum Lunas</span></td></tr>
+    </tbody></table>` },
+  surveySapi: { title:'Survey Sapi', sub:'Kelompok sapi yang bisa Anda ikuti.', body:`
+    <div class="mc-card">
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px;">🐄 Sapi #1 — RT 03</div>
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:8px;">5 dari 7 slot terisi · estimasi Rp 2,4jt/orang</div>
+      <div class="mc-progress"><div class="mc-progress-fill" style="width:71%;"></div></div>
+      <div style="margin-top:10px;"><span class="mc-btn gold">Ikut Kelompok Ini</span></div>
+    </div>` },
+  distribusiDaging: { title:'Distribusi Daging', sub:'Rencana alokasi daging & bagian lain.', body:`
+    <table class="mc-table"><thead><tr><th>Alokasi</th><th>Berat</th><th>Qty</th></tr></thead><tbody>
+    <tr><td>RT 01</td><td>2 kg</td><td>30</td></tr>
+    <tr><td>RT 02</td><td>2 kg</td><td>28</td></tr>
+    <tr><td>Panitia</td><td>3 kg</td><td>15</td></tr>
+    </tbody></table>` },
+  profile: { title:'Profil', sub:'Data pribadi & ganti kata sandi.', body:`
+    <div class="mc-form-row"><label>Nama Lengkap</label><div class="mc-input">Hirmanto Karawang</div></div>
+    <div class="mc-form-row"><label>Nomor WhatsApp</label><div class="mc-input">08xx-xxxx-xxxx</div></div>
+    <div class="mc-btn ghost">Ganti Kata Sandi</div>` },
+  verify: { title:'Verifikasi', sub:'Antrean setoran PENDING dari anggota.', body:`
+    <table class="mc-table"><thead><tr><th>Anggota</th><th>Nominal</th><th>Aksi</th></tr></thead><tbody>
+    <tr><td>Budi Santoso</td><td>Rp 500.000</td><td><span class="mc-btn" style="padding:4px 10px;font-size:10.5px;">Approve</span> <span class="mc-btn ghost" style="padding:4px 10px;font-size:10.5px;">Reject</span></td></tr>
+    <tr><td>Rina Wati</td><td>Rp 250.000</td><td><span class="mc-btn" style="padding:4px 10px;font-size:10.5px;">Approve</span> <span class="mc-btn ghost" style="padding:4px 10px;font-size:10.5px;">Reject</span></td></tr>
+    </tbody></table>` },
+  approval: { title:'Approval Anggota Baru', sub:'Pendaftar yang menunggu disetujui.', body:`
+    <div class="mc-card">
+      <div style="font-weight:700;font-size:13px;">Dedi Kurniawan</div>
+      <div style="font-size:12px;color:var(--ink-soft);margin:4px 0 10px;">RT 04 · Blok C No. 12 · 08xx-xxxx-1234</div>
+      <span class="mc-btn" style="padding:6px 14px;font-size:11.5px;">✓ Setujui</span>
+    </div>` },
+  woAktual: { title:'Work Order Aktual', sub:'Realisasi berat & qty per sapi, hari H.', body:`
+    <table class="mc-table"><thead><tr><th>Sapi</th><th>Qty Aktual</th><th>Berat Aktual</th></tr></thead><tbody>
+    <tr><td>Sapi #1</td><td>32</td><td>2,1 kg</td></tr>
+    <tr><td>Sapi #2</td><td>29</td><td>2,3 kg</td></tr>
+    </tbody></table>` },
+  penerima: { title:'Penerima & Tiket', sub:'Kelola penerima, cetak tiket, scan check-in.', body:`
+    <table class="mc-table"><thead><tr><th>Nama</th><th>Alokasi</th><th>Status</th></tr></thead><tbody>
+    <tr><td>Warga RT 01</td><td>RT 01</td><td><span class="mc-badge approved">Diambil</span></td></tr>
+    <tr><td>Warga RT 02</td><td>RT 02</td><td><span class="mc-badge pending">Belum</span></td></tr>
+    </tbody></table>
+    <div style="margin-top:10px;"><span class="mc-btn gold">📷 Scan Tiket</span></div>` },
+  keuangan: { title:'Keuangan', sub:'Anggaran & transaksi harian.', body:`
+    <div class="mc-stat-row">
+      <div class="mc-stat"><div class="v">Rp 12jt</div><div class="k">Total anggaran</div></div>
+      <div class="mc-stat"><div class="v">Rp 8,1jt</div><div class="k">Realisasi</div></div>
+    </div>
+    <div class="mc-card">Pos: Konsumsi, Transport, Kemasan — tiap pos punya batas & realisasi sendiri.</div>` },
+  kemasan: { title:'Kemasan & Inventaris', sub:'Kebutuhan plastik otomatis + alat manual.', body:`
+    <table class="mc-table"><thead><tr><th>Item</th><th>Kebutuhan</th><th>Stok</th></tr></thead><tbody>
+    <tr><td>Plastik Daging</td><td>144</td><td>0</td></tr>
+    <tr><td>Timbangan Digital</td><td>2</td><td>1</td></tr>
+    </tbody></table>` },
+  broadcast: { title:'Broadcast WhatsApp', sub:'Kirim pesan ke anggota/kelompok sapi.', body:`
+    <div class="mc-card">
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px;">Kirim ke: <strong>Kelompok Sapi #1</strong></div>
+      <div style="background:var(--sand);border-radius:10px;padding:10px 12px;font-size:12px;">"Assalamu'alaikum, mengingatkan kekurangan iuran qurban Bapak/Ibu sebesar Rp 300.000..."</div>
+    </div>` },
+  activityLog: { title:'Log Aktivitas Anggota', sub:'Riwayat login untuk audit sederhana.', body:`
+    <table class="mc-table"><thead><tr><th>Nama</th><th>Waktu Login</th></tr></thead><tbody>
+    <tr><td>Budi Santoso</td><td>16 Agu, 08:12</td></tr>
+    <tr><td>Rina Wati</td><td>15 Agu, 19:44</td></tr>
+    </tbody></table>` }
+};
+
+function renderSim(role){
+  const menu = role==='anggota' ? MENU_ANGGOTA : MENU_ADMIN;
+  const navEl = document.getElementById(role==='anggota' ? 'navAnggota' : 'navAdmin');
+  let html = '', lastGroup = null;
+  menu.forEach(item => {
+    if (item.group && item.group !== lastGroup){
+      html += '<div class="mock-nav-label">'+item.group+'</div>';
+      lastGroup = item.group;
+    } else if (!item.group){
+      lastGroup = null;
+    }
+    html += '<button class="mock-tab-btn'+(item.id==='dashboard'?' active':'')+'" data-role="'+role+'" data-id="'+item.id+'" onclick="selectMenu(this)">'+iconSvg(item.icon)+'<span>'+item.label+'</span></button>';
+  });
+  navEl.innerHTML = html;
+  showContent(role, 'dashboard');
+}
+
+function selectMenu(btn){
+  const role = btn.getAttribute('data-role');
+  const id = btn.getAttribute('data-id');
+  const navEl = document.getElementById(role==='anggota' ? 'navAnggota' : 'navAdmin');
+  navEl.querySelectorAll('.mock-tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  showContent(role, id);
+}
+
+function showContent(role, id){
+  const el = document.getElementById(role==='anggota' ? 'contentAnggota' : 'contentAdmin');
+  const c = CONTENT[id];
+  if (!c || !el) return;
+  el.style.opacity = 0;
+  setTimeout(() => {
+    el.innerHTML = '<div class="mock-content-title">'+c.title+'</div><div class="mock-content-sub">'+c.sub+'</div>'+c.body;
+    el.style.opacity = 1;
+  }, 90);
+}
+
+/* ============================================================
+   INTERAKSI UMUM
+   ============================================================ */
+function setRole(role){
+  document.getElementById('panelAnggota').classList.toggle('active', role==='anggota');
+  document.getElementById('panelAdmin').classList.toggle('active', role==='admin');
+  document.getElementById('btnRoleAnggota').classList.toggle('active', role==='anggota');
+  document.getElementById('btnRoleAdmin').classList.toggle('active', role==='admin');
+  updateProgress();
+  window.scrollTo({ top: document.querySelector('.role-switch').offsetTop - 20, behavior:'smooth' });
+}
+
+function toggleStep(card){
+  card.classList.toggle('open');
+  updateProgress();
+}
+
+function toggleFaq(item){
+  const wasOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
+  if (!wasOpen) item.classList.add('open');
+}
+
+function toggleCheck(item){
+  item.classList.toggle('done');
+  const box = item.querySelector('.cl-box');
+  box.textContent = item.classList.contains('done') ? '✓' : '';
+  updateProgress();
+}
+
+function updateProgress(){
+  const activePanel = document.querySelector('.panel.active');
+  const steps = activePanel.querySelectorAll('.step-card');
+  const openSteps = activePanel.querySelectorAll('.step-card.open').length;
+  const checks = activePanel.querySelectorAll('.cl-item');
+  const doneChecks = activePanel.querySelectorAll('.cl-item.done').length;
+
+  const total = steps.length + checks.length;
+  const done = openSteps + doneChecks;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+}
+
+renderSim('anggota');
+renderSim('admin');
+updateProgress();
+</script>
+
+</body>
+</html>
