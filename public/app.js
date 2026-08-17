@@ -2183,6 +2183,8 @@ function formatRp(n) {
     return 'Rp ' + Math.round(n).toLocaleString('id-ID');
 }
 
+let HARGA_BAGIAN = {daging:130000, tulang:30000, jeroan:55000, kepala:40000, kaki:30000, ekor:45000, kulit:45000};
+
 function computeNilaiEkonomisSapi(berat) {
     const b = Number(berat) || 0;
     const pKarkas = 0.5, pDaging = 0.6;
@@ -2191,7 +2193,7 @@ function computeNilaiEkonomisSapi(berat) {
     const jeroan = karkas * 0.10, kepala = b * 0.04, kaki = 4.5 * 4;
     const ekor = b * 0.007, kulit = b * 0.07;
 
-    const harga = {daging:130000, tulang:30000, jeroan:55000, kepala:40000, kaki:30000, ekor:45000, kulit:45000};
+    const harga = HARGA_BAGIAN;
     return {
         daging:{kg:daging, rp:daging*harga.daging},
         tulang:{kg:tulang, rp:tulang*harga.tulang},
