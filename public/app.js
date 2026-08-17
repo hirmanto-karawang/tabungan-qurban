@@ -4064,7 +4064,7 @@ function loadWoAktualList(containerId) {
         const tbodyHtml = mudhohiRowHtml + restRowsHtml;
 
         return `
-            <div class="card" style="max-width:820px; margin-top:20px;">
+            <div class="wo-aktual-sapi-block" style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border-soft);">
               <h3 style="margin-top:0;">WO Aktual - ${surveyKode(s)} · ${s.supplier || '—'}</h3>
               <div class="survey-member-meta" style="margin:0 0 16px;">
                 <div><span class="label">Supplier</span>${s.supplier || '—'}</div>
@@ -4255,9 +4255,6 @@ function renderWoAktualResume(containerId) {
     }
 
     container.innerHTML = `
-        <div class="card" style="max-width:820px; margin-top:20px;">
-          <h3 style="margin-top:0;">Resume Work Order Aktual</h3>
-          <p style="color:var(--ink-soft); font-size:13px; margin-top:-8px;">Ringkasan seluruh sapi (${appData.surveySapi.length} sapi) dalam satu tabel. Baris Mudhohi bernomor per sapi; baris alokasi lain dijumlahkan dari semua sapi. Balance = Aktual − Plan.</p>
           <div class="table-container">
             <table>
               <thead><tr><th>Alokasi</th><th>Plan</th><th>Aktual</th><th>Balance</th></tr></thead>
@@ -4275,8 +4272,7 @@ function renderWoAktualResume(containerId) {
                 </tr>
               </tfoot>
             </table>
-          </div>
-        </div>`;
+          </div>`;
 }
 
 function updateWoAktualRowTotal(surveyId, rencanaId, beratPerUnit) {
