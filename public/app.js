@@ -225,7 +225,12 @@ let appData = {
     // Cicilan pembayaran peserta tipe 'instan' (Daftar Langsung/Qurban
     // Instan) - lihat komentar TENANT_SHEET_TEMPLATE.SetoranInstan di
     // sheets.js & pesertaInstanBayarSummary() di bawah.
-    setoranInstan: []
+    setoranInstan: [],
+    // Pembayaran KE SUPPLIER untuk pembelian 1 ekor sapi (surveyId, FK ke
+    // SurveySapi.id) - bisa bertahap (DP dulu, pelunasan menyusul). Lihat
+    // komentar TENANT_SHEET_TEMPLATE.PembayaranSupplier di sheets.js &
+    // kelolaBayarSupplier() di bawah.
+    pembayaranSupplier: []
 };
 
 let currentUser = null;
@@ -537,6 +542,7 @@ async function loadDataFromSheets() {
     const kemasanInventarisRows = bootstrap ? (bootstrap.KemasanInventaris || []) : await fetchSheetDBTable('KemasanInventaris');
     const lpjNarasiRows = bootstrap ? (bootstrap.LPJNarasi || []) : await fetchSheetDBTable('LPJNarasi');
     const setoranInstanRows = bootstrap ? (bootstrap.SetoranInstan || []) : await fetchSheetDBTable('SetoranInstan');
+    const pembayaranSupplierRows = bootstrap ? (bootstrap.PembayaranSupplier || []) : await fetchSheetDBTable('PembayaranSupplier');
 
     // Parse Members (Sheetdb returns array of objects)
     appData.members = memberRows.map(row => ({
@@ -883,6 +889,21 @@ async function loadDataFromSheets() {
     appData.transaksiKeuangan = transaksiKeuanganRows.map(row => ({
         id: parseInt(row.id) || 0,
         posId: parseInt(row.posId) || 0,
+        tanggal: row.tanggal || '',
+        jumlah: parseInt(row.jumlah) || 0,
+        keterangan: row.keterangan || '',
+        hasBukti: !!row.hasBukti,
+        status: row.status || 'aktif',
+        created_date: row.created_date || ''
+    })).filter(d => d.id);
+
+    // Parse PembayaranSupplier (pembayaran KE supplier utk pembelian 1 ekor
+    // sapi, bisa bertahap - "bukti" (base64 foto) SENGAJA tidak dikirim di
+    // load biasa, sama pola dgn TransaksiKeuangan.bukti - server balikin flag
+    // hasBukti, isi foto diambil on-demand lewat fetchBuktiBayarSupplierData()).
+    appData.pembayaranSupplier = pembayaranSupplierRows.map(row => ({
+        id: parseInt(row.id) || 0,
+        surveyId: parseInt(row.surveyId) || 0,
         tanggal: row.tanggal || '',
         jumlah: parseInt(row.jumlah) || 0,
         keterangan: row.keterangan || '',
@@ -2513,7 +2534,7 @@ function loadSurveySapiTable() {
     if (!tbody) return;
 
     if (appData.surveySapi.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="loading">Belum ada data survey</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="loading">Belum ada data survey</td></tr>';
         return;
     }
 
@@ -2530,6 +2551,7 @@ function loadSurveySapiTable() {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         const jumlahPeserta = activePeserta.filter(p => p.surveyId === s.id).length;
         const pesertaColor = jumlahPeserta >= SURVEY_MAX_PESERTA ? 'var(--brick)' : 'var(--emerald-2)';
+        const bayarSupplierCell = bayarSupplierCellHtml(s);
         return `
             <tr>
               <td><strong>${surveyKode(s)}</strong></td>
@@ -2543,8 +2565,226 @@ function loadSurveySapiTable() {
               <td style="color:${pesertaColor}; font-weight:600;">${jumlahPeserta}/${SURVEY_MAX_PESERTA}</td>
               <td>${lokasiCell}</td>
               <td>${fotoCell}</td>
+              <td>${bayarSupplierCell}</td>
             </tr>`;
     }).join('');
+}
+
+// ===== PEMBAYARAN KE SUPPLIER (pembelian sapi, bisa bertahap/DP) =====
+// Beda dari SetoranInstan (cicilan PESERTA ke masjid) - ini uang KELUAR dari
+// masjid/panitia ke SUPPLIER. Boleh dicicil (DP dulu, pelunasan menyusul),
+// masing2 baris = 1 kali bayar dgn nominal & bukti fotonya sendiri. Tidak ada
+// alur verifikasi PENDING/APPROVED (yang input admin sendiri) - "status"
+// cuma dipakai soft-delete ('aktif'/'batal'), sama pola dgn TransaksiKeuangan.
+let pendingBayarSupplierFoto = null; // base64 sementara sebelum submit
+
+// Ringkasan singkat dipakai di kolom tabel Riwayat Survey Sapi - dipisah dari
+// modal supaya bisa dipakai ulang tanpa buka modal dulu.
+function bayarSupplierCellHtml(survey) {
+    const list = (appData.pembayaranSupplier || []).filter(b => b.surveyId === survey.id && b.status !== 'batal');
+    const totalDibayar = list.reduce((sum, b) => sum + (b.jumlah || 0), 0);
+    const harga = survey.harga || 0;
+    const sisa = Math.max(harga - totalDibayar, 0);
+    const lunas = harga > 0 && sisa === 0;
+    const statusColor = lunas ? 'var(--emerald-2)' : (totalDibayar > 0 ? 'var(--gold)' : 'var(--ink-faint)');
+    const statusText = lunas
+        ? '✓ Lunas'
+        : (totalDibayar > 0 ? 'Rp ' + totalDibayar.toLocaleString('id-ID') + ' · sisa Rp ' + sisa.toLocaleString('id-ID') : 'Belum dibayar');
+    return `
+        <div style="font-size:12px; color:${statusColor}; font-weight:600; margin-bottom:4px; white-space:nowrap;">${statusText}</div>
+        <button class="btn btn-ghost btn-small" onclick="kelolaBayarSupplier(${survey.id})">💰 Kelola</button>`;
+}
+
+// Buka/refresh modal "Kelola Pembayaran Supplier" - reuse previewModal (sama
+// modal dgn preview bukti transfer/QR/foto lain), body-nya diisi ringkasan +
+// form tambah + daftar riwayat. Dipanggil ulang (bukan ditutup) tiap kali
+// selesai tambah/hapus supaya daftarnya langsung ter-refresh in-place, sama
+// pola dgn lihatRiwayatCicilanInstan()/simpanHargaBagian().
+function kelolaBayarSupplier(surveyId) {
+    const survey = appData.surveySapi.find(s => s.id === surveyId);
+    if (!survey) return;
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+    title.textContent = `Pembayaran ke Supplier - ${surveyKode(survey)} · ${survey.supplier || '—'}`;
+
+    const list = (appData.pembayaranSupplier || [])
+        .filter(b => b.surveyId === surveyId && b.status !== 'batal')
+        .slice()
+        .sort((a, b) => (a.tanggal || '').localeCompare(b.tanggal || '') || a.id - b.id);
+
+    const totalDibayar = list.reduce((sum, b) => sum + (b.jumlah || 0), 0);
+    const harga = survey.harga || 0;
+    const sisa = Math.max(harga - totalDibayar, 0);
+    const lunas = harga > 0 && sisa === 0;
+
+    const rows = list.map(b => {
+        const tanggalFmt = b.tanggal ? new Date(b.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+        return `
+            <tr>
+              <td>${tanggalFmt}</td>
+              <td>Rp ${(b.jumlah || 0).toLocaleString('id-ID')}</td>
+              <td>${b.keterangan || '—'}</td>
+              <td style="white-space:nowrap;">
+                ${b.hasBukti ? `<button class="btn btn-ghost btn-small" onclick="lihatBuktiBayarSupplier(${b.id})" title="Lihat bukti">📷</button>` : ''}
+                <button class="btn btn-ghost btn-small" onclick="hapusBayarSupplier(${b.id})" title="Hapus" style="color:var(--brick);">🗑️</button>
+              </td>
+            </tr>`;
+    }).join('');
+
+    pendingBayarSupplierFoto = null;
+
+    body.innerHTML = `
+        <div style="padding:2px 2px 14px; font-size:13px;">
+          Harga sapi <strong>Rp ${harga.toLocaleString('id-ID')}</strong> ·
+          Sudah dibayar <strong style="color:var(--emerald-2);">Rp ${totalDibayar.toLocaleString('id-ID')}</strong> ·
+          Sisa <strong style="color:${lunas ? 'var(--emerald-2)' : 'var(--brick)'};">${lunas ? 'Lunas' : 'Rp ' + sisa.toLocaleString('id-ID')}</strong>
+        </div>
+        <div style="background:var(--paper); border-radius:var(--radius-md); padding:14px; margin-bottom:14px;">
+          <div style="font-weight:600; font-size:13px; margin-bottom:10px;">+ Tambah Pembayaran</div>
+          <input type="hidden" id="bayarSupplierSurveyId" value="${surveyId}">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+            <input type="date" id="bayarSupplierTanggal" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;">
+            <input type="text" id="bayarSupplierNominal" placeholder="Nominal (Rp)" inputmode="numeric" style="width:100%;">
+          </div>
+          <input type="text" id="bayarSupplierKeterangan" placeholder="Keterangan (opsional, mis. DP/Pelunasan)" style="width:100%; margin-bottom:8px;">
+          <input type="file" id="bayarSupplierFotoFile" accept="image/*" onchange="pilihBuktiBayarSupplier(event)" style="margin-bottom:8px;">
+          <div id="bayarSupplierFotoPreview"></div>
+          <button class="btn btn-success btn-small" onclick="simpanBayarSupplier()">+ Simpan Pembayaran</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Nominal</th><th>Keterangan</th><th>Aksi</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4" style="color:var(--ink-faint);">Belum ada pembayaran.</td></tr>'}</tbody>
+          </table>
+        </div>`;
+    modal.classList.add('show');
+}
+
+// Foto bukti (opsional) - kompresi adaptif sama persis dgn pilihBuktiTransaksi().
+function pilihBuktiBayarSupplier(event) {
+    const file = event.target.files[0];
+    const previewBox = document.getElementById('bayarSupplierFotoPreview');
+    pendingBayarSupplierFoto = null;
+    if (previewBox) previewBox.innerHTML = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        showAlert('File harus berupa foto (JPG/PNG)', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        compressImage(e.target.result, function (compressed) {
+            pendingBayarSupplierFoto = compressed;
+            if (previewBox) previewBox.innerHTML = `<img src="${compressed}" style="max-width:140px; border-radius:8px; border:1px solid var(--border);">`;
+        }, function () {
+            pendingBayarSupplierFoto = null;
+            showAlert('Foto terlalu detail buat disimpan, coba foto lain.', 'error');
+            event.target.value = '';
+        });
+    };
+    reader.readAsDataURL(file);
+}
+
+async function simpanBayarSupplier() {
+    const surveyId = parseInt(document.getElementById('bayarSupplierSurveyId').value) || 0;
+    const tanggal = document.getElementById('bayarSupplierTanggal').value || new Date().toISOString().slice(0, 10);
+    const jumlah = parseRupiahInput(document.getElementById('bayarSupplierNominal').value);
+    const keterangan = document.getElementById('bayarSupplierKeterangan').value.trim();
+
+    const survey = appData.surveySapi.find(s => s.id === surveyId);
+    if (!survey) { showAlert('Survey tidak ditemukan', 'error'); return; }
+    if (jumlah <= 0) { showAlert('Nominal harus diisi', 'error'); return; }
+
+    const newId = appData.pembayaranSupplier.length > 0
+        ? Math.max(...appData.pembayaranSupplier.map(b => b.id)) + 1
+        : 1;
+
+    const record = {
+        id: newId,
+        surveyId: surveyId,
+        tanggal: tanggal,
+        jumlah: jumlah,
+        keterangan: keterangan,
+        status: 'aktif',
+        created_date: new Date().toISOString()
+    };
+    if (pendingBayarSupplierFoto) record.bukti = pendingBayarSupplierFoto;
+
+    const success = await appendSheetDB('PembayaranSupplier', record);
+    if (success) {
+        appData.pembayaranSupplier.push({
+            id: newId, surveyId, tanggal, jumlah, keterangan,
+            hasBukti: !!pendingBayarSupplierFoto,
+            status: 'aktif',
+            created_date: record.created_date
+        });
+        showAlert('Pembayaran tersimpan', 'success');
+        pendingBayarSupplierFoto = null;
+        loadSurveySapiTable();
+        kelolaBayarSupplier(surveyId);
+    } else {
+        showAlert('Gagal menyimpan pembayaran, coba lagi.', 'error');
+    }
+}
+
+async function hapusBayarSupplier(id) {
+    const item = appData.pembayaranSupplier.find(b => b.id === id);
+    if (!item) return;
+    if (!confirm(`Hapus pembayaran sebesar Rp ${item.jumlah.toLocaleString('id-ID')} ini?`)) return;
+
+    const success = await updateSheetDB('PembayaranSupplier', 'id', id, { status: 'batal' });
+    if (success) {
+        item.status = 'batal';
+        showAlert('Pembayaran dihapus', 'success');
+        loadSurveySapiTable();
+        kelolaBayarSupplier(item.surveyId);
+    } else {
+        showAlert('Gagal menghapus pembayaran, coba lagi.', 'error');
+    }
+}
+
+// Ambil foto bukti (base64) on-demand dari server - sama pola dgn
+// fetchBuktiTransaksiData()/fetchSavingFileData (base64 sengaja tidak ikut
+// di load data biasa, lihat stripBuktiSupplier() di public/api/sheets.js).
+async function fetchBuktiBayarSupplierData(id) {
+    try {
+        const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=PembayaranSupplier&getFile=${id}${tenantParam()}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        return data.fileData || '';
+    } catch (error) {
+        console.error('Error fetching bukti bayar supplier:', error);
+        return '';
+    }
+}
+
+// Ganti isi previewModal jadi foto (menimpa daftar sementara, sama pola dgn
+// previewSetoranInstanFoto()) - admin tutup lalu buka ulang "Kelola" utk
+// lihat daftar lagi.
+async function lihatBuktiBayarSupplier(id) {
+    const item = appData.pembayaranSupplier.find(b => b.id === id);
+    if (!item) return;
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+
+    title.textContent = `Bukti Pembayaran Supplier (Rp ${(item.jumlah || 0).toLocaleString('id-ID')})`;
+    body.innerHTML = '<p style="color:var(--ink-faint); font-size:13px;">⏳ Memuat foto…</p>';
+    modal.classList.add('show');
+
+    const fotoData = await fetchBuktiBayarSupplierData(id);
+    if (!fotoData) {
+        body.innerHTML = '<p style="color:var(--brick); font-size:13px;">Gagal memuat foto.</p>';
+        return;
+    }
+    body.innerHTML = `<div style="text-align:center;"><img src="${fotoData}" class="preview-image" alt="Bukti pembayaran supplier" style="max-width:100%; border-radius:8px;"></div>`;
 }
 
 // Ringkasan admin: tiap grup sapi + daftar nama peserta yang sudah "Ikut" -

@@ -46,10 +46,11 @@ const crypto = require('node:crypto');
 //   GET  /api/sheets                          -> { status: 'API is running' }
 //   GET  /api/sheets?tenant=<slug>&config=1   -> config publik masjid (nama, logo, rekening, dst)
 //   GET  /api/sheets?sheet=Members             -> array of objects
-//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], RencanaDistribusiLain:[], DistribusiBagianLain:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[], LPJNarasi:[], SetoranInstan:[] }
+//   GET  /api/sheets?bootstrap=1               -> { Members:[], Savings:[], Verifications:[], Pesan:[], Pendaftaran:[], Templates:[], LoginLog:[], SurveySapi:[], SurveyPeserta:[], DistribusiDaging:[], RencanaDistribusi:[], RencanaDistribusiLain:[], DistribusiBagianLain:[], WorkOrderAktual:[], PenerimaQR:[], PosBudget:[], TransaksiKeuangan:[], KemasanInventaris:[], LPJNarasi:[], SetoranInstan:[], PembayaranSupplier:[] }
 //   GET  /api/sheets?sheet=Savings&getFile=<id>            -> { id, fileData }
 //   GET  /api/sheets?sheet=SurveySapi&getFile=<id>&col=foto1..foto5 -> { id, col, fileData }
 //   GET  /api/sheets?sheet=SetoranInstan&getFile=<id>      -> { id, fileData }
+//   GET  /api/sheets?sheet=PembayaranSupplier&getFile=<id> -> { id, fileData }
 //   POST /api/sheets?sheet=Members&action=append  body: JSON record
 //   POST /api/sheets?sheet=Members&action=update  body: { keyColumn, keyValue, updates }
 //
@@ -390,7 +391,7 @@ function tenantConfigPublicFields(tenant) {
 // yang bisa ditulis admin di tab LPJ (Laporan Pertanggungjawaban). Sengaja
 // dibuatkan sheet sendiri (bukan hardcode) supaya kontennya bisa diedit
 // tanpa ubah kode, sama semangatnya dengan Templates.
-const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'RencanaDistribusiLain', 'DistribusiBagianLain', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris', 'LPJNarasi', 'SetoranInstan'];
+const SHEET_NAMES = ['Members', 'Savings', 'Verifications', 'Pesan', 'Pendaftaran', 'Templates', 'LoginLog', 'SurveySapi', 'SurveyPeserta', 'DistribusiDaging', 'RencanaDistribusi', 'RencanaDistribusiLain', 'DistribusiBagianLain', 'WorkOrderAktual', 'PenerimaQR', 'PosBudget', 'TransaksiKeuangan', 'KemasanInventaris', 'LPJNarasi', 'SetoranInstan', 'PembayaranSupplier'];
 
 // Kolom foto (base64) di sheet SurveySapi - sama alasannya dengan fileData di
 // Savings: base64 foto bisa besar, jadi DIBUANG dari list/bootstrap biasa dan
@@ -437,6 +438,18 @@ function stripBuktiTransaksi(row) {
 // TENANT_SHEET_TEMPLATE.SetoranInstan di bawah.
 function stripSetoranInstanFoto(row) {
   return { ...row, hasFile: !!row.fileData, fileData: '' };
+}
+
+// Sama pola lagi, utk kolom "bukti" (foto bukti transfer) di sheet
+// PembayaranSupplier - cicilan pembayaran ke SUPPLIER untuk pembelian 1 ekor
+// sapi (surveyId, FK ke SurveySapi.id). Beda dari SetoranInstan (itu cicilan
+// PESERTA ke masjid) dan dari Savings (tabungan anggota) - ini pembayaran
+// masjid/panitia KE supplier, boleh bertahap (DP dulu, pelunasan menyusul),
+// masing2 baris = 1 kali bayar. Tidak perlu alur verifikasi PENDING/APPROVED
+// (yang input sudah admin sendiri) - "status" cuma dipakai soft-delete
+// ('aktif'/'batal'), sama pola dengan TransaksiKeuangan.
+function stripBuktiSupplier(row) {
+  return { ...row, hasBukti: !!row.bukti, bukti: '' };
 }
 
 // 'KemasanInventaris' - modul "Kemasan & Inventaris", 2 kategori dalam 1
@@ -592,6 +605,9 @@ async function readSheet(sheetId, sheetName, accessToken) {
   if (sheetName === 'SetoranInstan') {
     rows = rows.map(stripSetoranInstanFoto);
   }
+  if (sheetName === 'PembayaranSupplier') {
+    rows = rows.map(stripBuktiSupplier);
+  }
   // Password anggota TIDAK PERNAH boleh ikut keluar dari server - lihat
   // komentar panjang di stripMemberSecret(). Pencocokan password sekarang
   // dilakukan server-side lewat action 'login'.
@@ -629,6 +645,9 @@ async function readAllSheetsBatch(sheetId, accessToken) {
       }
       if (name === 'SetoranInstan') {
         rows = rows.map(stripSetoranInstanFoto);
+      }
+      if (name === 'PembayaranSupplier') {
+        rows = rows.map(stripBuktiSupplier);
       }
       // Sama dgn readSheet() - password tidak pernah ikut ke browser.
       if (name === 'Members' || name === 'Pendaftaran') {
@@ -915,7 +934,16 @@ const TENANT_SHEET_TEMPLATE = {
   // ini) tapi kolomnya digabung di sheet yang sama.
   KemasanInventaris: ['id', 'namaItem', 'ukuran', 'kategori', 'basisHitung', 'rasioPerUnit', 'kebutuhanManual', 'stokTersedia', 'catatan', 'status', 'created_date'],
   // Cuma dipakai 1 baris (id selalu 'lpj') - lihat komentar SHEET_NAMES di atas.
-  LPJNarasi: ['id', 'narasi', 'updatedBy', 'updatedDate']
+  LPJNarasi: ['id', 'narasi', 'updatedBy', 'updatedDate'],
+  // Pembayaran ke SUPPLIER untuk pembelian 1 ekor sapi (surveyId, FK ke
+  // SurveySapi.id) - bisa bertahap (DP dulu, pelunasan menyusul), masing2
+  // baris = 1 kali bayar dgn nominal & bukti fotonya sendiri. Beda dari
+  // SetoranInstan (cicilan PESERTA ke masjid); ini uang KELUAR dari masjid
+  // ke supplier. "bukti" (base64 foto) DIBUANG dari list/bootstrap biasa &
+  // diganti flag hasBukti (lihat stripBuktiSupplier()), isi foto sebenarnya
+  // diambil on-demand lewat ?sheet=PembayaranSupplier&getFile=<id>. "status"
+  // dipakai soft-delete ('aktif'/'batal'), sama pola dgn TransaksiKeuangan.
+  PembayaranSupplier: ['id', 'surveyId', 'tanggal', 'jumlah', 'keterangan', 'bukti', 'status', 'created_date']
 };
 
 // Bikin 1 Google Spreadsheet BARU (isinya SEMUA tab modul di atas, sudah ada
@@ -1333,6 +1361,11 @@ module.exports = async function handler(req, res) {
 
       if (sheet === 'SetoranInstan' && getFile) {
         const fileData = await getFileData(targetSheetId, 'SetoranInstan', getFile, accessToken, 'fileData');
+        return res.status(200).json({ id: getFile, fileData });
+      }
+
+      if (sheet === 'PembayaranSupplier' && getFile) {
+        const fileData = await getFileData(targetSheetId, 'PembayaranSupplier', getFile, accessToken, 'bukti');
         return res.status(200).json({ id: getFile, fileData });
       }
 
