@@ -2177,6 +2177,42 @@ function formatKg(n) {
     return (Math.round(n * 10) / 10).toLocaleString('id-ID') + ' kg';
 }
 
+function formatRp(n) {
+    return 'Rp ' + Math.round(n).toLocaleString('id-ID');
+}
+
+function computeNilaiEkonomisSapi(berat) {
+    const b = Number(berat) || 0;
+    const pKarkas = 0.5, pDaging = 0.6;
+    const karkas = b * pKarkas;
+    const daging = karkas * pDaging, tulang = karkas - daging;
+    const jeroan = karkas * 0.10, kepala = b * 0.04, kaki = 4.5 * 4;
+    const ekor = b * 0.007, kulit = b * 0.07;
+
+    const harga = {daging:130000, tulang:30000, jeroan:55000, kepala:40000, kaki:30000, ekor:45000, kulit:45000};
+    return {
+        daging:{kg:daging, rp:daging*harga.daging},
+        tulang:{kg:tulang, rp:tulang*harga.tulang},
+        jeroan:{kg:jeroan, rp:jeroan*harga.jeroan},
+        kepala:{kg:kepala, rp:kepala*harga.kepala},
+        kaki:{kg:kaki, rp:kaki*harga.kaki},
+        ekor:{kg:ekor, rp:ekor*harga.ekor},
+        kulit:{kg:kulit, rp:kulit*harga.kulit},
+        totalKg: daging+tulang+jeroan+kepala+kaki+ekor+kulit,
+        totalRp: (daging+tulang+jeroan+kepala+kaki+ekor+kulit)*0 + daging*harga.daging + tulang*harga.tulang + jeroan*harga.jeroan + kepala*harga.kepala + kaki*harga.kaki + ekor*harga.ekor + kulit*harga.kulit
+    };
+}
+
+function totalNilaiEkonomisSemua() {
+    let total = {kg:0, rp:0};
+    appData.surveySapi.forEach(s => {
+        const n = computeNilaiEkonomisSapi(s.berat);
+        total.kg += n.totalKg;
+        total.rp += n.totalRp;
+    });
+    return total;
+}
+
 // Rekap status pembayaran peserta "Daftar Langsung" (Qurban Instan),
 // menggabungkan 2 sumber kebenaran secara OR supaya data lama tetap valid:
 //  1) statusBayar === 'lunas' - flag manual lama, ditoggle admin sebelum
@@ -2925,6 +2961,8 @@ function renderDistribusiHero() {
         .filter(d => d.status !== 'batal')
         .reduce((sum, d) => sum + d.berat * d.qty, 0);
 
+    const nilaiTotal = totalNilaiEkonomisSemua();
+
     ['', 'Member'].forEach(suffix => {
         const totalEl = document.getElementById('distribusiHeroTotal' + suffix);
         if (!totalEl) return;
@@ -2932,6 +2970,8 @@ function renderDistribusiHero() {
         document.getElementById('distribusiHeroShareWarga' + suffix).textContent = formatKg(totalShareWarga);
         document.getElementById('distribusiHeroRencana' + suffix).textContent = formatKg(totalRencana);
         document.getElementById('distribusiHeroJumlahSapi' + suffix).textContent = jumlahSapi.toLocaleString('id-ID');
+        const nilaiEl = document.getElementById('distribusiHeroNilaiRp' + suffix);
+        if (nilaiEl) nilaiEl.textContent = formatRp(nilaiTotal.rp);
     });
 }
 
