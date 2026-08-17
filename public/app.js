@@ -1617,12 +1617,14 @@ function runTabDataLoaders(tabName) {
         if (adminSection) adminSection.style.display = isAdminView ? '' : 'none';
         if (memberSection) memberSection.style.display = isAdminView ? 'none' : '';
         if (isAdminView) {
+            loadNilaiEkonomisSapi();
             loadSurveySapiDistribusi();
             loadSurveySapiBagianLain();
             loadRencanaDistribusiGlobal('rencanaDistribusiBody', 'rencanaDistribusiFoot', true);
             loadRencanaDistribusiLain('rencanaLainBody', 'rencanaLainFoot', 'rencanaBagianLainSummary', true);
             loadWorkOrderList('workOrderListAdmin', true);
         } else {
+            loadNilaiEkonomisSapi('nilaiEkonomisSapiBodyMember', 'nilaiEkonomisSapiFootMember');
             loadSurveySapiDistribusi('surveySapiDistribusiBodyMember', 'surveySapiDistribusiFootMember');
             loadSurveySapiBagianLain('surveyBagianLainBodyMember', 'surveyBagianLainFootMember');
             loadRencanaDistribusiGlobal('rencanaDistribusiBodyMember', 'rencanaDistribusiFootMember', false);
@@ -2769,7 +2771,7 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
     if (!tbody) return;
 
     if (appData.surveySapi.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" class="loading">Belum ada data survey</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">Belum ada data survey</td></tr>';
         if (tfoot) tfoot.innerHTML = '';
         return;
     }
@@ -2784,7 +2786,6 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
         const k = computeSurveyKalkulasi(s.berat, s.harga, s.biayaPengolahan);
         const totalMudhohi = k.hakMudhohi * jumlahPeserta;
         const pesertaColor = jumlahPeserta >= SURVEY_MAX_PESERTA ? 'var(--emerald-2)' : 'var(--brick)';
-        const nilai = computeNilaiEkonomisSapi(s.berat);
 
         totalBerat += s.berat || 0;
         totalDaging += k.estimasiDaging;
@@ -2800,39 +2801,16 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
               <td style="color:${pesertaColor}; font-weight:600;">${jumlahPeserta}/${SURVEY_MAX_PESERTA}</td>
               <td>${formatKg(totalMudhohi)} <span style="color:var(--ink-faint); font-size:12px;">(${jumlahPeserta} × ${formatKg(k.hakMudhohi)})</span></td>
               <td>${formatKg(k.shareWarga)}</td>
-              <td>${formatRp(nilai.daging.rp)}</td>
-              <td>${formatRp(nilai.tulang.rp)}</td>
-              <td>${formatRp(nilai.jeroan.rp)}</td>
-              <td>${formatRp(nilai.kepala.rp)}</td>
-              <td>${formatRp(nilai.kaki.rp)}</td>
-              <td>${formatRp(nilai.ekor.rp)}</td>
-              <td>${formatRp(nilai.kulit.rp)}</td>
-              <td><strong>${formatRp(nilai.totalRp)}</strong></td>
             </tr>`;
     }).join('');
 
     if (tfoot) {
         const jumlahSurvey = appData.surveySapi.length;
-        const nilaiTotal = totalNilaiEkonomisSemua();
         // Semua kolom dijumlahkan (total riil buat rencana logistik), KECUALI
         // Hak Mudhohi - itu rata-rata per 1/7 bagian antar sapi (rumus rata-
         // rata sesuai permintaan), bukan dijumlah, karena bukan angka
         // kumulatif yang dibagikan tapi patokan "kira-kira dapat berapa".
         const rataMudhohi = jumlahSurvey > 0 ? sumHakMudhohi / jumlahSurvey : 0;
-
-        // Hitung total nilai per bagian
-        let sumDaging = 0, sumTulang = 0, sumJeroan = 0, sumKepala = 0, sumKaki = 0, sumEkor = 0, sumKulit = 0;
-        appData.surveySapi.forEach(s => {
-            const n = computeNilaiEkonomisSapi(s.berat);
-            sumDaging += n.daging.rp;
-            sumTulang += n.tulang.rp;
-            sumJeroan += n.jeroan.rp;
-            sumKepala += n.kepala.rp;
-            sumKaki += n.kaki.rp;
-            sumEkor += n.ekor.rp;
-            sumKulit += n.kulit.rp;
-        });
-
         tfoot.innerHTML = `
             <tr style="background:var(--sand); font-weight:700;">
               <td>Total (${jumlahSurvey} sapi)</td>
@@ -2841,6 +2819,53 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
               <td>${totalPeserta} peserta</td>
               <td>Rata-rata ${formatKg(rataMudhohi)}</td>
               <td>${formatKg(totalShareWarga)}</td>
+            </tr>`;
+    }
+}
+
+// Tabel nilai ekonomis sapi - breakdown per bagian (daging/tulang/jeroan/kepala/kaki/ekor/kulit)
+function loadNilaiEkonomisSapi(tbodyId, tfootId) {
+    const tbody = document.getElementById(tbodyId || 'nilaiEkonomisSapiBody');
+    const tfoot = document.getElementById(tfootId || 'nilaiEkonomisSapiFoot');
+    if (!tbody) return;
+
+    if (appData.surveySapi.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="loading">Belum ada data survey</td></tr>';
+        if (tfoot) tfoot.innerHTML = '';
+        return;
+    }
+
+    let sumDaging = 0, sumTulang = 0, sumJeroan = 0, sumKepala = 0, sumKaki = 0, sumEkor = 0, sumKulit = 0, sumTotal = 0;
+
+    tbody.innerHTML = appData.surveySapi.map(s => {
+        const n = computeNilaiEkonomisSapi(s.berat);
+        sumDaging += n.daging.rp;
+        sumTulang += n.tulang.rp;
+        sumJeroan += n.jeroan.rp;
+        sumKepala += n.kepala.rp;
+        sumKaki += n.kaki.rp;
+        sumEkor += n.ekor.rp;
+        sumKulit += n.kulit.rp;
+        sumTotal += n.totalRp;
+
+        return `
+            <tr>
+              <td><strong>${surveyKode(s)}</strong></td>
+              <td>${formatRp(n.daging.rp)}</td>
+              <td>${formatRp(n.tulang.rp)}</td>
+              <td>${formatRp(n.jeroan.rp)}</td>
+              <td>${formatRp(n.kepala.rp)}</td>
+              <td>${formatRp(n.kaki.rp)}</td>
+              <td>${formatRp(n.ekor.rp)}</td>
+              <td>${formatRp(n.kulit.rp)}</td>
+              <td><strong>${formatRp(n.totalRp)}</strong></td>
+            </tr>`;
+    }).join('');
+
+    if (tfoot) {
+        tfoot.innerHTML = `
+            <tr style="background:var(--sand); font-weight:700;">
+              <td>Total</td>
               <td>${formatRp(sumDaging)}</td>
               <td>${formatRp(sumTulang)}</td>
               <td>${formatRp(sumJeroan)}</td>
@@ -2848,7 +2873,7 @@ function loadSurveySapiDistribusi(tbodyId, tfootId) {
               <td>${formatRp(sumKaki)}</td>
               <td>${formatRp(sumEkor)}</td>
               <td>${formatRp(sumKulit)}</td>
-              <td>${formatRp(nilaiTotal.rp)}</td>
+              <td><strong>${formatRp(sumTotal)}</strong></td>
             </tr>`;
     }
 }
