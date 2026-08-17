@@ -2592,7 +2592,7 @@ function loadSurveySapiResume() {
                           ${p.atasNama ? `Pendaftar: ${p.memberName} · ` : ''}${p.alamat || ''}
                         </div>
                       </td>
-                      <td colspan="2">
+                      <td colspan="3">
                         Total iuran Rp ${iuranPerOrang.toLocaleString('id-ID')}
                         <div style="margin-top:2px;color:${lunas ? 'var(--emerald-2)' : 'var(--brick)'}; font-weight:600;">${statusLabel}</div>
                         ${sum.totalPending > 0 ? `<div style="margin-top:2px;color:var(--gold);font-weight:600;">⏳ Menunggu verifikasi Rp ${sum.totalPending.toLocaleString('id-ID')}</div>` : ''}
@@ -2602,18 +2602,24 @@ function loadSurveySapiResume() {
                         ${sum.setoran.length > 0 ? `<button class="btn btn-ghost btn-small" onclick="lihatRiwayatCicilanInstan(${p.id})" style="margin-left:4px;" title="Lihat riwayat cicilan">📋 Cicilan (${sum.setoran.length})</button>` : ''}
                         ${p.hasBuktiBayar ? `<button class="btn btn-ghost btn-small" onclick="showBuktiBayarInstan(${p.id})" style="margin-left:4px;" title="Lihat foto bukti transfer (lama)">🖼 Bukti Lama</button>` : ''}
                         <button class="btn btn-small ${lunas ? 'btn-ghost' : 'btn-success'}" onclick="togglePembayaranInstan(${p.id})" style="margin-left:4px;" title="Override manual, di luar cicilan">${lunas ? 'Batalkan Lunas' : 'Tandai Lunas'}</button>
+                        <button class="btn btn-ghost btn-small" onclick="hapusPesertaSurvey(${p.id})" style="margin-left:4px;color:var(--brick);" title="Hapus peserta ini">🗑</button>
                       </td>
                     </tr>`;
             }
             const tabungan = memberApprovedSavings(p.memberId);
             const kurang = Math.max(iuranPerOrang - tabungan, 0);
             const lunas = kurang === 0;
+            const riwayatTabungan = appData.savings.filter(sv => sv.memberId === p.memberId);
             return `
                 <tr>
                   <td>${p.memberName}</td>
                   <td>Rp ${tabungan.toLocaleString('id-ID')}</td>
                   <td>Rp ${iuranPerOrang.toLocaleString('id-ID')}</td>
                   <td style="color:${lunas ? 'var(--emerald-2)' : 'var(--brick)'}; font-weight:600;">${lunas ? '✓ Lunas' : 'Rp ' + kurang.toLocaleString('id-ID')}</td>
+                  <td style="white-space:nowrap;">
+                    ${riwayatTabungan.length > 0 ? `<button class="btn btn-ghost btn-small" onclick="lihatBuktiTabunganPeserta(${p.memberId}, '${(p.memberName || '').replace(/'/g, "\\'")}')" title="Lihat bukti transfer">🖼 Bukti (${riwayatTabungan.length})</button>` : '<span style="color:var(--ink-faint);">—</span>'}
+                    <button class="btn btn-ghost btn-small" onclick="hapusPesertaSurvey(${p.id})" style="margin-left:4px;color:var(--brick);" title="Hapus peserta ini">🗑</button>
+                  </td>
                 </tr>`;
         }).join('');
 
@@ -2631,7 +2637,7 @@ function loadSurveySapiResume() {
         const tableOrEmpty = peserta.length > 0
             ? `<div class="table-container" style="margin-top:10px;">
                  <table>
-                   <thead><tr><th>Nama</th><th>Tabungan Disetor</th><th>Iuran</th><th>Kekurangan</th></tr></thead>
+                   <thead><tr><th>Nama</th><th>Tabungan Disetor</th><th>Iuran</th><th>Kekurangan</th><th>Aksi</th></tr></thead>
                    <tbody>${rows}</tbody>
                  </table>
                </div>`
@@ -2658,6 +2664,68 @@ function loadSurveySapiResume() {
               </div>
             </div>`;
     }).join('');
+}
+
+// Hapus peserta dari resume survey (admin) - soft delete, sama pola dengan
+// hapusKemasanItem()/RencanaDistribusiLain dkk: status ditandai 'batal' saja
+// (BUKAN dihapus dari sheet), supaya jejaknya tetap ada. Berlaku utk peserta
+// tipe 'tabungan' maupun 'instan' - dipanggil dari tombol 🗑 di kedua baris.
+async function hapusPesertaSurvey(pesertaId) {
+    const p = appData.surveyPeserta.find(x => x.id === pesertaId);
+    if (!p) return;
+    const nama = p.atasNama || p.memberName;
+    if (!confirm(`Hapus "${nama}" dari peserta survey ini?\n\nTabungan yang sudah disetor TIDAK ikut terhapus - hanya status keikutsertaannya di grup sapi ini yang dibatalkan.`)) return;
+
+    const success = await updateSheetDB('SurveyPeserta', 'id', pesertaId, { status: 'batal' });
+    if (success) {
+        p.status = 'batal';
+        showAlert('Peserta dihapus dari survey.', 'success');
+        loadSurveySapiResume();
+    } else {
+        showAlert('Gagal menghapus peserta, coba lagi.', 'error');
+    }
+}
+
+// Riwayat tabungan (Savings) 1 anggota + tombol lihat foto bukti transfer per
+// baris - dipanggil dari tombol "🖼 Bukti" di resume survey (peserta tipe
+// 'tabungan'). Savings TIDAK tersimpan per-survey (cuma per memberId), jadi
+// yang ditampilkan adalah seluruh riwayat setoran anggota tsb - konsisten
+// dgn memberApprovedSavings() yang jadi dasar angka "Tabungan Disetor".
+// Reuse previewModal + showPreview() yang sudah ada (sama pola dgn
+// lihatRiwayatCicilanInstan() -> previewSetoranInstanFoto()).
+function lihatBuktiTabunganPeserta(memberId, memberName) {
+    const list = appData.savings
+        .filter(sv => sv.memberId === memberId)
+        .slice()
+        .sort((a, b) => (a.uploadedAt || '').localeCompare(b.uploadedAt || ''));
+
+    const modal = document.getElementById('previewModal');
+    const title = document.getElementById('previewTitle');
+    const body = document.getElementById('previewBody');
+    title.textContent = `Riwayat Tabungan - ${memberName}`;
+
+    const statusBadge = st => {
+        const map = { APPROVED: ['✓ Disetujui', 'var(--emerald-2)'], PENDING: ['⏳ Menunggu', 'var(--gold)'], REJECTED: ['✕ Ditolak', 'var(--brick)'] };
+        const [label, color] = map[st] || [st, 'var(--ink-faint)'];
+        return `<span style="color:${color};font-weight:600;">${label}</span>`;
+    };
+
+    const rows = list.map(sv => `
+        <tr>
+          <td>${sv.transferDate || '—'}</td>
+          <td>Rp ${(sv.amount || 0).toLocaleString('id-ID')}</td>
+          <td>${statusBadge(sv.status)}</td>
+          <td>${sv.hasFile ? `<button class="btn btn-ghost btn-small" onclick="showPreview(${sv.id})">🖼 Foto</button>` : '—'}</td>
+        </tr>`).join('');
+
+    body.innerHTML = `
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Tanggal</th><th>Nominal</th><th>Status</th><th>Foto</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4" style="color:var(--ink-faint);">Belum ada tabungan.</td></tr>'}</tbody>
+          </table>
+        </div>`;
+    modal.classList.add('show');
 }
 
 // Tombol "💬 WA" di resume admin (peserta tipe 'instan') - buka WhatsApp ke
