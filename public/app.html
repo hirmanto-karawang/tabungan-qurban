@@ -867,12 +867,22 @@
      mulai geser (nyaris tidak terhindarkan pas nyentuh area tabel), browser
      sering keliru mengunci ke scroll horizontal tabel, bikin scroll halaman
      terasa "nyangkut"/berat - persis kalau lagi ada di menu yang isinya
-     tabel. touch-action:pan-x di sini bilang ke browser: elemen ini CUMA
-     boleh menangani gesture geser MENDATAR sendiri, gesture geser TEGAK
-     harus diteruskan ke halaman (bukan ditelan tabel) - jadi scroll vertikal
-     halaman tetap mulus meski jari sempat menyentuh tabel, tapi geser
-     mendatar utk lihat kolom yang terpotong tetap bisa dipakai. */
-  .table-container{ overflow-x:auto; touch-action: pan-x; border:1px solid var(--border-soft); border-radius: var(--radius-md); }
+     tabel.
+
+     KOREKSI PENTING (dulu di sini dipasang touch-action:pan-x - ITU BUG,
+     jangan diulang): pan-x TIDAK berarti "tangani mendatar di sini, teruskan
+     yang tegak ke halaman". Artinya sebenarnya: SELAMA satu sentuhan yang
+     DIMULAI di elemen ini, browser CUMA boleh melakukan geser MENDATAR -
+     geser TEGAK dimatikan total, dan TIDAK diteruskan ke halaman induk.
+     Akibatnya, begitu tabel memenuhi layar (di menu Laporan Tabungan,
+     Laporan Iuran, Approval, dst - hampir semua menu isinya tabel), jari
+     user hampir selalu mendarat di atas tabel, jadi scroll halaman MATI
+     sepenuhnya: halaman berhenti, tidak bisa naik maupun turun. Ini yang
+     terlihat di video - layar diam total beberapa detik saat isinya tabel.
+     Solusinya kembali ke perilaku bawaan (auto): browser sendiri sudah
+     pintar mengunci arah - geser mendatar menggeser tabel, geser tegak
+     men-scroll halaman - plus cubit-zoom tetap hidup. */
+  .table-container{ overflow-x:auto; border:1px solid var(--border-soft); border-radius: var(--radius-md); }
   table{ width:100%; border-collapse:collapse; font-size:13.6px; min-width:520px; }
   table thead{ background: var(--sand); }
   table th{
@@ -1096,7 +1106,7 @@
        strip ini juga scroll horizontal bersarang di halaman yang scroll
        vertikal, dan ada persis di Dashboard (kartu paling atas), jadi rawan
        "menelan" gesture scroll-ke-bawah user. */
-    touch-action: pan-x;
+    touch-action: auto; /* JANGAN pan-x: itu memblokir scroll tegak halaman */
   }
   .prayer-times-row::-webkit-scrollbar{ display:none; }
   .prayer-time-chip{
@@ -1152,7 +1162,7 @@
        duluan begitu user coba scroll ke bawah pas baru buka menu. Tanpa
        pan-x, gesture scroll-ke-bawah bisa "ketelan" jadi geser-tab-horizontal
        kalau jari sedikit miring. */
-    touch-action: pan-x;
+    touch-action: auto; /* JANGAN pan-x: itu memblokir scroll tegak halaman */
   }
   .report-tabs::-webkit-scrollbar{ display:none; }
   .report-tab-btn{
