@@ -2087,6 +2087,19 @@ Periksa menu "Verifikasi Tabungan" di aplikasi untuk proses lebih lanjut.
 // (lihat komentar SHEETS_CELL_SAFE_LIMIT di atas).
 let selectedSurveyFotos = [null, null, null, null, null];
 let surveyLocationData = { latitude: '', longitude: '', alamat: '' };
+// Set ke id SurveySapi yang sedang diedit (bukan null) saat admin klik ✏️ Edit
+// di Riwayat Survey Sapi - lihat editSurveySapi()/submitSurveySapi(). Dipakai
+// buat alur "data sementara": admin bisa catat survey duluan dgn estimasi
+// berat/harga saja (foto & lokasi menyusul), peserta sudah bisa "Ikut" dari
+// sekarang, lalu nanti admin BUKA LAGI baris yang sama pakai Edit utk
+// melengkapi foto/lokasi/harga final - TIDAK bikin baris/tab baru, supaya
+// peserta yang sudah ikut & tabungannya tetap nyambung ke survey yang sama.
+let editingSurveyId = null;
+// Nyimpen slot foto mana saja yang SUDAH ADA di record sebelum mode edit
+// dibuka (true/false x5) - dipakai submitSurveySapi() supaya slot yang tidak
+// disentuh ulang tidak ikut dikirim ke updateSheetDB() (foto lama tetap utuh,
+// tidak ke-clobber jadi kosong).
+let editingSurveyHasFoto = [false, false, false, false, false];
 let surveyLocationLoading = false;
 
 // Dipanggil tiap kali tab Survey Sapi dibuka. Set tanggal default ke hari ini
@@ -2381,10 +2394,68 @@ async function submitSurveySapi() {
     if (!jenis) { showAlert('Jenis sapi harus dipilih', 'error'); return; }
     if (!berat || berat <= 0) { showAlert('Berat sapi harus diisi', 'error'); return; }
     if (!harga || harga <= 0) { showAlert('Harga harus diisi', 'error'); return; }
-    if (!selectedSurveyFotos.some(f => f)) { showAlert('Minimal 1 foto sapi harus diunggah', 'error'); return; }
+
+    // Foto TIDAK wajib lagi (dulu hard block) - alur "data sementara": admin
+    // boleh catat survey duluan cuma dgn estimasi berat/harga (peserta sudah
+    // bisa "Ikut"), foto & lokasi menyusul nanti dilengkapi lewat Edit. Kalau
+    // sedang edit & slot foto sudah ada dari sebelumnya, jangan tanya lagi.
+    const adaFotoBaru = selectedSurveyFotos.some(f => f);
+    const adaFotoLama = editingSurveyId && editingSurveyHasFoto.some(Boolean);
+    if (!adaFotoBaru && !adaFotoLama) {
+        const lanjut = confirm('Belum ada foto sapi. Simpan dulu sebagai DATA SEMENTARA (estimasi berat & harga)? Foto & lokasi bisa dilengkapi belakangan lewat Edit.');
+        if (!lanjut) return;
+    }
 
     btn.disabled = true;
-    btn.textContent = 'Menyimpan…';
+    btn.textContent = editingSurveyId ? 'Mengupdate…' : 'Menyimpan…';
+
+    if (editingSurveyId) {
+        const id = editingSurveyId;
+        const updates = {
+            tanggal: tanggal,
+            supplier: supplier,
+            latitude: surveyLocationData.latitude || '',
+            longitude: surveyLocationData.longitude || '',
+            alamat: surveyLocationData.alamat || '',
+            jenisSapi: jenis,
+            berat: berat,
+            harga: harga,
+            biayaPengolahan: biayaPengolahan
+        };
+        // Foto: cuma kirim slot yang BENAR-BENAR diganti (base64 baru) - slot
+        // yang tidak disentuh (masih null) TIDAK dikirim, supaya foto lama di
+        // sheet tidak ke-clobber jadi kosong oleh updateSheetDB().
+        for (let i = 0; i < 5; i++) {
+            if (selectedSurveyFotos[i]) updates['foto' + (i + 1)] = selectedSurveyFotos[i];
+        }
+
+        const success = await updateSheetDB('SurveySapi', 'id', id, updates);
+
+        btn.disabled = false;
+        btn.textContent = 'Simpan Survey';
+
+        if (success) {
+            const idx = appData.surveySapi.findIndex(s => s.id === id);
+            if (idx > -1) {
+                const cur = appData.surveySapi[idx];
+                appData.surveySapi[idx] = {
+                    ...cur,
+                    tanggal, supplier,
+                    latitude: updates.latitude, longitude: updates.longitude, alamat: updates.alamat,
+                    jenisSapi: jenis, berat, harga, biayaPengolahan,
+                    hasFoto1: updates.foto1 ? true : cur.hasFoto1,
+                    hasFoto2: updates.foto2 ? true : cur.hasFoto2,
+                    hasFoto3: updates.foto3 ? true : cur.hasFoto3,
+                    hasFoto4: updates.foto4 ? true : cur.hasFoto4,
+                    hasFoto5: updates.foto5 ? true : cur.hasFoto5
+                };
+            }
+            showAlert('Survey sapi berhasil diupdate', 'success');
+            resetSurveyForm();
+            loadSurveySapiTable();
+        }
+        return;
+    }
 
     const newId = appData.surveySapi.length > 0
         ? Math.max(...appData.surveySapi.map(s => s.id)) + 1
@@ -2435,7 +2506,7 @@ async function submitSurveySapi() {
             createdBy: record.createdBy,
             created_date: record.created_date
         });
-        showAlert('Survey sapi berhasil disimpan', 'success');
+        showAlert(adaFotoBaru ? 'Survey sapi berhasil disimpan' : 'Survey sapi berhasil disimpan sebagai data sementara - lengkapi foto & lokasi nanti lewat Edit', 'success');
         resetSurveyForm();
         loadSurveySapiTable();
     }
@@ -2461,6 +2532,84 @@ function resetSurveyForm() {
     // Tanggal & lokasi SENGAJA tidak direset - survey berikutnya biasanya
     // masih di hari & lokasi yang sama (satu kali kunjungan ke supplier bisa
     // survey beberapa ekor sapi sekaligus).
+
+    // Keluar dari mode edit (kalau lagi edit) supaya form balik jadi "Tambah
+    // Survey" biasa - lihat editSurveySapi()/batalEditSurvey().
+    editingSurveyId = null;
+    editingSurveyHasFoto = [false, false, false, false, false];
+    const submitBtn = document.getElementById('submitSurveyBtn');
+    if (submitBtn) submitBtn.textContent = 'Simpan Survey';
+    const cancelBtn = document.getElementById('batalEditSurveyBtn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+// Buka record SurveySapi yang sudah ada ke form Tambah Survey supaya admin
+// bisa MELENGKAPI data "sementara" (estimasi berat/harga tanpa foto/lokasi)
+// tanpa bikin baris/tab baru - lihat surveyIsEstimasi()/editingSurveyId.
+// Foto yang sudah ada TIDAK diambil ulang ke form (hemat kuota getFile) -
+// slot cuma ditandai "✓ sudah ada", diganti hanya kalau admin upload baru.
+function editSurveySapi(id) {
+    const s = appData.surveySapi.find(x => x.id === id);
+    if (!s) { showAlert('Data survey tidak ditemukan', 'error'); return; }
+
+    const formTabBtn = document.querySelector('#surveySapiAdminSection .report-tabs .report-tab-btn');
+    if (formTabBtn) switchSurveyTab('form', formTabBtn);
+
+    editingSurveyId = id;
+
+    document.getElementById('surveyDate').value = s.tanggal || '';
+    document.getElementById('surveySupplier').value = s.supplier || '';
+    document.getElementById('surveyJenis').value = s.jenisSapi || '';
+    document.getElementById('surveyBerat').value = s.berat || '';
+    document.getElementById('surveyHarga').value = s.harga || '';
+    document.getElementById('surveyBiayaPengolahan').value = s.biayaPengolahan || '';
+    updateSurveyKalkulasi();
+
+    surveyLocationData = { latitude: s.latitude || '', longitude: s.longitude || '', alamat: s.alamat || '' };
+    const statusEl = document.getElementById('surveyLocationStatus');
+    const coordsEl = document.getElementById('surveyLocationCoords');
+    const addressEl = document.getElementById('surveyLocationAddress');
+    if (statusEl) {
+        if (s.latitude && s.longitude) {
+            statusEl.textContent = '✅ Lokasi tersimpan (dari survey ini)';
+            coordsEl.textContent = `${s.latitude}, ${s.longitude}`;
+            addressEl.textContent = s.alamat || '—';
+        } else {
+            statusEl.textContent = 'Belum ada lokasi - klik "Ambil Ulang Lokasi" kalau sudah di lokasi supplier';
+            coordsEl.textContent = '—';
+            addressEl.textContent = '—';
+        }
+    }
+
+    selectedSurveyFotos = [null, null, null, null, null];
+    editingSurveyHasFoto = [!!s.hasFoto1, !!s.hasFoto2, !!s.hasFoto3, !!s.hasFoto4, !!s.hasFoto5];
+    for (let i = 1; i <= 5; i++) {
+        const slot = document.getElementById('surveyFotoSlot' + i);
+        if (!slot) continue;
+        slot.innerHTML = editingSurveyHasFoto[i - 1]
+            ? `<input type="file" id="surveyFoto${i}" accept="image/png,image/jpeg" capture="environment" onchange="previewSurveyFoto(${i})">
+               <div class="slot-empty" style="color:var(--emerald-2);">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                 <span>Foto ${i} ✓<br>(klik utk ganti)</span>
+               </div>`
+            : `<input type="file" id="surveyFoto${i}" accept="image/png,image/jpeg" capture="environment" onchange="previewSurveyFoto(${i})">
+               ${surveyFotoSlotEmptyHtml(i)}`;
+    }
+    document.getElementById('surveyFotoError').textContent = '';
+
+    const submitBtn = document.getElementById('submitSurveyBtn');
+    if (submitBtn) submitBtn.textContent = '💾 Update Survey';
+    const cancelBtn = document.getElementById('batalEditSurveyBtn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-block';
+
+    showAlert(`Mode edit ${surveyKode(s)} - lengkapi data lalu klik Update Survey`, 'info');
+    const formTab = document.getElementById('surveyFormTab');
+    if (formTab) formTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function batalEditSurvey() {
+    resetSurveyForm();
+    showAlert('Mode edit dibatalkan', 'info');
 }
 
 function jenisSapiLabel(jenis) {
@@ -2473,6 +2622,20 @@ function jenisSapiLabel(jenis) {
 // bukan nomor urut tampilan supaya tidak berubah kalau urutan list berubah.
 function surveyKode(s) {
     return 'Survey#' + s.id;
+}
+
+// "Data Sementara" = belum ada foto sama sekali - dipakai sbg penanda kasar
+// survey yang baru dicatat dgn ESTIMASI berat/harga (foto & lokasi menyusul),
+// BELUM lewat kunjungan fisik ke supplier. Sengaja TIDAK pakai kolom status
+// terpisah di sheet (biar tidak perlu skema baru) - cukup diturunkan dari ada/
+// tidaknya foto, yang otomatis "naik status" begitu admin lengkapi via Edit.
+function surveyIsEstimasi(s) {
+    return !(s.hasFoto1 || s.hasFoto2 || s.hasFoto3 || s.hasFoto4 || s.hasFoto5);
+}
+
+function surveyEstimasiBadgeHtml(s) {
+    if (!surveyIsEstimasi(s)) return '';
+    return '<span class="badge-instan" title="Belum ada foto/lokasi - baru estimasi berat &amp; harga, peserta sudah bisa Ikut duluan">⏳ Data Sementara</span>';
 }
 
 // 1 ekor sapi qurban = 7 bagian/peserta (sama patokannya dengan rumus Iuran =
@@ -2554,7 +2717,8 @@ function loadSurveySapiTable() {
         const bayarSupplierCell = bayarSupplierCellHtml(s);
         return `
             <tr>
-              <td><strong>${surveyKode(s)}</strong></td>
+              <td><strong>${surveyKode(s)}</strong> ${surveyEstimasiBadgeHtml(s)}<br>
+                <button class="btn btn-ghost btn-small" style="margin-top:4px;" onclick="editSurveySapi(${s.id})">✏️ Edit</button></td>
               <td>${s.tanggal || '—'}</td>
               <td>${s.supplier || '—'}</td>
               <td>${jenisSapiLabel(s.jenisSapi)}</td>
@@ -2887,7 +3051,7 @@ function loadSurveySapiResume() {
             <div class="survey-member-card">
               <div class="survey-member-card-head">
                 <div>
-                  <div class="survey-member-card-title">${surveyKode(s)} · ${s.supplier || '—'} · ${jenisSapiLabel(s.jenisSapi)}</div>
+                  <div class="survey-member-card-title">${surveyKode(s)} · ${s.supplier || '—'} · ${jenisSapiLabel(s.jenisSapi)} ${surveyEstimasiBadgeHtml(s)}</div>
                   <div class="survey-member-card-sub">Survey ${s.tanggal || '—'} · Iuran Rp ${iuranPerOrang.toLocaleString('id-ID')}/peserta</div>
                 </div>
                 <span class="survey-participant-chip" style="background:${penuh ? 'var(--gold-tint)' : 'var(--emerald-tint)'}; color:${penuh ? 'var(--gold)' : 'var(--emerald-2)'};">
@@ -7451,7 +7615,7 @@ function loadSurveySapiMemberList() {
             <div class="survey-member-card">
               <div class="survey-member-card-head">
                 <div>
-                  <div class="survey-member-card-title">${surveyKode(s)} · ${s.supplier || '—'} · ${jenisSapiLabel(s.jenisSapi)}</div>
+                  <div class="survey-member-card-title">${surveyKode(s)} · ${s.supplier || '—'} · ${jenisSapiLabel(s.jenisSapi)} ${surveyEstimasiBadgeHtml(s)}</div>
                   <div class="survey-member-card-sub">Survey ${s.tanggal || '—'}</div>
                 </div>
                 ${ikutBtn}
