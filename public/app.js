@@ -2646,7 +2646,7 @@ function kelolaBayarSupplier(surveyId) {
           <input type="hidden" id="bayarSupplierSurveyId" value="${surveyId}">
           <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
             <input type="date" id="bayarSupplierTanggal" value="${new Date().toISOString().slice(0, 10)}" style="width:100%; box-sizing:border-box;">
-            <input type="text" id="bayarSupplierNominal" placeholder="Nominal (Rp)" inputmode="numeric" style="width:100%; box-sizing:border-box;">
+            <input type="text" id="bayarSupplierNominal" placeholder="Nominal (Rp)" inputmode="numeric" oninput="formatRupiahInput(this)" style="width:100%; box-sizing:border-box;">
           </div>
           <input type="text" id="bayarSupplierKeterangan" placeholder="Keterangan (opsional, mis. DP/Pelunasan)" style="width:100%; box-sizing:border-box; margin-bottom:8px;">
           <input type="file" id="bayarSupplierFotoFile" accept="image/*" onchange="pilihBuktiBayarSupplier(event)" style="margin-bottom:8px; max-width:100%;">
