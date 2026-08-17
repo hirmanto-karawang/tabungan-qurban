@@ -200,9 +200,12 @@ function signPayload(payload) {
 // id anggota, dan waktu kedaluwarsa. Tidak ada yang perlu disimpan di
 // Google Sheet - keaslian token dibuktikan dari tanda tangannya, jadi tidak
 // perlu kolom/sheet baru yang harus disiapkan manual.
-function makeLoginToken(tenantSlug, memberId, ttlMs) {
+function makeLoginToken(tenantSlug, memberId, ttlMs, role) {
   const exp = Date.now() + (ttlMs || LOGIN_TOKEN_TTL_MS);
-  const payload = JSON.stringify({ t: String(tenantSlug || ''), m: String(memberId), e: exp });
+  // "r" (role) ikut DITANDATANGANI supaya server bisa memutuskan izin tulis
+  // tanpa harus percaya pada apa pun yang dikirim browser - browser cuma
+  // membawa token, isinya tidak bisa diubah tanpa merusak tanda tangannya.
+  const payload = JSON.stringify({ t: String(tenantSlug || ''), m: String(memberId), e: exp, r: role === 'admin' ? 'admin' : 'member' });
   const encoded = b64urlEncode(payload);
   return `${encoded}.${signPayload(encoded)}`;
 }
@@ -224,10 +227,78 @@ function verifyLoginToken(token) {
     const data = JSON.parse(b64urlDecode(encoded));
     if (!data || !data.m || !data.e) return null;
     if (Date.now() > Number(data.e)) return null;
-    return { tenant: data.t || '', memberId: String(data.m) };
+    return { tenant: data.t || '', memberId: String(data.m), role: data.r === 'admin' ? 'admin' : 'member' };
   } catch (err) {
     return null;
   }
+}
+
+// ============================================================
+// ===== IZIN MENULIS DATA =====
+// ============================================================
+// MASALAH: sebelum ini, jalur tulis (append/update) SAMA SEKALI tidak punya
+// pengecekan izin. Siapa pun yang tahu slug masjid bisa kirim POST langsung
+// ke /api/sheets tanpa login dan, yang paling berbahaya, mengubah baris di
+// Members supaya role-nya jadi 'admin' - atau mengganti password pengurus,
+// atau menyetujui setorannya sendiri.
+//
+// Sekarang tiap permintaan tulis wajib membawa token sesi (dikeluarkan saat
+// login, lihat action 'login'/'loginToken') KECUALI untuk segelintir aksi
+// yang MEMANG harus bisa dilakukan orang tanpa login.
+//
+// 'publik'  = boleh tanpa login (form pendaftaran, Daftar Langsung/Qurban
+//             Instan, upload bukti cicilan peserta instan, catat login)
+// 'anggota' = wajib login, anggota biasa cukup
+// 'admin'   = wajib login DAN role admin
+//
+// Sheet yang tidak terdaftar di sini otomatis dianggap 'admin' (paling
+// ketat) - jadi kalau nanti ada modul baru, defaultnya aman, bukan terbuka.
+const KEBIJAKAN_TULIS = {
+  Pendaftaran:   { append: 'publik',  update: 'admin'   },
+  SurveyPeserta: { append: 'publik',  update: 'anggota' },
+  SetoranInstan: { append: 'publik',  update: 'admin'   },
+  LoginLog:      { append: 'publik',  update: 'admin'   },
+  Savings:       { append: 'anggota', update: 'admin'   },
+  Members:       { append: 'admin',   update: 'anggota' }
+};
+
+function izinTulisUntuk(sheetName, aksi) {
+  const aturan = KEBIJAKAN_TULIS[sheetName];
+  if (!aturan) return 'admin';
+  return aturan[aksi] || 'admin';
+}
+
+// Pemeriksaan tambahan PER KOLOM - tidak cukup cuma per sheet.
+// Contoh nyata: anggota memang boleh meng-update barisnya sendiri di Members
+// (ganti nama/HP/password lewat menu Profil), TAPI tidak boleh menyentuh
+// kolom 'role' - kalau boleh, siapa pun bisa mengangkat dirinya jadi admin,
+// yaitu persis lubang yang mau ditutup.
+function langgarBatasKolom(sheetName, keyColumn, keyValue, updates, sesi) {
+  const isAdmin = sesi && sesi.role === 'admin';
+  if (isAdmin) return null; // pengurus bebas
+
+  if (sheetName === 'Members') {
+    if ('role' in updates) return 'Hanya pengurus yang boleh mengubah role anggota';
+    if (keyColumn !== 'id' || String(keyValue) !== String(sesi && sesi.memberId)) {
+      return 'Anda hanya boleh mengubah data akun sendiri';
+    }
+  }
+  if (sheetName === 'SurveyPeserta') {
+    // statusBayar = penanda lunas, wewenang admin (lihat togglePembayaranInstan)
+    if ('statusBayar' in updates) return 'Hanya pengurus yang boleh menandai status pembayaran';
+  }
+  return null;
+}
+
+// Ambil & verifikasi token sesi dari header. Balikin null kalau tidak ada /
+// tidak sah - pemanggil yang memutuskan apakah itu masalah.
+function bacaSesi(req, tenantSlug) {
+  const raw = req.headers['x-auth-token'] || '';
+  if (!raw) return null;
+  const info = verifyLoginToken(raw);
+  if (!info) return null;
+  if (info.tenant && info.tenant !== String(tenantSlug || '')) return null;
+  return info;
 }
 
 // Kolom rahasia yang TIDAK BOLEH ikut terkirim ke browser. Dipakai di
@@ -626,7 +697,38 @@ async function pastikanKolomLengkap(sheetId, sheetName, headers, accessToken) {
   return headerBaru;
 }
 
+// ── PEMBERSIH TEKS (anti penyusupan kode ke halaman) ────────────────────
+// Aplikasi menempelkan data ke halaman lewat innerHTML di ratusan tempat.
+// Kalau ada teks yang mengandung tag HTML, tag itu ikut DIJALANKAN browser -
+// bukan ditampilkan sebagai tulisan biasa.
+//
+// Jalur serangan yang nyata: form "Daftar Langsung" (Qurban Instan) dan
+// "Daftar Anggota Baru" bisa diisi SIAPA SAJA tanpa login. Kalau seseorang
+// mengisi nama/alamat dgn kode berbahaya, kode itu akan berjalan DI BROWSER
+// PENGURUS saat daftar peserta dibuka - padahal pengurus sedang login.
+//
+// Dibersihkan di SATU pintu masuk (server, saat menyimpan) daripada menambal
+// ratusan titik tampil satu per satu: lebih kecil kemungkinan ada yang
+// terlewat, dan berlaku juga utk tampilan yang dibuat nanti.
+//
+// - "<" dan ">" DIBUANG: tanpa keduanya, tag HTML tidak mungkin terbentuk.
+// - kutip ganda diganti kutip tunggal: mencegah penyusupan lewat atribut
+//   (mis. title="...") yang tidak butuh tanda "<" sama sekali.
+// Nama orang & alamat praktis tidak pernah butuh karakter ini, jadi aman.
+// Angka/boolean dibiarkan apa adanya.
+function bersihkanTeks(nilai) {
+  if (typeof nilai !== 'string') return nilai;
+  return nilai.replace(/[<>]/g, '').replace(/"/g, "'");
+}
+
+function bersihkanRecord(record) {
+  const bersih = {};
+  for (const k in record) bersih[k] = bersihkanTeks(record[k]);
+  return bersih;
+}
+
 async function appendRow(sheetId, sheetName, record, accessToken) {
+  record = bersihkanRecord(record);
   // Ambil header dulu buat tahu urutan kolom
   const headerData = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName)}!1:1`, accessToken);
   let headers = (headerData.values && headerData.values[0]) || [];
@@ -656,6 +758,7 @@ async function appendRow(sheetId, sheetName, record, accessToken) {
 }
 
 async function updateRows(sheetId, sheetName, keyColumn, keyValue, updates, accessToken) {
+  updates = bersihkanRecord(updates || {}); // lihat komentar bersihkanTeks()
   const data = await sheetsFetch(sheetId, `/values/${encodeURIComponent(sheetName)}`, accessToken);
   const values = data.values || [];
   if (values.length === 0) return { success: false, updated: 0 };
@@ -1298,7 +1401,14 @@ module.exports = async function handler(req, res) {
             // supaya tidak jadi alat menebak ID mana yang terdaftar.
             return res.status(401).json({ error: 'Username/ID atau password salah' });
           }
-          return res.status(200).json({ ok: true, user: publicUser(row) });
+          return res.status(200).json({
+            ok: true,
+            user: publicUser(row),
+            // Token sesi: dipakai browser sbg bukti identitas di SETIAP
+            // permintaan tulis (header X-Auth-Token). Role ikut
+            // ditandatangani, jadi tidak bisa dipalsukan dari sisi browser.
+            sessionToken: makeLoginToken(tenant || '', String(row.id || '').trim(), null, isAdminRow(row) ? 'admin' : 'member')
+          });
         }
 
         // ----- Login lewat link otomatis dari WhatsApp -----
@@ -1322,7 +1432,11 @@ module.exports = async function handler(req, res) {
           if (isAdminRow(row)) {
             return res.status(403).json({ error: 'Akun pengurus harus login dengan password' });
           }
-          return res.status(200).json({ ok: true, user: publicUser(row) });
+          return res.status(200).json({
+            ok: true,
+            user: publicUser(row),
+            sessionToken: makeLoginToken(tenant || '', String(row.id || '').trim(), null, 'member')
+          });
         }
 
         // ----- Admin membuat link otomatis utk anggota -----
@@ -1352,6 +1466,24 @@ module.exports = async function handler(req, res) {
 
       if (!sheet) {
         return res.status(400).json({ error: 'Parameter sheet wajib diisi, contoh: ?sheet=Members' });
+      }
+
+      // ── PENJAGA IZIN TULIS ──────────────────────────────────────────────
+      const aksi = action === 'update' ? 'update' : 'append';
+      const butuh = izinTulisUntuk(sheet, aksi);
+      const sesi = bacaSesi(req, tenant);
+
+      if (butuh !== 'publik') {
+        if (!sesi) {
+          return res.status(401).json({ error: 'Silakan masuk dulu sebelum menyimpan data.' });
+        }
+        if (butuh === 'admin' && sesi.role !== 'admin') {
+          return res.status(403).json({ error: 'Aksi ini khusus pengurus masjid.' });
+        }
+      }
+      if (aksi === 'update') {
+        const pelanggaran = langgarBatasKolom(sheet, body.keyColumn, body.keyValue, body.updates || {}, sesi);
+        if (pelanggaran) return res.status(403).json({ error: pelanggaran });
       }
 
       invalidateBootstrapCache(cacheKey);

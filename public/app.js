@@ -272,6 +272,7 @@ function loadSavedSession() {
 
 function clearSavedSession() {
     try {
+        simpanTokenSesi('');
         localStorage.removeItem(SESSION_STORAGE_KEY);
     } catch (e) {
         // abaikan
@@ -383,12 +384,41 @@ async function fetchSheetDBTable(tableName) {
     }
 }
 
+// ── TOKEN SESI ───────────────────────────────────────────────────────────
+// Bukti identitas yang dikirim ke server di SETIAP permintaan tulis. Server
+// yang menandatanganinya saat login, jadi isinya (termasuk role) tidak bisa
+// dipalsukan dari sini. Disimpan bersama sesi supaya tetap berlaku setelah
+// halaman di-reload.
+let sessionToken = '';
+const SESSION_TOKEN_KEY = 'tqToken_' + (CURRENT_TENANT || 'default');
+
+function simpanTokenSesi(token) {
+    sessionToken = token || '';
+    try {
+        if (sessionToken) localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+        else localStorage.removeItem(SESSION_TOKEN_KEY);
+    } catch (e) { /* localStorage diblokir - token tetap jalan selama tab terbuka */ }
+}
+
+function muatTokenSesi() {
+    try { sessionToken = localStorage.getItem(SESSION_TOKEN_KEY) || ''; } catch (e) { sessionToken = ''; }
+    return sessionToken;
+}
+
+// Header standar utk permintaan tulis. Content-Type tetap text/plain supaya
+// tidak memicu preflight CORS (alasan lama, jangan diubah).
+function headerTulis() {
+    const h = { 'Content-Type': 'text/plain;charset=utf-8' };
+    if (sessionToken) h['X-Auth-Token'] = sessionToken;
+    return h;
+}
+
 async function appendSheetDB(tableName, record) {
     try {
         const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=append${tenantParam()}`;
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: headerTulis(),
             body: JSON.stringify(record)
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -415,7 +445,7 @@ async function updateSheetDB(tableName, keyColumn, keyValue, updates) {
         const url = `${SHEETDB_CONFIG.ENDPOINT}?sheet=${tableName}&action=update${tenantParam()}`;
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: headerTulis(),
             body: JSON.stringify({ keyColumn, keyValue, updates })
         });
         if (!response.ok) {
@@ -1130,6 +1160,7 @@ async function handleLogin() {
     }
 
     currentUser = result.user;
+    simpanTokenSesi(result.sessionToken);
     // Password pengurus disimpan di MEMORI SAJA (variabel biasa), tidak
     // pernah ke localStorage - dipakai membuktikan ke server bahwa yang
     // minta dibuatkan link otomatis buat anggota memang benar pengurus
@@ -1234,6 +1265,7 @@ async function tryAutoLoginFromLink() {
             return false;
         }
         currentUser = result.user;
+        simpanTokenSesi(result.sessionToken);
         recordLogin(currentUser);
         saveSession(currentUser);
         await ensureDataLoaded();
@@ -1305,6 +1337,7 @@ async function restoreSession() {
     if (!saved || !saved.role) return;
 
     currentUser = saved;
+    muatTokenSesi(); // tanpa ini, tulis data gagal 401 setelah reload
     showApp();
 
     // Muat data terbaru (appData masih kosong di titik ini kalau ini benar-benar
