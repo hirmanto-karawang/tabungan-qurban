@@ -2848,6 +2848,9 @@ function loadNilaiEkonomisSapi(tbodyId, tfootId) {
         sumKulit += n.kulit.rp;
         sumTotal += n.totalRp;
 
+        const hargaBeli = Number(s.harga) || 0;
+        const efisiensi = hargaBeli > 0 ? Math.round(n.totalRp / hargaBeli * 100) : 0;
+
         const pDaging = n.totalRp > 0 ? Math.round(n.daging.rp / n.totalRp * 100) : 0;
         const pTulang = n.totalRp > 0 ? Math.round(n.tulang.rp / n.totalRp * 100) : 0;
         const pJeroan = n.totalRp > 0 ? Math.round(n.jeroan.rp / n.totalRp * 100) : 0;
@@ -2858,37 +2861,33 @@ function loadNilaiEkonomisSapi(tbodyId, tfootId) {
 
         return `
             <tr>
-              <td><strong>${surveyKode(s)}</strong></td>
-              <td>${formatRp(n.daging.rp)} <span style="color:var(--ink-faint); font-size:12px;">(${pDaging}%)</span></td>
-              <td>${formatRp(n.tulang.rp)} <span style="color:var(--ink-faint); font-size:12px;">(${pTulang}%)</span></td>
-              <td>${formatRp(n.jeroan.rp)} <span style="color:var(--ink-faint); font-size:12px;">(${pJeroan}%)</span></td>
-              <td>${formatRp(n.kepala.rp)} <span style="color:var(--ink-faint); font-size:12px;">(${pKepala}%)</span></td>
-              <td>${formatRp(n.kaki.rp)} <span style="color:var(--ink-faint); font-size:12px;">(${pKaki}%)</span></td>
-              <td>${formatRp(n.ekor.rp)} <span style="color:var(--ink-faint); font-size:12px;">(${pEkor}%)</span></td>
-              <td>${formatRp(n.kulit.rp)} <span style="color:var(--ink-faint); font-size:12px;">(${pKulit}%)</span></td>
+              <td><strong>${surveyKode(s)}</strong><div style="color:var(--ink-faint); font-size:12px; margin-top:2px;">${efisiensi}% efisiensi</div></td>
+              <td>${formatRp(n.daging.rp)}</td>
+              <td>${formatRp(n.tulang.rp)}</td>
+              <td>${formatRp(n.jeroan.rp)}</td>
+              <td>${formatRp(n.kepala.rp)}</td>
+              <td>${formatRp(n.kaki.rp)}</td>
+              <td>${formatRp(n.ekor.rp)}</td>
+              <td>${formatRp(n.kulit.rp)}</td>
               <td><strong>${formatRp(n.totalRp)}</strong></td>
             </tr>`;
     }).join('');
 
     if (tfoot) {
-        const pDagingTotal = sumTotal > 0 ? Math.round(sumDaging / sumTotal * 100) : 0;
-        const pTulangTotal = sumTotal > 0 ? Math.round(sumTulang / sumTotal * 100) : 0;
-        const pJeroanTotal = sumTotal > 0 ? Math.round(sumJeroan / sumTotal * 100) : 0;
-        const pKepalaTotal = sumTotal > 0 ? Math.round(sumKepala / sumTotal * 100) : 0;
-        const pKakiTotal = sumTotal > 0 ? Math.round(sumKaki / sumTotal * 100) : 0;
-        const pEkorTotal = sumTotal > 0 ? Math.round(sumEkor / sumTotal * 100) : 0;
-        const pKulitTotal = sumTotal > 0 ? Math.round(sumKulit / sumTotal * 100) : 0;
+        let sumHarga = 0;
+        appData.surveySapi.forEach(s => sumHarga += Number(s.harga) || 0);
+        const efisiensiTotal = sumHarga > 0 ? Math.round(sumTotal / sumHarga * 100) : 0;
 
         tfoot.innerHTML = `
             <tr style="background:var(--sand); font-weight:700;">
-              <td>Total</td>
-              <td>${formatRp(sumDaging)} <span style="color:var(--ink-faint); font-size:12px;">(${pDagingTotal}%)</span></td>
-              <td>${formatRp(sumTulang)} <span style="color:var(--ink-faint); font-size:12px;">(${pTulangTotal}%)</span></td>
-              <td>${formatRp(sumJeroan)} <span style="color:var(--ink-faint); font-size:12px;">(${pJeroanTotal}%)</span></td>
-              <td>${formatRp(sumKepala)} <span style="color:var(--ink-faint); font-size:12px;">(${pKepalaTotal}%)</span></td>
-              <td>${formatRp(sumKaki)} <span style="color:var(--ink-faint); font-size:12px;">(${pKakiTotal}%)</span></td>
-              <td>${formatRp(sumEkor)} <span style="color:var(--ink-faint); font-size:12px;">(${pEkorTotal}%)</span></td>
-              <td>${formatRp(sumKulit)} <span style="color:var(--ink-faint); font-size:12px;">(${pKulitTotal}%)</span></td>
+              <td>Total<div style="color:var(--ink-faint); font-size:12px; margin-top:2px;">${efisiensiTotal}% efisiensi</div></td>
+              <td>${formatRp(sumDaging)}</td>
+              <td>${formatRp(sumTulang)}</td>
+              <td>${formatRp(sumJeroan)}</td>
+              <td>${formatRp(sumKepala)}</td>
+              <td>${formatRp(sumKaki)}</td>
+              <td>${formatRp(sumEkor)}</td>
+              <td>${formatRp(sumKulit)}</td>
               <td><strong>${formatRp(sumTotal)}</strong></td>
             </tr>`;
     }
