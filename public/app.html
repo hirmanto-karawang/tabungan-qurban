@@ -74,14 +74,45 @@
      halaman dari nol dan bikin app "kelempar" balik ke layar login). Sebagai
      gantinya dipakai gesture tarik-untuk-refresh custom (lihat #ptrIndicator
      + initPullToRefresh() di JS) yang cuma me-refresh data, bukan reload. */
-  /* overflow-x:hidden di html/body ini PENTING utk mobile - tanpa ini, kalau
-     ADA SATU SAJA elemen di halaman manapun yang melebar horizontal (tabel
-     lebar tanpa wrapper, dsb), browser mobile memperlebar "layout viewport"
-     mengikuti elemen itu - efeknya SEMUA satuan vw/vh di seluruh halaman
-     (termasuk modal-content max-width:90vw) jadi dihitung dari lebar yang
-     sudah melebar itu, BUKAN dari lebar layar asli - modal jadi kepotong di
-     kanan meski CSS-nya sudah max-width:90vw. Ini pernah kejadian nyata di
-     modal Upload Bukti Transfer (Qurban Instan) - lihat riwayat commit. */
+  /* overflow-x:hidden PENTING utk mobile - tanpa ini, kalau ADA SATU SAJA
+     elemen di halaman manapun yang melebar horizontal (tabel lebar tanpa
+     wrapper, dsb), browser mobile memperlebar "layout viewport" mengikuti
+     elemen itu - efeknya SEMUA satuan vw/vh di seluruh halaman (termasuk
+     modal-content max-width:90vw) jadi dihitung dari lebar yang sudah
+     melebar itu, BUKAN dari lebar layar asli - modal jadi kepotong di kanan
+     meski CSS-nya sudah max-width:90vw. Ini pernah kejadian nyata di modal
+     Upload Bukti Transfer (Qurban Instan) - lihat riwayat commit.
+
+     TAPI: PASANG DI <body> SAJA, JANGAN DI <html>. Ini bukan detail gaya,
+     ini sumber ngeleg scroll yang lama tidak ketahuan - dan sengaja ditulis
+     panjang supaya tidak ada yang "merapikan" dgn menambahkannya balik ke
+     html.
+
+     Aturan CSS soal overflow di elemen root: browser MEMINDAHKAN (propagate)
+     nilai overflow dari elemen root ke VIEWPORT, dan elemen sumbernya sendiri
+     balik dianggap 'visible'. Sumbernya dipilih begini: pakai <html> kalau
+     overflow-nya BUKAN 'visible'; kalau <html> 'visible', baru pakai <body>.
+
+     - Dipasang di <body> saja  -> <html> masih 'visible', jadi sumbernya
+       <body>. Nilainya pindah ke viewport (perlindungan modal di atas TETAP
+       jalan), dan <body> sendiri jadi 'visible' - bukan kotak kliping.
+       Dokumen tetap di-scroll lewat "root scroller" bawaan browser, yang
+       punya jalur cepat khusus: scroll diurus compositor thread, tidak ikut
+       antri di main thread.
+     - Dipasang di <html> (kondisi LAMA) -> sumbernya <html>, jadi
+       overflow-x:hidden di <body> TIDAK ikut pindah ke viewport lagi,
+       melainkan berlaku buat <body> itu sendiri. <body> berubah jadi kotak
+       kliping/scroll container biasa (apalagi ada min-height:100vh), dan
+       dokumen kehilangan status root scroller + jalur cepatnya. Akibatnya
+       scroll jadi lebih bergantung ke main thread - persis kenapa ngeleg-nya
+       kerasa di SEMUA menu sejak awal buka app (saat main thread memang lagi
+       sibuk parsing app.js + memuat data), dan kenapa Chrome sempat "sembuh"
+       cuma dgn mengurangi kerja main thread (obatnya benar, penyakitnya
+       bukan itu) sementara browser bawaan HP tetap ngeleg.
+
+     Bukti pendukung: public/index.html (landing page) yang di HP yang SAMA
+     selalu terasa ringan cuma punya overflow-x:hidden di <body>, TIDAK di
+     <html> - selebihnya setelan scroll-nya mirip. */
   /* touch-action:manipulation di html & body - kasih tahu browser SEDINI &
      SEJELAS mungkin bahwa gestur yang dipakai di halaman ini cuma geser
      (pan) + pinch-zoom, TIDAK ada double-tap-zoom. Riset resmi tim Chrome
@@ -93,7 +124,12 @@
      "menunggu" JS memutuskan, tanpa menghilangkan fungsi apa pun (pan &
      pinch-zoom tetap jalan normal, cuma double-tap-zoom yg dimatikan -
      efek samping yg lazim & aman di hampir semua web app modern). */
-  html{ scroll-behavior:smooth; overscroll-behavior-y: none; overflow-x:hidden; touch-action: manipulation; }
+  /* CATATAN: overflow-x SENGAJA TIDAK ADA di sini - lihat penjelasan panjang
+     soal root scroller di komentar atas. overscroll-behavior-y tetap boleh di
+     <html> (properti ini tidak mengubah status kotak kliping/scroll container,
+     jadi tidak menghilangkan jalur cepat scroll) - dipertahankan supaya
+     pull-to-refresh bawaan browser dijamin mati. */
+  html{ scroll-behavior:smooth; overscroll-behavior-y: none; touch-action: manipulation; }
   body{
     font-family: var(--font-body);
     background: var(--paper);
