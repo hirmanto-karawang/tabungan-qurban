@@ -895,8 +895,26 @@
     letter-spacing:.05em;
     border-bottom:1px solid var(--border);
   }
+  table th:first-child{
+    position:sticky;
+    left:0;
+    z-index:1;
+    background:var(--sand);
+  }
   table td{
     padding: 13px 16px;
+  }
+  table td:first-child{
+    position:sticky;
+    left:0;
+    z-index:1;
+    background:white;
+  }
+  table tbody tr:nth-child(odd) td:first-child{
+    background:#fafaf8;
+  }
+  table tfoot td:first-child{
+    background:var(--sand);
     border-bottom:1px solid var(--border-soft);
     color: var(--ink-soft);
   }
