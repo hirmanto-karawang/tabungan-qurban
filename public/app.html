@@ -908,13 +908,14 @@
     position:sticky;
     left:0;
     z-index:1;
-    background:white;
+    background:inherit;
   }
-  table tbody tr:nth-child(odd) td:first-child{
+  table tbody tr{ background:white; }
+  table tbody tr:nth-child(odd){
     background:#fafaf8;
   }
+  table tfoot tr{ background:var(--sand); }
   table tfoot td:first-child{
-    background:var(--sand);
     border-bottom:1px solid var(--border-soft);
     color: var(--ink-soft);
   }
