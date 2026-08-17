@@ -7,7 +7,7 @@
 // NAIKKAN angka di belakang string ini (v2, v3, dst) SETIAP kali ada
 // perubahan besar - itu memicu activate() membuang cache lama, jadi user
 // yang sudah pernah buka app tidak nyangkut di versi lama selamanya.
-const CACHE_VERSION = 'tabungan-qurban-v6';
+const CACHE_VERSION = 'tabungan-qurban-v7';
 // PENTING: cache.addAll() di install() di bawah GAGAL TOTAL (install error,
 // SW tidak pernah aktif) kalau SATU SAJA path di sini 404 - makanya
 // '/styles.css' (tidak pernah ada, semua CSS inline di index.html/app.html)
@@ -85,15 +85,34 @@ self.addEventListener('fetch', (event) => {
     // sumber utama - sebelumnya index.html pakai cache-first, akibatnya
     // browser/PWA yang sudah pernah buka app selalu menampilkan versi LAMA
     // walau sudah ada deploy baru, sampai semua tab ditutup total.
-    //
-    // '/app.js' WAJIB ikut jalur network-first ini juga, JANGAN cache-first.
-    // Itu file kode utama aplikasi (dulu inline di app.html, sekarang
-    // eksternal) - kalau kena cacheFirstStrategy di bawah, user yang sudah
-    // pernah buka app bakal nyangkut di versi kode LAMA selamanya walau
-    // sudah ada deploy baru. Ini persis bug yang pernah kejadian dulu di
-    // index.html (lihat komentar di atas) - jangan diulang.
-    if (request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html') || url.pathname === '/app.js') {
+    if (request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html')) {
         event.respondWith(networkFirstShellStrategy(request));
+        return;
+    }
+
+    // '/app.js' - STALE-WHILE-REVALIDATE, BUKAN network-first lagi.
+    // Riwayat: dulu file ini network-first (lihat alasan index.html di atas -
+    // takut user nyangkut di kode lama). Tapi '/app.js' beda karakter dari
+    // index.html: sekarang ~560KB dan SELALU dipanggil dengan query version
+    // (lihat <script src="/app.js?v=..."> di app.html). Query itu bagian
+    // dari URL yang dipakai Cache API buat mencocokkan entri cache - begitu
+    // versinya dinaikkan pas deploy, URL-nya otomatis beda, cache LAMA jadi
+    // tidak pernah kepakai lagi (cache miss, fetch baru). Jadi risiko
+    // "nyangkut di kode lama" itu SUDAH otomatis tertangani oleh versioning
+    // query-nya sendiri, bukan tugas strategi fetch di sini.
+    //
+    // Network-first artinya SETIAP buka app, file 560KB ini didownload ULANG
+    // dari nol sebelum bisa dieksekusi - di HP dgn koneksi pas-pasan/browser
+    // bawaan (Mi Browser, Samsung Internet, dll yang kompilasi skripnya
+    // kurang optimal dibanding Chrome) ini kerasa sbg jeda/macet di awal
+    // buka app, termasuk pas scroll pertama kali (thread utama masih sibuk
+    // download+parse). Stale-while-revalidate: kalau sudah ada di cache,
+    // BALIKIN LANGSUNG (instan, tanpa nunggu jaringan sama sekali) sambil
+    // diam-diam update cache di background buat kunjungan berikutnya. Kalau
+    // belum pernah ke-cache (baru pertama kali buka), tetap nunggu jaringan
+    // - tidak ada pilihan lain.
+    if (url.pathname === '/app.js') {
+        event.respondWith(staleWhileRevalidateStrategy(request));
         return;
     }
 
@@ -101,6 +120,30 @@ self.addEventListener('fetch', (event) => {
     // tetap aman karena jarang berubah.
     event.respondWith(cacheFirstStrategy(request));
 });
+
+// Khusus '/app.js' - lihat komentar panjang di fetch handler soal kenapa
+// strategi ini aman dipakai (URL-nya sudah ikut versi lewat query ?v=...).
+async function staleWhileRevalidateStrategy(request) {
+    const cache = await caches.open(CACHE_VERSION);
+    const cached = await cache.match(request);
+
+    // Update cache di background - TIDAK di-await sebelum balikin respons
+    // kalau ada cache, supaya tab yang sedang buka app tidak ikut nunggu.
+    const networkUpdate = fetch(request).then((response) => {
+        if (response && response.ok) cache.put(request, response.clone());
+        return response;
+    }).catch((error) => {
+        console.log('[SW] Network gagal utk app.js, tetap pakai versi cache:', error);
+        return null;
+    });
+
+    if (cached) return cached;
+
+    // Belum ada di cache (baru pertama kali buka app ini) - wajib tunggu
+    // jaringan, tidak ada cache buat fallback instan.
+    const fresh = await networkUpdate;
+    return fresh || caches.match('/offline.html');
+}
 
 // Khusus app shell (index.html/navigasi) - beda dari networkFirstStrategy
 // (yang dipakai buat API, ada logika IndexedDB/sync khusus API). Di sini
