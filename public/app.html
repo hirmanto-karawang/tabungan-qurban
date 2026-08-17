@@ -134,7 +134,10 @@
     font-family: var(--font-body);
     background: var(--paper);
     color: var(--ink);
-    min-height:100vh;
+    /* min-height:100vh SENGAJA DIHAPUS dari body - lihat penjelasan "tinggi
+       layar semu" di #appContainer.active. Tidak ada efek visual: warna latar
+       <body> otomatis dipakai browser buat mengecat SELURUH layar (background
+       propagation), jadi layar tetap penuh walau isinya pendek. */
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
     /* Disamakan dgn public/index.html (landing page, yang scroll-nya selalu
@@ -162,7 +165,14 @@
 
   /* LOGIN SCREEN */
   #loginScreen{
+    /* Layar login memang ingin setinggi layar penuh. Tapi 100vh kena masalah
+       "tinggi layar semu" yang sama (lihat #appContainer.active), jadi
+       dinaikkan ke 100dvh - satuan yang IKUT menyesuaikan saat bilah alamat
+       muncul/hilang, sehingga tidak ada sisa ruang scroll palsu. Baris 100vh
+       di atasnya dibiarkan sbg cadangan untuk browser lama yang belum kenal
+       dvh (browser begitu akan mengabaikan baris kedua). */
     min-height:100vh;
+    min-height:100dvh;
     display:grid;
     grid-template-columns: 1.05fr 1fr;
   }
@@ -495,7 +505,31 @@
 
   /* APP SHELL */
   #appContainer{ display:none; }
-  #appContainer.active{ display:flex; min-height:100vh; }
+  /* TINGGI LAYAR SEMU - INI SEBAB SCROLL "MENTOK, TIDAK BISA NAIK LAGI".
+     JANGAN kembalikan min-height:100vh di sini.
+
+     Di HP Android, 100vh dihitung dari tinggi layar SAAT BILAH ALAMAT
+     (address bar) SEDANG TERSEMBUNYI - bukan tinggi yang benar-benar
+     kelihatan sekarang. Jadi selama bilah alamat masih tampak, elemen
+     min-height:100vh SELALU lebih tinggi dari area yang kelihatan, sebesar
+     tinggi bilah alamat itu (~50-60px). Halaman jadi "bisa di-scroll"
+     sejauh 50-60px PADAHAL tidak ada isi tambahan apa pun - inilah tinggi
+     layar semu itu.
+
+     Efeknya persis seperti yang dilaporkan: geser ke bawah "bisa" (yang
+     bergerak cuma ruang semu itu, sekalian menyembunyikan bilah alamat),
+     tapi begitu di bawah, geser ke atas memunculkan bilah alamat lagi ->
+     area yang kelihatan mengecil -> ruang semu itu terbentuk lagi ->
+     posisi scroll ditarik balik ke bawah. Jari naik, halaman tidak ikut
+     naik: terasa mentok/ngelawan. Di menu yang isinya pendek, ini yang
+     paling parah karena SELURUH jarak scroll yang tersedia memang cuma
+     ruang semu tsb. overscroll-behavior-y:none bikin makin terasa keras
+     karena efek pantul (rubber-band) yang biasanya jadi penanda ikut mati.
+
+     Solusi: jangan patok tinggi minimum sama sekali di sini - biarkan isi
+     yang menentukan. Sidebar tetap penuh sendiri (position:fixed, top:0,
+     bottom:0), dan layar tetap tercat penuh lewat warna latar <body>. */
+  #appContainer.active{ display:flex; }
 
   .sidebar{
     width:264px;
