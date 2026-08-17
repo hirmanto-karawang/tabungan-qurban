@@ -2217,6 +2217,42 @@ function totalNilaiEkonomisSemua() {
     return total;
 }
 
+function openEditHargaModal() {
+    document.getElementById('inputHargaDaging').value = HARGA_BAGIAN.daging;
+    document.getElementById('inputHargaTulang').value = HARGA_BAGIAN.tulang;
+    document.getElementById('inputHargaJeroan').value = HARGA_BAGIAN.jeroan;
+    document.getElementById('inputHargaKepala').value = HARGA_BAGIAN.kepala;
+    document.getElementById('inputHargaKaki').value = HARGA_BAGIAN.kaki;
+    document.getElementById('inputHargaEkor').value = HARGA_BAGIAN.ekor;
+    document.getElementById('inputHargaKulit').value = HARGA_BAGIAN.kulit;
+    document.getElementById('modalEditHarga').style.display = 'flex';
+}
+
+function closeEditHargaModal() {
+    document.getElementById('modalEditHarga').style.display = 'none';
+}
+
+function simpanHargaBagian() {
+    HARGA_BAGIAN.daging = Number(document.getElementById('inputHargaDaging').value) || 130000;
+    HARGA_BAGIAN.tulang = Number(document.getElementById('inputHargaTulang').value) || 30000;
+    HARGA_BAGIAN.jeroan = Number(document.getElementById('inputHargaJeroan').value) || 55000;
+    HARGA_BAGIAN.kepala = Number(document.getElementById('inputHargaKepala').value) || 40000;
+    HARGA_BAGIAN.kaki = Number(document.getElementById('inputHargaKaki').value) || 30000;
+    HARGA_BAGIAN.ekor = Number(document.getElementById('inputHargaEkor').value) || 45000;
+    HARGA_BAGIAN.kulit = Number(document.getElementById('inputHargaKulit').value) || 45000;
+
+    document.getElementById('displayHargaDaging').textContent = HARGA_BAGIAN.daging.toLocaleString('id-ID');
+    document.getElementById('displayHargaTulang').textContent = HARGA_BAGIAN.tulang.toLocaleString('id-ID');
+    document.getElementById('displayHargaJeroan').textContent = HARGA_BAGIAN.jeroan.toLocaleString('id-ID');
+    document.getElementById('displayHargaKepala').textContent = HARGA_BAGIAN.kepala.toLocaleString('id-ID');
+    document.getElementById('displayHargaKaki').textContent = HARGA_BAGIAN.kaki.toLocaleString('id-ID');
+    document.getElementById('displayHargaEkor').textContent = HARGA_BAGIAN.ekor.toLocaleString('id-ID');
+    document.getElementById('displayHargaKulit').textContent = HARGA_BAGIAN.kulit.toLocaleString('id-ID');
+
+    closeEditHargaModal();
+    loadNilaiEkonomisSapi();
+}
+
 // Rekap status pembayaran peserta "Daftar Langsung" (Qurban Instan),
 // menggabungkan 2 sumber kebenaran secara OR supaya data lama tetap valid:
 //  1) statusBayar === 'lunas' - flag manual lama, ditoggle admin sebelum
